@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Casa Barro | Brunch & Coffee en Aguascalientes</title>
+    
+    <!-- Librería para las alertas simuladas (SweetAlert2) -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <style>
+        /*
+           ESTILOS GENERALES (CSS)
+         */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #fcf9f2; 
+            color: #2c2c2c; 
+        }
+
+        :root {
+            --verde-logo: #3c4a45; 
+            --terracota: #000000;  
+        }
+
+        /*Barra de Navegación*/
+        header {
+            background-color: #ffffff;
+            padding: 1rem 5%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        /*Estilos para el Logo en Texto*/
+        .logo {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--verde-logo);
+            text-decoration: none;
+            letter-spacing: 1px;
+        }
+
+        nav ul {
+            list-style: none;
+            display: flex;
+            gap: 2rem;
+        }
+
+        nav a {
+            text-decoration: none;
+            color: var(--verde-logo);
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        nav a:hover {
+            color: var(--terracota); 
+        }
+
+        .btn-login {
+            background-color: transparent;
+            border: 2px solid var(--verde-logo);
+            color: var(--verde-logo);
+            padding: 0.5rem 1.2rem;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .btn-login:hover {
+            background-color: var(--verde-logo);
+            color: white;
+        }
+
+        .hero {
+            background: linear-gradient(rgba(60, 74, 69, 0.85), rgba(60, 74, 69, 0.7)), 
+                        url('image_8da162.jpg') center/cover;
+            height: 80vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: white;
+            padding: 0 20px;
+        }
+
+        .badges {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .badge {
+            background-color: rgba(255,255,255,0.2);
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-size: 0.9rem;
+            backdrop-filter: blur(5px);
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5); 
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            max-width: 600px;
+            line-height: 1.6;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
+        }
+
+        .btn-primary {
+            background-color: var(--verde-logo);
+            color: white;
+            padding: 1rem 2.5rem;
+            font-size: 1.2rem;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            text-decoration: none;
+            font-weight: bold;
+            transition: transform 0.2s, background-color 0.3s;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        .btn-primary:hover {
+            background-color: #a3391d;
+            transform: scale(1.05); 
+        }
+
+        /*Info Bar Inferior*/
+        .info-bar {
+            background-color: var(--verde-logo);
+            color: white;
+            display: flex;
+            justify-content: space-around;
+            padding: 15px;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <a href="index.html" class="logo">CASA BARRO</a>
+        <nav>
+            <ul>
+                <li><a href="index.html">Inicio</a></li>
+                <li><a href="catalogo.html">Menú</a></li>
+                <li><a href="#">Nosotros</a></li>
+                <li><a href="#">Contacto</a></li>
+            </ul>
+        </nav>
+        <button class="btn-login" id="btn-login">Iniciar Sesión</button>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="badges">
+                <span class="badge">Brunch & Coffee</span>
+            </div>
+            <h1>Tu nuevo lugar favorito</h1>
+            <p>Disfruta de nuestros icónicos sándwiches, especialidades en café y el mejor ambiente en el corazón del Barrio La Purísima.</p>
+            <a href="catalogo.html" class="btn-primary">Ver Menú Completo</a>
+        </section>
+
+        <section class="info-bar">
+            <span>Constitución 101, Barrio La Purísima</span>
+            <span>Todos los días de 8:30 a.m. - 2:00 p.m.</span>
+        </section>
+    </main>
+
+    <script>
+        const btnLogin = document.getElementById('btn-login');
+
+        btnLogin.addEventListener('click', () => {
+            Swal.fire({
+                title: '¡Bienvenido a Casa Barro!',
+                text: 'Has iniciado sesión correctamente.',
+                icon: 'success',
+                confirmButtonText: 'Entrar',
+                confirmButtonColor: '#c64928' 
+            });
+        });
+    </script>
+
+</body>
+</html>
