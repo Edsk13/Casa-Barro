@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menú | Casa Barro</title>
+    
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+
+    <div id="navbar-container"></div>
+
+    <main class="catalogo-container">
+        <h1 class="catalogo-titulo">Nuestro Menú</h1>
+        <p class="catalogo-subtitulo">Elige tus favoritos para disfrutar aquí o llevar a casa.</p>
+
+        <!-- ================= ALIMENTOS ================= -->
+        <h2 class="categoria-titulo">Alimentos</h2>
+        <div class="grid-productos">
+            
+            <div class="tarjeta-producto">
+                <img src="https://images.unsplash.com/photo-1584031651817-6401032dfa9a?auto=format&fit=crop&q=80" alt="Enchiladas Suizas">
+                <div class="info-producto">
+                    <h3>Enchiladas Suizas</h3>
+                    <p class="precio">$125.00 MXN</p>
+                    <div class="botones-tarjeta">
+                        <!-- Botón con opciones -->
+                        <button class="btn-carrito" onclick='agregarAlCarrito("Enchiladas Suizas", ["Pollo", "Queso", "Cochinita pibil"])'>Agregar</button>
+                        <button class="btn-detalle" onclick="verDetalle('Enchiladas Suizas', 'Tacos de pollo, queso o cochinita pibil bañados en salsa suiza, queso y crema, acompañados de cebolla curtida y cilantro.', '$125.00 MXN', 'https://images.unsplash.com/photo-1584031651817-6401032dfa9a?auto=format&fit=crop&q=80')">Detalles</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tarjeta-producto">
+                <img src="https://images.unsplash.com/photo-1626200419188-f1118fb2c3a5?auto=format&fit=crop&q=80" alt="Chilaquiles">
+                <div class="info-producto">
+                    <h3>Chilaquiles</h3>
+                    <p class="precio">$110.00 MXN</p>
+                    <div class="botones-tarjeta">
+                        <button class="btn-carrito" onclick='agregarAlCarrito("Chilaquiles", ["Verdes", "Rojos", "Mixtos"])'>Agregar</button>
+                        <button class="btn-detalle" onclick="verDetalle('Chilaquiles', 'Verdes, rojos o mixtos con queso, crema, cebolla curtida y aguacate. Acompañados con frijoles, cochinita, pollo, y/o huevo al gusto.', '$110.00 MXN', 'https://images.unsplash.com/photo-1626200419188-f1118fb2c3a5?auto=format&fit=crop&q=80')">Detalles</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tarjeta-producto">
+                <img src="https://images.unsplash.com/photo-1628840042765-356cda07504e?auto=format&fit=crop&q=80" alt="Torta de Chilaquiles">
+                <div class="info-producto">
+                    <h3>Torta de Chilaquiles</h3>
+                    <p class="precio">$95.00 MXN</p>
+                    <div class="botones-tarjeta">
+                        <button class="btn-carrito" onclick='agregarAlCarrito("Torta de Chilaquiles", ["Verdes", "Rojos", "Mixtos"])'>Agregar</button>
+                        <button class="btn-detalle" onclick="verDetalle('Torta de Chilaquiles', 'Verdes, rojos o mixtos con queso, crema, cebolla curtida y aguacate. Acompañados con frijoles, pollo, y/o huevo al gusto.', '$95.00 MXN', 'https://images.unsplash.com/photo-1628840042765-356cda07504e?auto=format&fit=crop&q=80')">Detalles</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tarjeta-producto">
+                <img src="https://images.unsplash.com/photo-1551504734-5ee1c4a1479b?auto=format&fit=crop&q=80" alt="Tacos de Cochinita">
+                <div class="info-producto">
+                    <h3>Tacos de Cochinita</h3>
+                    <p class="precio">$120.00 MXN</p>
+                    <div class="botones-tarjeta">
+                        <!-- Sin opciones extras, se va directo -->
+                        <button class="btn-carrito" onclick='agregarAlCarrito("Tacos de Cochinita")'>Agregar</button>
+                        <button class="btn-detalle" onclick="verDetalle('Tacos de Cochinita', 'Orden de 4 deliciosos tacos de cochinita, acompañados con nuestra rica cebolla curtida y salsa de habanero.', '$120.00 MXN', 'https://images.unsplash.com/photo-1551504734-5ee1c4a1479b?auto=format&fit=crop&q=80')">Detalles</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tarjeta-producto">
+                <img src="https://images.unsplash.com/photo-1628840042765-356cda07504e?auto=format&fit=crop&q=80" alt="Torta de Cochinita">
+                <div class="info-producto">
+                    <h3>Torta de Cochinita</h3>
+                    <p class="precio">$105.00 MXN</p>
+                    <div class="botones-tarjeta">
+                        <button class="btn-carrito" onclick='agregarAlCarrito("Torta de Cochinita")'>Agregar</button>
+                        <button class="btn-detalle" onclick="verDetalle('Torta de Cochinita', 'Tradicional torta de cochinita, servida con cebolla curtida y salsa de habanero.', '$105.00 MXN', 'https://images.unsplash.com/photo-1628840042765-356cda07504e?auto=format&fit=crop&q=80')">Detalles</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tarjeta-producto">
+                <img src="https://images.unsplash.com/photo-1528735602780-2552fd46c7af?auto=format&fit=crop&q=80" alt="Club Sándwich">
+                <div class="info-producto">
+                    <h3>Club Sándwich</h3>
+                    <p class="precio">$130.00 MXN</p>
+                    <div class="botones-tarjeta">
+                        <button class="btn-carrito" onclick='agregarAlCarrito("Club Sándwich")'>Agregar</button>
+                        <button class="btn-detalle" onclick="verDetalle('Club Sándwich', 'Delicioso sándwich de 3 pisos con pollo, queso manchego, jamón de pavo, lechuga, jitomate y tocino. Acompañado de aderezo de la casa y papas fritas.', '$130.00 MXN', 'https://images.unsplash.com/photo-1528735602780-2552fd46c7af?auto=format&fit=crop&q=80')">Detalles</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tarjeta-producto">
+                <img src="https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&q=80" alt="Sándwich Casa Barro">
+                <div class="info-producto">
+                    <h3>Sándwich Casa Barro</h3>
+                    <p class="precio">$115.00 MXN</p>
+                    <div class="botones-tarjeta">
+                        <button class="btn-carrito" onclick='agregarAlCarrito("Sándwich Casa Barro")'>Agregar</button>
+                        <button class="btn-detalle" onclick="verDetalle('Sándwich Casa Barro', 'El clásico de la casa: huevo, queso y tocino, acompañado con ensalada fresca y nuestro aderezo especial.', '$115.00 MXN', 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&q=80')">Detalles</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tarjeta-producto">
+                <img src="https://images.unsplash.com/photo-1615870216519-2f9fa575fa5c?auto=format&fit=crop&q=80" alt="Enfrijoladas">
+                <div class="info-producto">
+                    <h3>Enfrijoladas</h3>
+                    <p class="precio">$105.00 MXN</p>
+                    <div class="botones-tarjeta">
+                        <button class="btn-carrito" onclick='agregarAlCarrito("Enfrijoladas", ["Rellenas de Pollo", "Rellenas de Queso"])'>Agregar</button>
+                        <button class="btn-detalle" onclick="verDetalle('Enfrijoladas', 'Tacos de pollo o queso bañados en nuestra salsa especial de frijoles, queso fresco y crema. Acompañados de cebolla curtida y aguacate.', '$105.00 MXN', 'https://images.unsplash.com/photo-1615870216519-2f9fa575fa5c?auto=format&fit=crop&q=80')">Detalles</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tarjeta-producto">
+                <img src="https://images.unsplash.com/photo-1555507036-ab1f40ce88cb?auto=format&fit=crop&q=80" alt="Croissants">
+                <div class="info-producto">
+                    <h3>Croissants</h3>
+                    <p class="precio">$90.00 MXN</p>
+                    <div class="botones-tarjeta">
+                        <button class="btn-carrito" onclick='agregarAlCarrito("Croissants", ["3 Quesos", "Jamón de pavo", "Jamón serrano"])'>Agregar</button>
+                        <button class="btn-detalle" onclick="verDetalle('Croissants', 'A elegir: 3 quesos, jamón de pavo o jamón serrano. Acompañado con ensalada fresca y aderezo de la casa.', '$90.00 MXN', 'https://images.unsplash.com/photo-1555507036-ab1f40ce88cb?auto=format&fit=crop&q=80')">Detalles</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tarjeta-producto">
+                <img src="https://images.unsplash.com/photo-1513442542250-854d436a73f2?auto=format&fit=crop&q=80" alt="Waffles Salados">
+                <div class="info-producto">
+                    <h3>Waffles Salados</h3>
+                    <p class="precio">$115.00 MXN</p>
+                    <div class="botones-tarjeta">
+                        <button class="btn-carrito" onclick='agregarAlCarrito("Waffles Salados")'>Agregar</button>
+                        <button class="btn-detalle" onclick="verDetalle('Waffles Salados', 'Waffles recién hechos, acompañados con huevo al gusto y tocino crujiente.', '$115.00 MXN', 'https://images.unsplash.com/photo-1513442542250-854d436a73f2?auto=format&fit=crop&q=80')">Detalles</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= BEBIDAS CALIENTES ================= -->
+        <h2 class="categoria-titulo">Bebidas Calientes</h2>
+        <div class="grid-productos">
+            <div class="tarjeta-producto">
+                <img src="https://images.unsplash.com/photo-1511920170033-f8396924c348?auto=format&fit=crop&q=80" alt="Capuchino y Latte">
+                <div class="info-producto">
+                    <h3>Capuchinos y Lattes</h3>
+                    <p class="precio">$65.00 MXN</p>
+                    <div class="botones-tarjeta">
+                        <button class="btn-carrito" onclick='agregarAlCarrito("Capuchino/Latte Caliente", ["Caramelo", "Crema Irlandesa", "Avellana", "Vainilla", "Matcha", "Chai"])'>Agregar</button>
+                        <button class="btn-detalle" onclick="verDetalle('Capuchinos y Lattes', 'Nuestras especialidades calientes. Elige tu sabor favorito: Caramelo, Crema irlandesa, Avellana, Vainilla, Matcha o Chai.', '$65.00 MXN', 'https://images.unsplash.com/photo-1511920170033-f8396924c348?auto=format&fit=crop&q=80')">Detalles</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tarjeta-producto">
+                <img src="https://images.unsplash.com/photo-1544787219-7f47ccb76574?auto=format&fit=crop&q=80" alt="Tés y Tisanas">
+                <div class="info-producto">
+                    <h3>Tés y Tisanas</h3>
+                    <p class="precio">$55.00 MXN</p>
+                    <div class="botones-tarjeta">
+                        <button class="btn-carrito" onclick='agregarAlCarrito("Té / Tisana", ["Jamaica con limón", "Manzana, anís y arándanos", "Té verde con frambuesas", "Manzanilla", "Hierbabuena", "Doble menta", "Jengibre con limón", "Manzanilla, cúrcuma y canela"])'>Agregar</button>
+                        <button class="btn-detalle" onclick="verDetalle('Tés y Tisanas', 'Sabores para relajar el alma: Jamaica con limón; Manzana, anís y arándanos; Té verde con frambuesas; Manzanilla; Hierbabuena; Doble menta; Jengibre con limón; Manzanilla, cúrcuma y canela.', '$55.00 MXN', 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?auto=format&fit=crop&q=80')">Detalles</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= BEBIDAS FRÍAS ================= -->
+        <h2 class="categoria-titulo">Bebidas Frías</h2>
+        <div class="grid-productos">
+            <div class="tarjeta-producto">
+                <img src="https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&q=80" alt="Malteadas">
+                <div class="info-producto">
+                    <h3>Malteadas</h3>
+                    <p class="precio">$80.00 MXN</p>
+                    <div class="botones-tarjeta">
+                        <button class="btn-carrito" onclick='agregarAlCarrito("Malteada", ["Fresa", "Vainilla", "Chocolate"])'>Agregar</button>
+                        <button class="btn-detalle" onclick="verDetalle('Malteadas', 'Cremosas y refrescantes. Elige entre nuestros sabores clásicos: Fresa, Vainilla o Chocolate.', '$80.00 MXN', 'https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&q=80')">Detalles</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tarjeta-producto">
+                <img src="https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&q=80" alt="Frappes y Lattes Fríos">
+                <div class="info-producto">
+                    <h3>Frappes y Lattes Fríos</h3>
+                    <p class="precio">$85.00 MXN</p>
+                    <div class="botones-tarjeta">
+                        <button class="btn-carrito" onclick='agregarAlCarrito("Frappe/Latte Frío", ["Caramelo", "Crema Irlandesa", "Avellana", "Vainilla", "Café", "Cajeta", "Moka", "Hershey", "Chai"])'>Agregar</button>
+                        <button class="btn-detalle" onclick="verDetalle('Frappes y Lattes Fríos', 'El toque helado perfecto. Sabores: Caramelo, Crema irlandesa, Avellana, Vainilla, Café, Cajeta, Moka, Hershey, Chai.', '$85.00 MXN', 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&q=80')">Detalles</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= POSTRES ================= -->
+        <h2 class="categoria-titulo">Postres</h2>
+        <div class="grid-productos">
+            <div class="tarjeta-producto">
+                <img src="https://images.unsplash.com/photo-1528207776546-365bb710ee93?auto=format&fit=crop&q=80" alt="Hot Cakes">
+                <div class="info-producto">
+                    <h3>Hot Cakes</h3>
+                    <p class="precio">$95.00 MXN</p>
+                    <div class="botones-tarjeta">
+                        <button class="btn-carrito" onclick='agregarAlCarrito("Hot Cakes", ["Naturales", "Frutos rojos", "Avellana", "Cajeta", "Helado de vainilla"])'>Agregar</button>
+                        <button class="btn-detalle" onclick="verDetalle('Hot Cakes', 'Esponjosos y deliciosos. Pídelos naturales o acompáñalos con: frutos rojos, avellana, cajeta o helado de vainilla.', '$95.00 MXN', 'https://images.unsplash.com/photo-1528207776546-365bb710ee93?auto=format&fit=crop&q=80')">Detalles</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tarjeta-producto">
+                <img src="https://images.unsplash.com/photo-1568051243851-f9b15330a133?auto=format&fit=crop&q=80" alt="Waffles Dulces">
+                <div class="info-producto">
+                    <h3>Waffles Dulces</h3>
+                    <p class="precio">$105.00 MXN</p>
+                    <div class="botones-tarjeta">
+                        <button class="btn-carrito" onclick='agregarAlCarrito("Waffles Dulces")'>Agregar</button>
+                        <button class="btn-detalle" onclick="verDetalle('Waffles Dulces', 'Nuestros crujientes waffles acompañados con frutos rojos frescos y miel maple.', '$105.00 MXN', 'https://images.unsplash.com/photo-1568051243851-f9b15330a133?auto=format&fit=crop&q=80')">Detalles</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tarjeta-producto">
+                <img src="https://images.unsplash.com/photo-1600289031464-74d374b64991?auto=format&fit=crop&q=80" alt="Waffles Bruce">
+                <div class="info-producto">
+                    <h3>Waffles Bruce</h3>
+                    <p class="precio">$125.00 MXN</p>
+                    <div class="botones-tarjeta">
+                        <button class="btn-carrito" onclick='agregarAlCarrito("Waffles Bruce")'>Agregar</button>
+                        <button class="btn-detalle" onclick="verDetalle('Waffles Bruce', 'El postre definitivo. Waffles bañados en crema de avellana, acompañados con frutos rojos y nuez.', '$125.00 MXN', 'https://images.unsplash.com/photo-1600289031464-74d374b64991?auto=format&fit=crop&q=80')">Detalles</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tarjeta-producto">
+                <img src="https://images.unsplash.com/photo-1484723091791-0fee59ca0b26?auto=format&fit=crop&q=80" alt="Pan Francés">
+                <div class="info-producto">
+                    <h3>Pan Francés</h3>
+                    <p class="precio">$110.00 MXN</p>
+                    <div class="botones-tarjeta">
+                        <button class="btn-carrito" onclick='agregarAlCarrito("Pan Francés")'>Agregar</button>
+                        <button class="btn-detalle" onclick="verDetalle('Pan Francés', 'Suave pan bañado y tostado, servido con una nube de crema batida y frutos rojos.', '$110.00 MXN', 'https://images.unsplash.com/photo-1484723091791-0fee59ca0b26?auto=format&fit=crop&q=80')">Detalles</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="footer-container"></div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

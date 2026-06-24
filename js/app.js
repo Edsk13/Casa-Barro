@@ -120,3 +120,67 @@ document.addEventListener('DOMContentLoaded', async () => {
     await cargarComponente('footer-container', 'components/footer.html');
     activarAlertas();
 });
+
+// Función para simular "Ver detalle"
+function verDetalle(nombre, descripcion, precio, imagenUrl) {
+    Swal.fire({
+        title: nombre,
+        html: `
+            <img src="${imagenUrl}" style="width: 100%; height: 250px; object-fit: cover; border-radius: 10px; margin-bottom: 15px;" alt="${nombre}">
+            <p style="text-align: justify; margin-bottom: 15px; color: #555; line-height: 1.5;">${descripcion}</p>
+            <h3 style="color: #3c4a45; font-size: 1.8rem; font-weight: bold;">${precio}</h3>
+        `,
+        showCloseButton: true,
+        confirmButtonText: 'Cerrar',
+        confirmButtonColor: '#3c4a45',
+        width: '500px'
+    });
+}
+function agregarAlCarrito(nombre, opciones = null) {
+    // Si el producto tiene opciones (sabores, ingredientes, etc.)
+    if (opciones && opciones.length > 0) {
+        // Convertimos el arreglo de opciones en un objeto para SweetAlert
+        let opcionesObj = {};
+        opciones.forEach(op => opcionesObj[op] = op);
+
+        Swal.fire({
+            title: `Agregar ${nombre}`,
+            text: 'Elige tu opción favorita:',
+            input: 'select',
+            inputOptions: opcionesObj,
+            inputPlaceholder: 'Selecciona una opción',
+            showCancelButton: true,
+            confirmButtonText: 'Agregar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#3c4a45',
+            inputValidator: (value) => {
+                return new Promise((resolve) => {
+                    if (value) {
+                        resolve();
+                    } else {
+                        resolve('Por favor selecciona una opción para continuar');
+                    }
+                });
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Aquí en el futuro se guardaría en el carrito
+                mostrarProximamente();
+            }
+        });
+    } else {
+        // Si no tiene opciones, muestra el mensaje directo
+        mostrarProximamente();
+    }
+}
+
+// Mensaje genérico de Próximamente
+function mostrarProximamente() {
+    Swal.fire({
+        title: '¡Próximamente!',
+        text: 'La función para agregar al carrito y realizar pedidos estará disponible muy pronto.',
+        icon: 'info',
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#3c4a45'
+    });
+}
