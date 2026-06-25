@@ -14,13 +14,7 @@ function activarAlertas() {
     // --- Lógica del Header ---
     const btnLogin = document.getElementById('btn-login');
     if(btnLogin) btnLogin.addEventListener('click', () => {
-        Swal.fire({
-            title: '¡Bienvenido a Casa Barro!',
-            text: 'Has iniciado sesión correctamente.',
-            icon: 'success',
-            confirmButtonText: 'Entrar',
-            confirmButtonColor: '#3c4a45' 
-        });
+        window.location.href = 'login.html';
     });
 
     const btnHistoria = document.getElementById('btn-historia');
@@ -79,38 +73,116 @@ function activarAlertas() {
         });
     });
 
-    // --- Lógica del Footer ---
+// Lógica del Registro
+    const formRegistro = document.getElementById('form-registro');
+    if(formRegistro) {
+        formRegistro.addEventListener('submit', (e) => {
+            e.preventDefault(); // Evita que la página se recargue al enviar el formulario
+            Swal.fire({
+                title: '¡Registro exitoso!',
+                text: 'Tu cuenta ha sido creada correctamente (Simulado).',
+                icon: 'success',
+                confirmButtonText: 'Ir a Iniciar Sesión',
+                confirmButtonColor: '#3c4a45'
+            }).then(() => {
+                window.location.href = 'login.html'; // Redirige al login
+            });
+        });
+    }
+
+    // Lógica del Login
+    const formLogin = document.getElementById('form-login');
+    if(formLogin) {
+        formLogin.addEventListener('submit', (e) => {
+            e.preventDefault();
+            // Muestra una alerta rápida de que está entrando y luego redirige
+            Swal.fire({
+                title: 'Entrando...',
+                text: 'Validando credenciales',
+                icon: 'success',
+                timer: 1000,
+                showConfirmButton: false
+            }).then(() => {
+                window.location.href = 'perfil.html';
+            });
+        });
+    }
+
+    //Lógica de Recuperar Contraseña
+    const btnRecuperar = document.getElementById('btn-recuperar');
+    if(btnRecuperar) {
+        btnRecuperar.addEventListener('click', (e) => {
+            e.preventDefault();
+            Swal.fire({
+                title: 'Recuperar contraseña',
+                text: 'Ingresa tu correo electrónico para enviarte un enlace de recuperación:',
+                input: 'email',
+                inputPlaceholder: 'tu@correo.com',
+                showCancelButton: true,
+                confirmButtonText: 'Enviar enlace',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#3c4a45',
+                inputValidator: (value) => {
+                    if (!value) {
+                        return '¡Necesitas ingresar un correo válido!';
+                    }
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    Swal.fire({
+                        title: '¡Enlace enviado!',
+                        text: 'Revisa tu bandeja de entrada para restablecer tu contraseña.',
+                        icon: 'success',
+                        confirmButtonText: 'Entendido',
+                        confirmButtonColor: '#3c4a45'
+                    });
+                }
+            });
+        });
+    }
+
+    //Lógica del Perfil
+    const btnCerrarSesion = document.getElementById('btn-cerrar-sesion');
+    if(btnCerrarSesion) {
+        btnCerrarSesion.addEventListener('click', () => {
+            Swal.fire({
+                title: '¿Quieres cerrar sesión?',
+                text: 'Tendrás que volver a ingresar tus datos la próxima vez.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#557268', // Botón rojo
+                cancelButtonColor: '#8a8a8a',  // Botón gris
+                confirmButtonText: 'Sí, salir',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    Swal.fire({
+                        title: 'Sesión cerrada',
+                        text: '¡Esperamos verte pronto en Casa Barro!',
+                        icon: 'success',
+                        timer: 1500,
+                        showConfirmButton: false
+                    }).then(() => {
+                        window.location.href = 'index.html'; // Te regresa al inicio
+                    });
+                }
+            });
+        });
+    }
+    // Lógica del Footer
     const btnIg = document.getElementById('btn-ig');
     if(btnIg) btnIg.addEventListener('click', () => {
-        Swal.fire({
-            title: 'Instagram',
-            text: 'Mensaje enviado con exito.',
-            icon: 'info',
-            confirmButtonText: 'Entendido',
-            confirmButtonColor: '#3c4a45'
-        }); 
+        Swal.fire({ title: 'Instagram', text: 'Mensaje enviado con exito.', icon: 'info', confirmButtonText: 'Entendido', confirmButtonColor: '#3c4a45' }); 
     });
 
     const btnFb = document.getElementById('btn-fb');
     if(btnFb) btnFb.addEventListener('click', () => {
-        Swal.fire({
-            title: '¡Redirigiendo a Facebook!',
-            text: 'Aquí se abriría la página de Facebook de Casa Barro (Simulación).',
-            icon: 'info',
-            confirmButtonText: 'Entendido',
-            confirmButtonColor: '#3c4a45'
-        });
+        Swal.fire({ title: '¡Redirigiendo a Facebook!', text: 'Aquí se abriría la página de Facebook de Casa Barro.', icon: 'info', confirmButtonText: 'Entendido', confirmButtonColor: '#3c4a45' });
     });
 
     const btnPhone = document.getElementById('btn-phone');
     if(btnPhone) btnPhone.addEventListener('click', () => {
-        Swal.fire({
-            title: '¡Iniciando llamada!',
-            text: 'Llamada realizada con exito.',
-            icon: 'success',
-            confirmButtonText: 'Perfecto',
-            confirmButtonColor: '#3c4a45'
-        });
+        Swal.fire({ title: '¡Iniciando llamada!', text: 'Llamada realizada con exito.', icon: 'success', confirmButtonText: 'Perfecto', confirmButtonColor: '#3c4a45' });
     });
 }
 

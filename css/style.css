@@ -317,7 +317,7 @@ nav a:hover {
     cursor: pointer;
     font-weight: bold;
     transition: transform 0.2s, background-color 0.3s;
-    flex: 1; /* Para que tome la mitad del espacio */
+    flex: 1;
     font-size: 0.9rem;
 }
 
@@ -330,4 +330,193 @@ nav a:hover {
     flex: 1; 
     font-size: 0.9rem;
     padding: 0.5rem 1rem;
+}
+
+/*PANTALLAS DE AUTENTICACIÓN (LOGIN/REGISTRO)*/
+.auth-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 70vh;
+    padding: 2rem 5%;
+}
+
+.auth-card {
+    background-color: #ffffff;
+    padding: 2.5rem;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+}
+
+.auth-card h2 {
+    color: var(--verde-logo);
+    margin-bottom: 0.5rem;
+    font-size: 2rem;
+}
+
+.auth-card p {
+    color: #555;
+    margin-bottom: 2rem;
+    font-size: 0.95rem;
+}
+
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.auth-form input {
+    width: 100%;
+    padding: 12px 15px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.3s;
+    font-family: inherit;
+}
+
+.auth-form input:focus {
+    border-color: var(--verde-logo);
+}
+
+.auth-btn {
+    background-color: var(--verde-logo);
+    color: white;
+    border: none;
+    padding: 12px;
+    border-radius: 25px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.2s;
+    margin-top: 10px;
+}
+
+.auth-btn:hover {
+    background-color: #557268;
+    transform: scale(1.02);
+}
+
+.auth-links {
+    margin-top: 20px;
+    font-size: 0.9rem;
+    color: #555;
+}
+
+.auth-links a {
+    color: var(--verde-logo);
+    font-weight: bold;
+    text-decoration: none;
+}
+
+.auth-links a:hover {
+    text-decoration: underline;
+}
+
+/*PANTALLA DE PERFIL*/
+.perfil-container {
+    max-width: 1000px;
+    margin: 3rem auto;
+    padding: 0 5%;
+    min-height: 60vh;
+}
+
+.perfil-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    border-bottom: 2px solid var(--verde-logo);
+    padding-bottom: 1rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.perfil-header h1 {
+    color: var(--verde-logo);
+    font-size: 2.2rem;
+}
+
+.btn-logout {
+    background-color: transparent;
+    color: #557268;
+    border: 2px solid #557268;
+    padding: 0.5rem 1.5rem;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.3s;
+}
+
+.btn-logout:hover {
+    background-color: #557268;
+    color: white;
+}
+
+.perfil-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+}
+
+.perfil-card {
+    background-color: #ffffff;
+    padding: 2rem;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+}
+
+.perfil-card h3 {
+    color: var(--verde-logo);
+    margin-bottom: 1.5rem;
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.perfil-card p {
+    color: #555;
+    line-height: 1.8;
+    font-size: 1.05rem;
+}
+
+.badge-proximamente {
+    background-color: #eae5db;
+    color: #7a7a7a;
+    padding: 4px 10px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    margin-left: auto;
+}
+
+/*CHECKBOX DE RECORDAR DATOS*/
+.auth-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: #555;
+    margin-top: -5px;
+    margin-bottom: 5px;
+    text-align: left;
+}
+
+.auth-form input[type="checkbox"] {
+    width: auto;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    accent-color: var(--verde-logo);
+}
+
+.auth-checkbox label {
+    cursor: pointer;
+    user-select: none;
 }

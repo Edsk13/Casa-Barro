@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Perfil | Casa Barro</title>
+    
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+
+    <div id="navbar-container"></div>
+
+    <main class="perfil-container">
+        <!-- Encabezado del Perfil -->
+        <div class="perfil-header">
+            <h1>Hola, Eduardo</h1>
+            <button class="btn-logout" id="btn-cerrar-sesion">Cerrar Sesión</button>
+        </div>
+        
+        <!-- Tarjetas de Información -->
+        <div class="perfil-grid">
+            
+            <!-- Tarjeta 1: Mis Datos -->
+            <div class="perfil-card">
+                <h3>Mis Datos</h3>
+                <p><strong>Nombre:</strong> Eduardo G.</p>
+                <p><strong>Correo:</strong> eduardo@ejemplo.com</p>
+                <p><strong>Contraseña:</strong> ********</p>
+                <button class="auth-btn" style="margin-top: 15px; width: auto; padding: 8px 20px; font-size: 0.9rem;" onclick="mostrarProximamente()">Editar datos</button>
+            </div>
+
+            <!-- Tarjeta 2: Mis Compras -->
+            <div class="perfil-card">
+                <h3>Mis Compras <span class="badge-proximamente">Próximamente</span></h3>
+                <p>Aquí podrás ver el historial de tus pedidos, repetir tus compras favoritas y rastrear tus entregas en tiempo real.</p>
+                <div style="margin-top: 20px; text-align: center; color: #eae5db; font-size: 4rem;">
+                </div>
+            </div>
+            
+        </div>
+    </main>
+
+    <div id="footer-container"></div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
