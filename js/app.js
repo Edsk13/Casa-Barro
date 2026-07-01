@@ -77,7 +77,7 @@ function activarAlertas() {
     const formRegistro = document.getElementById('form-registro');
     if(formRegistro) {
         formRegistro.addEventListener('submit', (e) => {
-            e.preventDefault(); // Evita que la página se recargue al enviar el formulario
+            e.preventDefault();
             Swal.fire({
                 title: '¡Registro exitoso!',
                 text: 'Tu cuenta ha sido creada correctamente (Simulado).',
@@ -85,7 +85,7 @@ function activarAlertas() {
                 confirmButtonText: 'Ir a Iniciar Sesión',
                 confirmButtonColor: '#3c4a45'
             }).then(() => {
-                window.location.href = 'login.html'; // Redirige al login
+                window.location.href = 'login.html';
             });
         });
     }
@@ -95,7 +95,6 @@ function activarAlertas() {
     if(formLogin) {
         formLogin.addEventListener('submit', (e) => {
             e.preventDefault();
-            // Muestra una alerta rápida de que está entrando y luego redirige
             Swal.fire({
                 title: 'Entrando...',
                 text: 'Validando credenciales',
@@ -150,8 +149,8 @@ function activarAlertas() {
                 text: 'Tendrás que volver a ingresar tus datos la próxima vez.',
                 icon: 'warning',
                 showCancelButton: true,
-                confirmButtonColor: '#557268', // Botón rojo
-                cancelButtonColor: '#8a8a8a',  // Botón gris
+                confirmButtonColor: '#557268',
+                cancelButtonColor: '#8a8a8a',
                 confirmButtonText: 'Sí, salir',
                 cancelButtonText: 'Cancelar'
             }).then((result) => {
@@ -193,34 +192,43 @@ document.addEventListener('DOMContentLoaded', async () => {
     activarAlertas();
 });
 
-// Función para simular "Ver detalle"
-function verDetalle(nombre, descripcion, precio, imagenUrl) {
+// Función "Ver detalle"
+function verDetalle(nombre, descripcion, precio, imagenUrl, alineacion = 'center') {
+    let imagenHtml = '';
+    if (imagenUrl) {
+        imagenHtml = `<img src="${imagenUrl}" alt="${nombre}" style="width: 100%; height: 250px; object-fit: cover; object-position: ${alineacion}; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">`;
+    }
+
     Swal.fire({
         title: nombre,
         html: `
-            <img src="${imagenUrl}" style="width: 100%; height: 250px; object-fit: cover; border-radius: 10px; margin-bottom: 15px;" alt="${nombre}">
-            <p style="text-align: justify; margin-bottom: 15px; color: #555; line-height: 1.5;">${descripcion}</p>
+            ${imagenHtml}
+            <p style="text-align: justify; margin-bottom: 15px; color: #555; line-height: 1.5; margin-top: 5px;">${descripcion}</p>
             <h3 style="color: #3c4a45; font-size: 1.8rem; font-weight: bold;">${precio}</h3>
         `,
-        showCloseButton: true,
-        confirmButtonText: 'Cerrar',
-        confirmButtonColor: '#3c4a45',
-        width: '500px'
+        confirmButtonText: 'Cerrar detalles',
+        confirmButtonColor: '#8a8a8a',
+        width: '450px'
     });
 }
-function agregarAlCarrito(nombre, opciones = null) {
-    // Si el producto tiene opciones (sabores, ingredientes, etc.)
-    if (opciones && opciones.length > 0) {
-        // Convertimos el arreglo de opciones en un objeto para SweetAlert
+function agregarAlCarrito(nombre, opcionesString) {
+    if (opcionesString && typeof opcionesString === 'string' && opcionesString.trim() !== '') {
+        
+        let opcionesArray = opcionesString.split(',');
         let opcionesObj = {};
-        opciones.forEach(op => opcionesObj[op] = op);
+        opcionesArray.forEach(opcion => {
+            let opLimpia = opcion.trim();
+            if (opLimpia !== '') {
+                opcionesObj[opLimpia] = opLimpia;
+            }
+        });
 
         Swal.fire({
             title: `Agregar ${nombre}`,
             text: 'Elige tu opción favorita:',
             input: 'select',
             inputOptions: opcionesObj,
-            inputPlaceholder: 'Selecciona una opción',
+            inputPlaceholder: 'Selecciona una opción...',
             showCancelButton: true,
             confirmButtonText: 'Agregar',
             cancelButtonText: 'Cancelar',
@@ -230,18 +238,16 @@ function agregarAlCarrito(nombre, opciones = null) {
                     if (value) {
                         resolve();
                     } else {
-                        resolve('Por favor selecciona una opción para continuar');
+                        resolve('¡Necesitas elegir un sabor/opción para continuar!');
                     }
                 });
             }
         }).then((result) => {
             if (result.isConfirmed) {
-                // Aquí en el futuro se guardaría en el carrito
                 mostrarProximamente();
             }
         });
     } else {
-        // Si no tiene opciones, muestra el mensaje directo
         mostrarProximamente();
     }
 }
@@ -256,3 +262,52 @@ function mostrarProximamente() {
         confirmButtonColor: '#3c4a45'
     });
 }
+
+// LÓGICA DE FILTROS Y BÚSQUEDA (CATÁLOGO)
+document.addEventListener('DOMContentLoaded', () => {
+    const buscador = document.getElementById('buscador-productos');
+    const filtroCategoria = document.getElementById('filtro-categoria');
+
+    if (buscador && filtroCategoria) {
+        function filtrarCatálogo() {
+            const textoBusqueda = buscador.value.toLowerCase();
+            const categoriaSeleccionada = filtroCategoria.value;
+            
+            // Obtenemos todas las secciones de categorías
+            const secciones = document.querySelectorAll('.seccion-categoria');
+            
+            secciones.forEach(seccion => {
+                const categoriaSeccion = seccion.getAttribute('data-categoria');
+                const productos = seccion.querySelectorAll('.tarjeta-producto');
+                let productosVisibles = 0;
+
+                // Revisamos producto por producto
+                productos.forEach(producto => {
+                    const nombre = producto.getAttribute('data-nombre');
+                    
+                    // Comprobamos si coincide con el texto y la categoría
+                    const coincideTexto = nombre.includes(textoBusqueda);
+                    const coincideCategoria = (categoriaSeleccionada === 'todos') || (categoriaSeccion === categoriaSeleccionada);
+
+                    if (coincideTexto && coincideCategoria) {
+                        producto.style.display = 'block'; // Lo mostramos
+                        productosVisibles++;
+                    } else {
+                        producto.style.display = 'none'; // Lo ocultamos
+                    }
+                });
+
+                // Si una sección (ej. Bebidas Frías) se queda sin productos al buscar, ocultamos el título también
+                if (productosVisibles > 0) {
+                    seccion.style.display = 'block';
+                } else {
+                    seccion.style.display = 'none';
+                }
+            });
+        }
+
+        // Ejecutar el filtro cada que el usuario escribe o cambia la opción
+        buscador.addEventListener('input', filtrarCatálogo);
+        filtroCategoria.addEventListener('change', filtrarCatálogo);
+    }
+});

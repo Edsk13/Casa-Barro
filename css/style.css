@@ -229,10 +229,9 @@ nav a:hover {
 
 .grid-productos {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 2rem;
-    max-width: 1200px;
-    margin: 0 auto;
+    margin-bottom: 3rem;
 }
 
 .tarjeta-producto {
@@ -525,17 +524,17 @@ nav a:hover {
 .landing-form {
     width: 100%;
     max-width: 400px; 
-    background-color: rgba(255, 255, 255, 0.15); /* Fondo semitransparente */
+    background-color: rgba(255, 255, 255, 0.15);
     padding: 2.5rem;
     border-radius: 15px;
-    backdrop-filter: blur(8px); /* Desenfoca el fondo de la imagen detrás del form */
+    backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.3); /* Borde blanco sutil */
+    border: 1px solid rgba(255, 255, 255, 0.3);
     box-shadow: 0 10px 30px rgba(0,0,0,0.3);
 }
 
 .landing-form input {
-    background-color: rgba(255, 255, 255, 0.95); /* Inputs casi blancos para que el texto sea muy legible */
+    background-color: rgba(255, 255, 255, 0.95);
     border: none;
     color: #2c2c2c;
     box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
@@ -543,4 +542,79 @@ nav a:hover {
 
 .landing-form input:focus {
     outline: 2px solid var(--verde-logo);
+}
+
+/* ====================================
+   FILTROS Y BUSCADOR DEL CATÁLOGO
+==================================== */
+.filtros-container {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 3rem;
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+    flex-wrap: wrap; /* Para que se adapte en celulares */
+}
+
+.filtros-container input, 
+.filtros-container select {
+    padding: 12px 20px;
+    border: 1px solid #ccc;
+    border-radius: 25px;
+    font-size: 1rem;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.filtros-container input {
+    flex: 2;
+    min-width: 250px;
+}
+
+.filtros-container select {
+    flex: 1;
+    min-width: 200px;
+    background-color: white;
+    cursor: pointer;
+}
+
+.filtros-container input:focus, 
+.filtros-container select:focus {
+    border-color: var(--verde-logo);
+    box-shadow: 0 0 8px rgba(60, 74, 69, 0.2);
+}
+
+/*ETIQUETAS DE PRODUCTOS*/
+.tarjeta-producto {
+    position: relative; 
+}
+
+.badge-etiqueta {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: white;
+    z-index: 2;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    letter-spacing: 0.5px;
+}
+
+.badge-oferta {
+    background-color: #b7410e; /* Rojo/Terracota para llamar la atención */
+}
+
+.badge-nuevo {
+    background-color: var(--verde-logo); /* Verde de la marca */
+}
+
+.badge-vendido {
+    background-color: #f39c12; /* Naranja/Dorado para los favoritos */
+    color: #fff;
 }
