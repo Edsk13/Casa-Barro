@@ -544,9 +544,7 @@ nav a:hover {
     outline: 2px solid var(--verde-logo);
 }
 
-/* ====================================
-   FILTROS Y BUSCADOR DEL CATÁLOGO
-==================================== */
+/*FILTROS Y BUSCADOR DEL CATÁLOGO*/
 .filtros-container {
     display: flex;
     justify-content: center;
@@ -617,4 +615,148 @@ nav a:hover {
 .badge-vendido {
     background-color: #f39c12; /* Naranja/Dorado para los favoritos */
     color: #fff;
+}
+
+/* Hacer que toda la tarjeta sea clickeable */
+.tarjeta-producto {
+    cursor: pointer; /* Cambia el cursor a una manita */
+}
+
+/* Estilos para el carrito flotante */
+#btn-flotante-carrito {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: var(--verde-logo);
+    color: white;
+    padding: 15px 20px;
+    border-radius: 30px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    font-size: 1.2rem;
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 1000;
+    display: none; /* Se oculta hasta que haya algo en el carrito */
+    transition: transform 0.3s ease;
+}
+
+#btn-flotante-carrito:hover {
+    transform: scale(1.05);
+    background-color: #557268;
+}
+
+#btn-flotante-carrito .badge-contador {
+    background-color: #557268; /* Color terracota para resaltar */
+    color: white;
+    border-radius: 50%;
+    padding: 2px 8px;
+    font-size: 0.9rem;
+    margin-left: 8px;
+}
+
+/* Contenedor de los botones derechos del navbar */
+.nav-botones {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+/* Estilo para el nuevo botón del carrito en el navbar */
+.btn-carrito-nav {
+    background-color: var(--verde-logo);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.3s ease, background-color 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.btn-carrito-nav:hover {
+    transform: scale(1.05);
+    background-color: #557268;
+}
+
+.btn-carrito-nav .badge-contador {
+    background-color: #b7410e; /* Color terracota de la marca */
+    color: white;
+    border-radius: 50%;
+    padding: 2px 7px;
+    font-size: 0.85rem;
+}
+
+/* ================= PANTALLA DE CARRITO ================= */
+.carrito-container {
+    max-width: 1100px;
+    margin: 3rem auto;
+    padding: 0 5%;
+    min-height: 60vh;
+}
+
+.carrito-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 2rem;
+}
+
+@media (max-width: 768px) {
+    .carrito-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.carrito-items {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.item-carrito {
+    background: #ffffff;
+    padding: 20px;
+    border-radius: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+
+.resumen-carrito {
+    background: #ffffff;
+    padding: 25px;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    height: fit-content;
+    position: sticky;
+    top: 100px;
+}
+
+.btn-eliminar {
+    background: #eae5db;
+    color: #555;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.3s, color 0.3s;
+}
+
+.btn-eliminar:hover {
+    background: #ff4c4c;
+    color: white;
+}
+
+.carrito-vacio {
+    text-align: center;
+    padding: 4rem 2rem;
+    background: #ffffff;
+    border-radius: 15px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
 }
