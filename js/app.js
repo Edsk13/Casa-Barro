@@ -1,6 +1,4 @@
-// ==========================================
 // 1. INYECCIÓN DE COMPONENTES
-// ==========================================
 async function cargarComponente(id, ruta) {
     try {
         const respuesta = await fetch(ruta);
@@ -11,9 +9,7 @@ async function cargarComponente(id, ruta) {
     }
 }
 
-// ==========================================
-// 2. SISTEMA DE CARRITO PERSISTENTE Y DETALLES
-// ==========================================
+//SISTEMA DE CARRITO Y DETALLES
 // Cargamos el carrito desde el almacenamiento del navegador (o un array vacío si no hay nada)
 let carrito = JSON.parse(localStorage.getItem('casaBarro_carrito')) || [];
 
@@ -79,12 +75,44 @@ window.confirmarAgregarAlCarrito = function(nombre, precio) {
     });
 }
 
-// ==========================================
-// 3. PINTAR LA PANTALLA DEL CARRITO
-// ==========================================
+// Aumentar o disminuir cantidad desde la vista del carrito
+window.cambiarCantidadCarrito = function(index, cambio) {
+    if (carrito[index].cantidad + cambio >= 1) {
+        carrito[index].cantidad += cambio;
+        localStorage.setItem('casaBarro_carrito', JSON.stringify(carrito));
+        actualizarUI();
+        renderizarCarrito();
+    }
+}
+
+// Modal de Políticas de Compra y Venta
+window.mostrarPoliticas = function() {
+    Swal.fire({
+        title: 'Políticas de Compra y Venta',
+        html: `
+            <div style="text-align: left; font-size: 0.95rem; line-height: 1.6; color: #555; max-height: 350px; overflow-y: auto; padding-right: 10px;">
+                <h4 style="color:var(--verde-logo); margin-bottom:5px;">1. Pedidos y Preparación</h4>
+                <p style="margin-bottom:15px;">Todos los platillos se preparan al momento. El tiempo estimado de entrega puede variar entre 25 a 45 minutos dependiendo de la demanda en la sucursal.</p>
+                
+                <h4 style="color:var(--verde-logo); margin-bottom:5px;">2. Cancelaciones</h4>
+                <p style="margin-bottom:15px;">Una vez que el pedido pasa al estado de "En preparación" en la cocina, no se aceptarán cancelaciones ni devoluciones monetarias.</p>
+                
+                <h4 style="color:var(--verde-logo); margin-bottom:5px;">3. Alérgenos e Ingredientes</h4>
+                <p style="margin-bottom:15px;">Es responsabilidad del cliente notificar cualquier alergia o intolerancia en las notas del pedido. Casa Barro no se hace responsable por omisiones de esta información.</p>
+                
+                <h4 style="color:var(--verde-logo); margin-bottom:5px;">4. Reembolsos o Reposiciones</h4>
+                <p style="margin-bottom:15px;">Si tu pedido llegó incompleto, incorrecto o en mal estado, cuentas con 30 minutos a partir de la entrega para reportarlo a nuestros canales de atención y solicitar una reposición o crédito a favor.</p>
+            </div>
+        `,
+        confirmButtonText: 'Aceptar y Cerrar',
+        confirmButtonColor: '#3c4a45',
+        width: '500px'
+    });
+}
+
 window.renderizarCarrito = function() {
     const contenedor = document.getElementById('carrito-contenido');
-    if (!contenedor) return; // Si no estamos en carrito.html, detenemos la función
+    if (!contenedor) return;
 
     if (carrito.length === 0) {
         contenedor.innerHTML = `
@@ -103,18 +131,25 @@ window.renderizarCarrito = function() {
     carrito.forEach((item, index) => {
         const totalItem = item.precio * item.cantidad;
         subtotal += totalItem;
-        const infoOpcion = item.opcion ? `<p style="font-size:0.85rem; color:#777;">Opción: ${item.opcion}</p>` : '';
+        const infoOpcion = item.opcion ? `<p style="font-size:0.85rem; color:#777; margin-bottom: 8px;">Opción: ${item.opcion}</p>` : '';
         
         htmlItems += `
-            <div class="item-carrito">
-                <div>
+            <div class="item-carrito" style="align-items: center;">
+                <div style="flex-grow: 1;">
                     <h4 style="color:var(--verde-logo); font-size: 1.1rem; margin-bottom: 5px;">${item.producto}</h4>
                     ${infoOpcion}
-                    <p style="font-size:0.95rem; color: #333; margin-top:5px;">$${item.precio.toFixed(2)} x ${item.cantidad}</p>
+                    <p style="font-size:1rem; color: #557268; font-weight:bold;">$${item.precio.toFixed(2)}</p>
                 </div>
-                <div style="text-align:right;">
-                    <p style="font-weight:bold; font-size: 1.2rem; color:#557268; margin-bottom:10px;">$${totalItem.toFixed(2)}</p>
-                    <button class="btn-eliminar" onclick="eliminarDelCarrito(${index})">Eliminar</button>
+                
+                <div style="display: flex; align-items: center; gap: 12px; margin: 0 20px;">
+                    <button onclick="cambiarCantidadCarrito(${index}, -1)" style="background: #eae5db; border:none; border-radius:5px; width:30px; height:30px; cursor:pointer; font-weight:bold; color:#3c4a45; font-size: 1.2rem; display:flex; justify-content:center; align-items:center; transition: background 0.2s;">-</button>
+                    <span style="font-weight:bold; font-size: 1.1rem; min-width: 20px; text-align: center;">${item.cantidad}</span>
+                    <button onclick="cambiarCantidadCarrito(${index}, 1)" style="background: var(--verde-logo); border:none; border-radius:5px; width:30px; height:30px; cursor:pointer; font-weight:bold; color:white; font-size: 1.2rem; display:flex; justify-content:center; align-items:center; transition: opacity 0.2s;">+</button>
+                </div>
+
+                <div style="text-align:right; min-width: 90px;">
+                    <p style="font-weight:bold; font-size: 1.2rem; color:#3c4a45; margin-bottom:10px;">$${totalItem.toFixed(2)}</p>
+                    <button class="btn-eliminar" onclick="eliminarDelCarrito(${index})">Quitar</button>
                 </div>
             </div>
         `;
@@ -122,7 +157,7 @@ window.renderizarCarrito = function() {
 
     htmlItems += '</div>';
 
-    // Sección de Resumen (Ticket)
+    // Sección de Resumen (Ticket) actualizada
     htmlItems += `
         <div class="resumen-carrito">
             <h3 style="color:var(--verde-logo); margin-bottom:20px; font-size: 1.3rem;">Resumen de Compra</h3>
@@ -142,7 +177,12 @@ window.renderizarCarrito = function() {
                 <span>$${subtotal.toFixed(2)}</span>
             </div>
             
-            <button class="btn-primary" style="width:100%; margin-top: 25px; border-radius: 8px;" onclick="mostrarProximamente()">Proceder al Pago</button>
+            <button class="btn-primary" style="width:100%; margin-top: 25px; border-radius: 8px;" onclick="window.location.href='pago.html'">Ir a pagar</button>
+            
+            <p style="text-align: center; font-size: 0.85rem; color: #777; margin-top: 15px; line-height: 1.4;">
+                Al proceder al pago aceptas nuestras <br>
+                <a href="#" onclick="mostrarPoliticas(); return false;" style="color: var(--verde-logo); font-weight: bold; text-decoration: underline;">Políticas de Compra y Venta</a>.
+            </p>
         </div>
     </div>`;
 
@@ -157,9 +197,7 @@ window.eliminarDelCarrito = function(index) {
     renderizarCarrito(); 
 }
 
-// ==========================================
-// 4. MODAL DE PRODUCTO (NUEVO)
-// ==========================================
+//MODAL DE PRODUCTO
 window.abrirDetalleMejorado = function(nombre, descripcion, precioStr, imagenUrl, alineacion = 'center', opcionesStr = '') {
     let precioNum = parseFloat(precioStr.replace('$', '').replace(' MXN', ''));
     let opcionesHtml = '';
@@ -215,9 +253,7 @@ window.abrirDetalleMejorado = function(nombre, descripcion, precioStr, imagenUrl
     });
 }
 
-// ==========================================
-// 5. ALERTAS Y EVENTOS UI (Header, Footer, Formularios)
-// ==========================================
+//ALERTAS Y EVENTOS UI (Header, Footer, Formularios)
 function activarAlertas() {
     const btnLogin = document.getElementById('btn-login');
     if(btnLogin) btnLogin.addEventListener('click', () => {
@@ -388,9 +424,7 @@ function activarAlertas() {
     });
 }
 
-// ==========================================
-// 6. INICIALIZADOR AL CARGAR LA PÁGINA
-// ==========================================
+//INICIALIZADOR AL CARGAR LA PÁGINA
 document.addEventListener('DOMContentLoaded', async () => {
     // 1. Cargar Navbar y Footer dinámicamente
     await cargarComponente('navbar-container', 'components/navbar.html');
@@ -434,7 +468,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         producto.style.display = 'block'; 
                         productosVisibles++;
                     } else {
-                        producto.style.display = 'none'; 
+                        producto.style.display = 'none';
                     }
                 });
 
