@@ -9,9 +9,11 @@ async function cargarComponente(id, ruta) {
     }
 }
 
-//SISTEMA DE CARRITO Y DETALLES
-// Cargamos el carrito desde el almacenamiento del navegador (o un array vacío si no hay nada)
+// 2. SISTEMA DE CARRITO PERSISTENTE Y DETALLES
 let carrito = JSON.parse(localStorage.getItem('casaBarro_carrito')) || [];
+
+// Variable para guardar el porcentaje de propina actual (por defecto 0%)
+let propinaPorcentaje = 0;
 
 window.mostrarProximamente = function() {
     Swal.fire({
@@ -21,68 +23,6 @@ window.mostrarProximamente = function() {
         confirmButtonText: 'Entendido',
         confirmButtonColor: '#3c4a45'
     });
-}
-
-// Actualizar el número del carrito en la barra de navegación
-window.actualizarUI = function() {
-    const cartCountElement = document.getElementById('cart-count');
-    if (cartCountElement) {
-        const totalItems = carrito.reduce((total, item) => total + item.cantidad, 0);
-        cartCountElement.innerText = totalItems;
-    }
-}
-
-// Lógica para aumentar o disminuir cantidad dentro del Modal
-window.cambiarCantidad = function(cambio) {
-    let el = document.getElementById('swal-cantidad');
-    let cantidadActual = parseInt(el.innerText);
-    let nuevaCantidad = cantidadActual + cambio;
-    if (nuevaCantidad >= 1) {
-        el.innerText = nuevaCantidad;
-    }
-}
-
-// Función que captura los datos del modal y los guarda en LocalStorage
-window.confirmarAgregarAlCarrito = function(nombre, precio) {
-    let cantidad = parseInt(document.getElementById('swal-cantidad').innerText);
-    let selectorOpciones = document.getElementById('swal-opciones');
-    let opcionSeleccionada = selectorOpciones ? selectorOpciones.value : null;
-
-    if (selectorOpciones && !opcionSeleccionada) {
-        Swal.showValidationMessage('Por favor, selecciona una opción para continuar');
-        return;
-    }
-
-    // Inyectar al array
-    carrito.push({
-        producto: nombre,
-        precio: precio,
-        cantidad: cantidad,
-        opcion: opcionSeleccionada
-    });
-
-    // Guardar en el navegador para no perderlo al recargar
-    localStorage.setItem('casaBarro_carrito', JSON.stringify(carrito));
-    
-    actualizarUI(); // Refrescar contador arriba
-
-    Swal.fire({
-        icon: 'success',
-        title: '¡Agregado al carrito!',
-        text: `Agregaste ${cantidad}x ${nombre} a tu pedido.`,
-        showConfirmButton: false,
-        timer: 1500
-    });
-}
-
-// Aumentar o disminuir cantidad desde la vista del carrito
-window.cambiarCantidadCarrito = function(index, cambio) {
-    if (carrito[index].cantidad + cambio >= 1) {
-        carrito[index].cantidad += cambio;
-        localStorage.setItem('casaBarro_carrito', JSON.stringify(carrito));
-        actualizarUI();
-        renderizarCarrito();
-    }
 }
 
 // Modal de Políticas de Compra y Venta
@@ -110,9 +50,86 @@ window.mostrarPoliticas = function() {
     });
 }
 
+// Actualizar el número del carrito en la barra de navegación
+window.actualizarUI = function() {
+    const cartCountElement = document.getElementById('cart-count');
+    if (cartCountElement) {
+        const totalItems = carrito.reduce((total, item) => total + item.cantidad, 0);
+        cartCountElement.innerText = totalItems;
+    }
+}
+
+// Lógica para aumentar o disminuir cantidad dentro del Modal (Catálogo)
+window.cambiarCantidad = function(cambio) {
+    let el = document.getElementById('swal-cantidad');
+    let cantidadActual = parseInt(el.innerText);
+    let nuevaCantidad = cantidadActual + cambio;
+    if (nuevaCantidad >= 1) {
+        el.innerText = nuevaCantidad;
+    }
+}
+
+// Aumentar o disminuir cantidad desde la vista del carrito
+window.cambiarCantidadCarrito = function(index, cambio) {
+    if (carrito[index].cantidad + cambio >= 1) {
+        carrito[index].cantidad += cambio;
+        localStorage.setItem('casaBarro_carrito', JSON.stringify(carrito));
+        actualizarUI();
+        renderizarCarrito();
+    }
+}
+
+// Función que captura los datos del modal
+window.confirmarAgregarAlCarrito = function(nombre, precio) {
+    let cantidad = parseInt(document.getElementById('swal-cantidad').innerText);
+    let selectorOpciones = document.getElementById('swal-opciones');
+    let opcionSeleccionada = selectorOpciones ? selectorOpciones.value : null;
+    let selectorExtras = document.getElementById('swal-extras');
+    let extraSeleccionado = selectorExtras ? selectorExtras.value : null;
+
+    if (selectorOpciones && !opcionSeleccionada) {
+        Swal.showValidationMessage('Por favor, selecciona una opción');
+        return;
+    }
+    if (selectorExtras && !extraSeleccionado) {
+        Swal.showValidationMessage('Por favor, selecciona un complemento o sabor');
+        return;
+    }
+
+    let textoFinal = [];
+    if (opcionSeleccionada) textoFinal.push(opcionSeleccionada);
+    if (extraSeleccionado) textoFinal.push(extraSeleccionado);
+    let stringOpcion = textoFinal.length > 0 ? textoFinal.join(' + ') : null;
+
+    carrito.push({
+        producto: nombre,
+        precio: precio,
+        cantidad: cantidad,
+        opcion: stringOpcion
+    });
+
+    localStorage.setItem('casaBarro_carrito', JSON.stringify(carrito));
+    actualizarUI(); 
+
+    Swal.fire({
+        icon: 'success',
+        title: '¡Agregado!',
+        text: `Agregaste ${cantidad}x ${nombre} a tu pedido.`,
+        showConfirmButton: false,
+        timer: 1500
+    });
+}
+
+// Función para actualizar la propina y re-dibujar el carrito
+window.cambiarPropina = function(porcentaje) {
+    propinaPorcentaje = porcentaje;
+    renderizarCarrito();
+}
+
+// 3. PINTAR LA PANTALLA DEL CARRITO
 window.renderizarCarrito = function() {
     const contenedor = document.getElementById('carrito-contenido');
-    if (!contenedor) return;
+    if (!contenedor) return; // Si no estamos en carrito.html, detenemos la función
 
     if (carrito.length === 0) {
         contenedor.innerHTML = `
@@ -157,7 +174,14 @@ window.renderizarCarrito = function() {
 
     htmlItems += '</div>';
 
-    // Sección de Resumen (Ticket) actualizada
+    // CÁLCULOS DE PROPINA
+    let propinaCalculada = subtotal * (propinaPorcentaje / 100);
+    let totalFinal = subtotal + propinaCalculada;
+
+    // Guardamos el total final en memoria para que la página de pago lo pueda leer
+    localStorage.setItem('casaBarro_totalFinal', totalFinal.toFixed(2));
+
+    // INTERFAZ DEL TICKET
     htmlItems += `
         <div class="resumen-carrito">
             <h3 style="color:var(--verde-logo); margin-bottom:20px; font-size: 1.3rem;">Resumen de Compra</h3>
@@ -166,15 +190,26 @@ window.renderizarCarrito = function() {
                 <span>Subtotal:</span>
                 <span>$${subtotal.toFixed(2)}</span>
             </div>
+
+            <!-- Botones para elegir la propina -->
+            <div style="margin-bottom: 15px;">
+                <p style="color: #555; margin-bottom: 8px; font-size: 0.95rem;">¿Deseas agregar propina?</p>
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="cambiarPropina(0)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 0 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 0 ? 'white' : 'var(--verde-logo)'}; cursor: pointer; transition: all 0.2s;">0%</button>
+                    <button onclick="cambiarPropina(10)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 10 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 10 ? 'white' : 'var(--verde-logo)'}; cursor: pointer; transition: all 0.2s;">10%</button>
+                    <button onclick="cambiarPropina(15)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 15 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 15 ? 'white' : 'var(--verde-logo)'}; cursor: pointer; transition: all 0.2s;">15%</button>
+                    <button onclick="cambiarPropina(20)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 20 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 20 ? 'white' : 'var(--verde-logo)'}; cursor: pointer; transition: all 0.2s;">20%</button>
+                </div>
+            </div>
             
             <div style="display:flex; justify-content:space-between; margin-bottom:15px; color: #555;">
-                <span>Propina (Opcional):</span>
-                <span>$0.00</span>
+                <span>Propina (${propinaPorcentaje}%):</span>
+                <span>$${propinaCalculada.toFixed(2)}</span>
             </div>
             
             <div style="display:flex; justify-content:space-between; margin-top:20px; padding-top: 15px; border-top: 2px dashed #eae5db; font-weight:bold; font-size:1.4rem; color: var(--verde-logo);">
                 <span>Total:</span>
-                <span>$${subtotal.toFixed(2)}</span>
+                <span>$${totalFinal.toFixed(2)}</span>
             </div>
             
             <button class="btn-primary" style="width:100%; margin-top: 25px; border-radius: 8px;" onclick="window.location.href='pago.html'">Ir a pagar</button>
@@ -197,24 +232,37 @@ window.eliminarDelCarrito = function(index) {
     renderizarCarrito(); 
 }
 
-//MODAL DE PRODUCTO
-window.abrirDetalleMejorado = function(nombre, descripcion, precioStr, imagenUrl, alineacion = 'center', opcionesStr = '') {
+// 4. MODAL DE PRODUCTO
+window.abrirDetalleMejorado = function(nombre, descripcion, precioStr, imagenUrl, alineacion = 'center', opcionesStr = '', extrasStr = '') {
     let precioNum = parseFloat(precioStr.replace('$', '').replace(' MXN', ''));
     let opcionesHtml = '';
     
+    // Construir el primer dropdown (Opción Base)
     if (opcionesStr) {
         let opcionesArray = opcionesStr.split(',');
-        opcionesHtml = `
-            <select id="swal-opciones" class="swal2-select" style="display:flex; width:100%; margin: 10px 0 20px 0; font-size: 1rem;">
-                <option value="" disabled selected>Elige tu opción favorita...</option>
+        opcionesHtml += `
+            <select id="swal-opciones" class="swal2-select" style="display:flex; width:100%; margin: 10px 0 ${extrasStr ? '10px' : '20px'} 0; font-size: 1rem;">
+                <option value="" disabled selected>Elige tu opción...</option>
                 ${opcionesArray.map(op => `<option value="${op.trim()}">${op.trim()}</option>`).join('')}
             </select>
         `;
     }
 
+    // Construir el segundo dropdown (Complemento / Sabor)
+    if (extrasStr) {
+        let extrasArray = extrasStr.split(',');
+        opcionesHtml += `
+            <select id="swal-extras" class="swal2-select" style="display:flex; width:100%; margin: 0 0 20px 0; font-size: 1rem;">
+                <option value="" disabled selected>Elige tu complemento/sabor...</option>
+                ${extrasArray.map(ex => `<option value="${ex.trim()}">${ex.trim()}</option>`).join('')}
+            </select>
+        `;
+    }
+
+    // Actualizamos las sugerencias del modal con los nuevos parámetros
     let relacionadosHtml = `
         <div style="display:flex; gap:15px; overflow-x:auto; padding: 10px 0; scrollbar-width: thin;">
-            <div onclick="Swal.close(); setTimeout(() => abrirDetalleMejorado('Capuchinos y Lattes', 'Nuestras especialidades calientes.', '$65.00 MXN', 'LatteCaliente.jpeg', 'bottom', 'Caramelo, Crema Irlandesa, Vainilla'), 300);" style="min-width:110px; text-align:center; cursor:pointer;">
+            <div onclick="Swal.close(); setTimeout(() => abrirDetalleMejorado('Capuchinos y Lattes', 'Nuestras especialidades calientes.', '$65.00 MXN', 'LatteCaliente.jpeg', 'bottom', 'Capuchino, Latte', 'Clásico, Caramelo, Crema Irlandesa, Vainilla'), 300);" style="min-width:110px; text-align:center; cursor:pointer;">
                 <img src="LatteCaliente.jpeg" style="width:100%; height:90px; object-fit:cover; border-radius:10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
                 <p style="font-size:0.85rem; margin-top:8px; color:var(--verde-logo); font-weight:bold;">Café Latte</p>
             </div>
@@ -253,7 +301,7 @@ window.abrirDetalleMejorado = function(nombre, descripcion, precioStr, imagenUrl
     });
 }
 
-//ALERTAS Y EVENTOS UI (Header, Footer, Formularios)
+// 5. ALERTAS Y EVENTOS UI (Header, Footer, Formularios)
 function activarAlertas() {
     const btnLogin = document.getElementById('btn-login');
     if(btnLogin) btnLogin.addEventListener('click', () => {
@@ -424,7 +472,7 @@ function activarAlertas() {
     });
 }
 
-//INICIALIZADOR AL CARGAR LA PÁGINA
+// 6. INICIALIZADOR AL CARGAR LA PÁGINA
 document.addEventListener('DOMContentLoaded', async () => {
     // 1. Cargar Navbar y Footer dinámicamente
     await cargarComponente('navbar-container', 'components/navbar.html');
@@ -468,7 +516,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         producto.style.display = 'block'; 
                         productosVisibles++;
                     } else {
-                        producto.style.display = 'none';
+                        producto.style.display = 'none'; 
                     }
                 });
 
