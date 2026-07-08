@@ -1,6 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400..700&family=Notable&display=swap');}
+@import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400..700&family=Notable&display=swap');
 
-/*ESTILOS GENERALES Y VARIABLES*/
+/* 1. ESTILOS GENERALES Y VARIABLES */
 * {
     margin: 0;
     padding: 0;
@@ -18,7 +18,7 @@ body {
     --terracota: #000000;  
 }
 
-/*BARRA DE NAVEGACIÓN*/
+/* 2. BARRA DE NAVEGACIÓN */
 #navbar-container {
     position: sticky;
     top: 0;
@@ -73,6 +73,12 @@ nav a:hover {
     color: var(--terracota); 
 }
 
+.nav-botones {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
 .btn-login {
     background-color: transparent;
     border: 2px solid var(--verde-logo);
@@ -89,7 +95,36 @@ nav a:hover {
     color: white;
 }
 
-/*SECCIÓN PRINCIPAL*/
+.btn-carrito-nav {
+    background-color: var(--verde-logo);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.3s ease, background-color 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.btn-carrito-nav:hover {
+    transform: scale(1.05);
+    background-color: #557268;
+}
+
+.btn-carrito-nav .badge-contador {
+    background-color: #b7410e; 
+    color: white;
+    border-radius: 50%;
+    padding: 2px 7px;
+    font-size: 0.85rem;
+}
+
+/* 3. SECCIÓN PRINCIPAL (HERO) */
 .hero {
     background: linear-gradient(rgba(60, 74, 69, 0.85), rgba(60, 74, 69, 0.7)), 
                 url('../image_8da162.jpg') center/cover;
@@ -145,6 +180,7 @@ nav a:hover {
     font-weight: bold;
     transition: transform 0.2s, background-color 0.3s;
     box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    text-align: center;
 }
 
 .btn-primary:hover {
@@ -152,7 +188,7 @@ nav a:hover {
     transform: scale(1.05); 
 }
 
-/*PIE DE PÁGINA*/
+/* 4. PIE DE PÁGINA */
 .info-bar {
     background-color: var(--verde-logo);
     color: white;
@@ -207,7 +243,7 @@ nav a:hover {
     border-color: white;
 }
 
-/*CATÁLOGO*/
+/* 5. CATÁLOGO Y PRODUCTOS */
 .catalogo-container {
     padding: 3rem 5%;
     text-align: center;
@@ -227,6 +263,58 @@ nav a:hover {
     margin-bottom: 3rem;
 }
 
+.filtros-container {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 3rem;
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+    flex-wrap: wrap; 
+}
+
+.filtros-container input, 
+.filtros-container select {
+    padding: 12px 20px;
+    border: 1px solid #ccc;
+    border-radius: 25px;
+    font-size: 1rem;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.filtros-container input {
+    flex: 2;
+    min-width: 250px;
+}
+
+.filtros-container select {
+    flex: 1;
+    min-width: 200px;
+    background-color: white;
+    cursor: pointer;
+}
+
+.filtros-container input:focus, 
+.filtros-container select:focus {
+    border-color: var(--verde-logo);
+    box-shadow: 0 0 8px rgba(60, 74, 69, 0.2);
+}
+
+.categoria-titulo {
+    font-size: 2rem;
+    color: var(--verde-logo);
+    margin: 4rem 0 1.5rem;
+    text-align: left;
+    border-bottom: 2px solid var(--verde-logo);
+    padding-bottom: 0.5rem;
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
 .grid-productos {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -241,6 +329,8 @@ nav a:hover {
     box-shadow: 0 4px 15px rgba(0,0,0,0.05);
     transition: transform 0.3s ease, box-shadow 0.3s ease;
     text-align: left;
+    position: relative;
+    cursor: pointer; /* Toda la tarjeta es un botón */
 }
 
 .tarjeta-producto:hover {
@@ -268,70 +358,98 @@ nav a:hover {
     font-weight: bold;
     font-size: 1.2rem;
     color: #557268;
-    margin-bottom: 1.5rem;
 }
 
-.btn-detalle {
-    background-color: transparent;
-    color: var(--verde-logo);
-    border: 2px solid var(--verde-logo);
-    padding: 0.5rem 1rem;
+/* ETIQUETAS DE PRODUCTOS */
+.badge-etiqueta {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    padding: 5px 12px;
     border-radius: 20px;
-    cursor: pointer;
+    font-size: 0.8rem;
     font-weight: bold;
-    transition: all 0.3s;
-    width: 100%;
-}
-
-.btn-detalle:hover {
-    background-color: var(--verde-logo);
     color: white;
+    z-index: 2;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    letter-spacing: 0.5px;
 }
 
-/* Estilos para separar las categorías del menú */
-.categoria-titulo {
-    font-size: 2rem;
-    color: var(--verde-logo);
-    margin: 4rem 0 1.5rem;
-    text-align: left;
-    border-bottom: 2px solid var(--verde-logo);
-    padding-bottom: 0.5rem;
-    max-width: 1200px;
-    margin-left: auto;
-    margin-right: auto;
+.badge-oferta { background-color: #b7410e; }
+.badge-nuevo { background-color: var(--verde-logo); }
+.badge-vendido { background-color: #f39c12; color: #fff; }
+
+/* 6. PANTALLA DE CARRITO Y PAGOS */
+.carrito-container {
+    max-width: 1100px;
+    margin: 3rem auto;
+    padding: 0 5%;
+    min-height: 60vh;
 }
 
-.botones-tarjeta {
+.carrito-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 2rem;
+}
+
+@media (max-width: 768px) {
+    .carrito-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.carrito-items {
     display: flex;
-    gap: 10px;
-    margin-top: 10px;
+    flex-direction: column;
+    gap: 15px;
 }
 
-.btn-carrito {
-    background-color: var(--verde-logo);
-    color: white;
+.item-carrito {
+    background: #ffffff;
+    padding: 20px;
+    border-radius: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+
+.resumen-carrito {
+    background: #ffffff;
+    padding: 25px;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    height: fit-content;
+    position: sticky;
+    top: 100px;
+}
+
+.btn-eliminar {
+    background: #eae5db;
+    color: #555;
     border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 20px;
+    border-radius: 8px;
+    padding: 8px 12px;
     cursor: pointer;
-    font-weight: bold;
-    transition: transform 0.2s, background-color 0.3s;
-    flex: 1;
     font-size: 0.9rem;
+    transition: background 0.3s, color 0.3s;
 }
 
-.btn-carrito:hover {
-    background-color: #557268;
-    transform: scale(1.05); 
+.btn-eliminar:hover {
+    background: #ff4c4c;
+    color: white;
 }
 
-.btn-detalle {
-    flex: 1; 
-    font-size: 0.9rem;
-    padding: 0.5rem 1rem;
+.carrito-vacio {
+    text-align: center;
+    padding: 4rem 2rem;
+    background: #ffffff;
+    border-radius: 15px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
 }
 
-/*PANTALLAS DE AUTENTICACIÓN (LOGIN/REGISTRO)*/
+/* 7. PANTALLAS DE AUTENTICACIÓN (LOGIN/REGISTRO) */
 .auth-container {
     display: flex;
     justify-content: center;
@@ -417,7 +535,31 @@ nav a:hover {
     text-decoration: underline;
 }
 
-/*PANTALLA DE PERFIL*/
+.auth-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: #555;
+    margin-top: -5px;
+    margin-bottom: 5px;
+    text-align: left;
+}
+
+.auth-form input[type="checkbox"] {
+    width: auto;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    accent-color: var(--verde-logo);
+}
+
+.auth-checkbox label {
+    cursor: pointer;
+    user-select: none;
+}
+
+/* 8. PANTALLA DE PERFIL Y LANDING PAGE */
 .perfil-container {
     max-width: 1000px;
     margin: 3rem auto;
@@ -495,32 +637,6 @@ nav a:hover {
     margin-left: auto;
 }
 
-/*CHECKBOX DE RECORDAR DATOS*/
-.auth-checkbox {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.9rem;
-    color: #555;
-    margin-top: -5px;
-    margin-bottom: 5px;
-    text-align: left;
-}
-
-.auth-form input[type="checkbox"] {
-    width: auto;
-    padding: 0;
-    margin: 0;
-    cursor: pointer;
-    accent-color: var(--verde-logo);
-}
-
-.auth-checkbox label {
-    cursor: pointer;
-    user-select: none;
-}
-
-/*ESTILOS LANDING PAGE*/
 .landing-form {
     width: 100%;
     max-width: 400px; 
@@ -544,226 +660,9 @@ nav a:hover {
     outline: 2px solid var(--verde-logo);
 }
 
-/*FILTROS Y BUSCADOR DEL CATÁLOGO*/
-.filtros-container {
-    display: flex;
-    justify-content: center;
-    gap: 15px;
-    margin-bottom: 3rem;
-    max-width: 800px;
-    margin-left: auto;
-    margin-right: auto;
-    flex-wrap: wrap; /* Para que se adapte en celulares */
-}
-
-.filtros-container input, 
-.filtros-container select {
-    padding: 12px 20px;
-    border: 1px solid #ccc;
-    border-radius: 25px;
-    font-size: 1rem;
-    outline: none;
-    font-family: inherit;
-    transition: border-color 0.3s, box-shadow 0.3s;
-}
-
-.filtros-container input {
-    flex: 2;
-    min-width: 250px;
-}
-
-.filtros-container select {
-    flex: 1;
-    min-width: 200px;
-    background-color: white;
-    cursor: pointer;
-}
-
-.filtros-container input:focus, 
-.filtros-container select:focus {
-    border-color: var(--verde-logo);
-    box-shadow: 0 0 8px rgba(60, 74, 69, 0.2);
-}
-
-/*ETIQUETAS DE PRODUCTOS*/
-.tarjeta-producto {
-    position: relative; 
-}
-
-.badge-etiqueta {
-    position: absolute;
-    top: 15px;
-    left: 15px;
-    padding: 5px 12px;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: bold;
-    color: white;
-    z-index: 2;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    letter-spacing: 0.5px;
-}
-
-.badge-oferta {
-    background-color: #b7410e; /* Rojo/Terracota para llamar la atención */
-}
-
-.badge-nuevo {
-    background-color: var(--verde-logo); /* Verde de la marca */
-}
-
-.badge-vendido {
-    background-color: #f39c12; /* Naranja/Dorado para los favoritos */
-    color: #fff;
-}
-
-/* Hacer que toda la tarjeta sea clickeable */
-.tarjeta-producto {
-    cursor: pointer; /* Cambia el cursor a una manita */
-}
-
-/* Estilos para el carrito flotante */
-#btn-flotante-carrito {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background-color: var(--verde-logo);
-    color: white;
-    padding: 15px 20px;
-    border-radius: 30px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    font-size: 1.2rem;
-    font-weight: bold;
-    cursor: pointer;
-    z-index: 1000;
-    display: none; /* Se oculta hasta que haya algo en el carrito */
-    transition: transform 0.3s ease;
-}
-
-#btn-flotante-carrito:hover {
-    transform: scale(1.05);
-    background-color: #557268;
-}
-
-#btn-flotante-carrito .badge-contador {
-    background-color: #557268; /* Color terracota para resaltar */
-    color: white;
-    border-radius: 50%;
-    padding: 2px 8px;
-    font-size: 0.9rem;
-    margin-left: 8px;
-}
-
-/* Contenedor de los botones derechos del navbar */
-.nav-botones {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-}
-
-/* Estilo para el nuevo botón del carrito en el navbar */
-.btn-carrito-nav {
-    background-color: var(--verde-logo);
-    color: white;
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 20px;
-    font-size: 1rem;
-    font-weight: bold;
-    cursor: pointer;
-    transition: transform 0.3s ease, background-color 0.3s;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-}
-
-.btn-carrito-nav:hover {
-    transform: scale(1.05);
-    background-color: #557268;
-}
-
-.btn-carrito-nav .badge-contador {
-    background-color: #b7410e; /* Color terracota de la marca */
-    color: white;
-    border-radius: 50%;
-    padding: 2px 7px;
-    font-size: 0.85rem;
-}
-
-/* ================= PANTALLA DE CARRITO ================= */
-.carrito-container {
-    max-width: 1100px;
-    margin: 3rem auto;
-    padding: 0 5%;
-    min-height: 60vh;
-}
-
-.carrito-grid {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 2rem;
-}
-
-@media (max-width: 768px) {
-    .carrito-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-.carrito-items {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-}
-
-.item-carrito {
-    background: #ffffff;
-    padding: 20px;
-    border-radius: 15px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-}
-
-.resumen-carrito {
-    background: #ffffff;
-    padding: 25px;
-    border-radius: 15px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-    height: fit-content;
-    position: sticky;
-    top: 100px;
-}
-
-.btn-eliminar {
-    background: #eae5db;
-    color: #555;
-    border: none;
-    border-radius: 8px;
-    padding: 8px 12px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: background 0.3s, color 0.3s;
-}
-
-.btn-eliminar:hover {
-    background: #ff4c4c;
-    color: white;
-}
-
-.carrito-vacio {
-    text-align: center;
-    padding: 4rem 2rem;
-    background: #ffffff;
-    border-radius: 15px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-}
-
-/* PANTALLA DE PANEL DE ADMINISTRADOR */
+/* 9. PANTALLA DE PANEL DE ADMINISTRADOR */
 .admin-body {
-    background-color: #f4f7f6;
+    background-color: #f4f7f6; /* Fondo gris claro exclusivo para el admin */
 }
 
 .admin-layout {
@@ -771,6 +670,7 @@ nav a:hover {
     min-height: 100vh;
 }
 
+/* --- Menú Lateral --- */
 .admin-sidebar {
     width: 260px;
     background-color: var(--verde-logo);
@@ -827,6 +727,7 @@ nav a:hover {
     padding-left: 20px;
 }
 
+/* --- Contenido Principal --- */
 .admin-main {
     flex-grow: 1;
     padding: 30px 40px;
@@ -857,6 +758,7 @@ nav a:hover {
     color: var(--verde-logo);
 }
 
+/* --- Tarjetas de Resumen Visual --- */
 .admin-cards {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -898,6 +800,7 @@ nav a:hover {
     color: #ff4c4c;
 }
 
+/* --- Grid de 2 Columnas (Acciones y Actividad) --- */
 .admin-grid-2 {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -932,6 +835,7 @@ nav a:hover {
     font-size: 1.05rem;
 }
 
+/* --- Lista de Actividad --- */
 .activity-list {
     list-style: none;
     display: flex;
@@ -963,6 +867,142 @@ nav a:hover {
     line-height: 1.4;
 }
 
+/* 10. ADMINISTRADOR: TABLAS Y HERRAMIENTAS */
+
+.admin-toolbar {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.admin-toolbar input, 
+.admin-toolbar select {
+    padding: 12px 15px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    flex: 1;
+    min-width: 200px;
+    outline: none;
+    font-family: inherit;
+}
+
+.admin-toolbar input:focus, 
+.admin-toolbar select:focus {
+    border-color: var(--verde-logo);
+}
+
+/* Botón sutil para el panel de administración */
+.btn-admin-add {
+    background-color: var(--verde-logo);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    white-space: nowrap;
+}
+
+.btn-admin-add:hover {
+    background-color: #557268;
+    transform: scale(1.05);
+}
+
+.admin-table-container {
+    background: white;
+    border-radius: 15px;
+    padding: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+    overflow-x: auto;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 800px; 
+}
+
+.admin-table th, 
+.admin-table td {
+    padding: 15px;
+    text-align: left;
+    border-bottom: 1px solid #eae5db;
+    vertical-align: middle;
+}
+
+.admin-table th {
+    color: var(--verde-logo);
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+}
+
+.admin-table img {
+    width: 60px;
+    height: 60px;
+    border-radius: 10px;
+    object-fit: cover;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+/* Badges de Estado */
+.badge-status {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: bold;
+}
+
+.badge-status.disponible {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.badge-status.agotado {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+/* Botones de Acción en la tabla */
+.admin-actions button {
+    font-family: inherit; 
+    background-color: var(--verde-logo); 
+    color: white;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 20px; 
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600; 
+    margin-right: 5px;
+    transition: transform 0.2s ease, background-color 0.3s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+}
+
+.admin-actions button:hover {
+    background-color: #557268; 
+    transform: translateY(-2px); 
+}
+
+.admin-actions .btn-eliminar-admin {
+    background-color: transparent;
+    color: #ff4c4c;
+    border: 1px solid #ff4c4c;
+    box-shadow: none;
+}
+
+.admin-actions .btn-eliminar-admin:hover {
+    background-color: #ff4c4c;
+    color: white;
+}
+
 @media (max-width: 900px) {
     .admin-layout {
         flex-direction: column;
@@ -978,3 +1018,11 @@ nav a:hover {
         grid-template-columns: 1fr;
     }
 }
+
+/* Badges de Estado para Pedidos */
+.badge-status.pendiente { background-color: #fff3cd; color: #856404; }
+.badge-status.preparacion { background-color: #cce5ff; color: #004085; }
+.badge-status.entregado { background-color: #d4edda; color: #155724; }
+.badge-status.cancelado { background-color: #f8d7da; color: #721c24; }
+.badge-status.activa { background-color: #d4edda; color: #155724; }
+.badge-status.expirada { background-color: #e2e3e5; color: #383d41; }

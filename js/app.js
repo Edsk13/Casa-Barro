@@ -474,16 +474,35 @@ function activarAlertas() {
 
 // 6. INICIALIZADOR AL CARGAR LA PÁGINA
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Cargar Navbar y Footer dinámicamente
+    // 1. Cargar Navbar y Footer dinámicamente (Para la tienda pública)
     await cargarComponente('navbar-container', 'components/navbar.html');
     await cargarComponente('footer-container', 'components/footer.html');
     
-    // 2. Activar funcionalidades
+    // 2. Cargar Sidebar Dinámico (Para el Panel de Administrador)
+    const adminSidebarContainer = document.getElementById('admin-sidebar-container');
+    if (adminSidebarContainer) {
+        await cargarComponente('admin-sidebar-container', 'components/admin-sidebar.html');
+        
+        // Lógica para iluminar el botón correcto en el menú lateral
+        const currentPath = window.location.pathname.split('/').pop();
+        const adminLinks = document.querySelectorAll('#admin-nav-links a');
+        
+        adminLinks.forEach(link => {
+            // Si el data-page coincide con la URL actual, le ponemos la clase active
+            if (link.getAttribute('data-page') === currentPath) {
+                link.classList.add('active');
+            } else {
+                link.classList.remove('active');
+            }
+        });
+    }
+
+    // 3. Activar funcionalidades globales
     activarAlertas();
     actualizarUI();
     renderizarCarrito();
 
-    // 3. Redirección del botón de carrito en el navbar
+    // 4. Redirección del botón de carrito en el navbar
     const btnCarritoNav = document.getElementById('btn-carrito-nav');
     if(btnCarritoNav) {
         btnCarritoNav.addEventListener('click', () => {
@@ -491,7 +510,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // 4. Lógica de Filtros y Búsqueda (Se ejecuta solo si están en la vista del catálogo)
+    // 5. Lógica de Filtros y Búsqueda (Tienda pública)
     const buscador = document.getElementById('buscador-productos');
     const filtroCategoria = document.getElementById('filtro-categoria');
 
@@ -532,3 +551,302 @@ document.addEventListener('DOMContentLoaded', async () => {
         filtroCategoria.addEventListener('change', filtrarCatalogo);
     }
 });
+
+// 7. LÓGICA DEL PANEL DE ADMINISTRADOR
+// 1. Filtros y Búsqueda Dinámica en la tabla de productos
+window.filtrarProductosAdmin = function() {
+    let inputBusqueda = document.getElementById('admin-search');
+    let selectCategoria = document.getElementById('admin-filter-cat');
+    let selectEstado = document.getElementById('admin-filter-status');
+    if (!inputBusqueda || !selectCategoria || !selectEstado) return;
+
+    let texto = inputBusqueda.value.toLowerCase();
+    let categoria = selectCategoria.value;
+    let estado = selectEstado.value;
+    let filas = document.querySelectorAll('.admin-row');
+    
+    filas.forEach(fila => {
+        let nombre = fila.getAttribute('data-nombre').toLowerCase();
+        let cat = fila.getAttribute('data-categoria');
+        let est = fila.getAttribute('data-estado');
+        let coincideTexto = nombre.includes(texto);
+        let coincideCat = (categoria === 'todos') || (cat === categoria);
+        let coincideEst = (estado === 'todos') || (est === estado);
+        if (coincideTexto && coincideCat && coincideEst) {
+            fila.style.display = '';
+        } else {
+            fila.style.display = 'none';
+        }
+    });
+}
+
+// 2. Formulario para Agregar o Editar Producto (Simulado)
+window.abrirFormularioProducto = function(editMode = false) {
+    let title = editMode ? 'Editar Producto' : 'Agregar Nuevo Producto';
+    let btnText = editMode ? 'Guardar Cambios' : 'Guardar Producto';
+
+    Swal.fire({
+        title: title,
+        html: `
+            <form id="admin-prod-form" style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;">
+                
+                <div>
+                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Nombre del producto:</label>
+                    <input id="swal-nombre" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Ej. Torta de Cochinita" ${editMode ? 'value="Producto Seleccionado"' : ''}>
+                </div>
+
+                <div style="display:flex; gap:15px;">
+                    <div style="flex:1;">
+                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Categoría:</label>
+                        <select id="swal-categoria" class="swal2-select" style="margin:5px 0 0 0; width:100%;">
+                            <option value="alimentos" ${editMode ? 'selected' : ''}>Alimentos</option>
+                            <option value="calientes">Bebidas Calientes</option>
+                            <option value="frias">Bebidas Frías</option>
+                            <option value="postres">Postres</option>
+                        </select>
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Precio (MXN):</label>
+                        <input id="swal-precio" type="number" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Ej. 120" ${editMode ? 'value="125"' : ''}>
+                    </div>
+                </div>
+
+                <div>
+                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Descripción:</label>
+                    <textarea id="swal-desc" class="swal2-textarea" style="margin:5px 0 0 0; width:100%; height:80px; resize:none;">${editMode ? 'Descripción del producto actual...' : ''}</textarea>
+                </div>
+
+                <div>
+                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Imagen (URL / Archivo):</label>
+                    <input id="swal-img" type="text" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Enlace o nombre de la imagen" ${editMode ? 'value="imagen.jpeg"' : ''}>
+                </div>
+
+                <div style="display:flex; gap:15px;">
+                    <div style="flex:1;">
+                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Existencia:</label>
+                        <input id="swal-stock" type="number" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Cant." ${editMode ? 'value="45"' : ''}>
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Estado:</label>
+                        <select id="swal-estado" class="swal2-select" style="margin:5px 0 0 0; width:100%;">
+                            <option value="disponible" ${editMode ? 'selected' : ''}>Disponible (Activo)</option>
+                            <option value="agotado">Agotado (Inactivo)</option>
+                        </select>
+                    </div>
+                </div>
+            </form>
+        `,
+        showCancelButton: true,
+        confirmButtonText: btnText,
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#3c4a45',
+        cancelButtonColor: '#8a8a8a',
+        width: '550px'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({
+                icon: 'success',
+                title: '¡Guardado!',
+                text: 'Los datos del producto han sido guardados correctamente (Simulado).',
+                confirmButtonColor: '#3c4a45'
+            });
+        }
+    });
+}
+
+// 3. Acción: Confirmación para Eliminar
+window.eliminarProductoAdmin = function(nombreProducto) {
+    Swal.fire({
+        title: `¿Eliminar ${nombreProducto}?`,
+        text: "Esta acción no se puede deshacer y el producto desaparecerá del menú público.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#8a8a8a',
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Eliminado',
+                text: 'El producto ha sido borrado exitosamente.',
+                confirmButtonColor: '#3c4a45'
+            });
+        }
+    });
+}
+
+// 4. Acción: Ver Detalle rápido en modo admin
+window.verDetalleAdmin = function(nombre, descripcion, precio, imagenUrl) {
+    Swal.fire({
+        title: nombre,
+        html: `
+            <img src="${imagenUrl}" alt="${nombre}" style="width: 100%; height: 220px; object-fit: cover; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+            <p style="text-align: justify; margin-bottom: 15px; color: #555; line-height: 1.5;">${descripcion}</p>
+            <h3 style="color: var(--verde-logo); font-size: 1.6rem; font-weight: bold; margin-bottom: 10px;">${precio}</h3>
+            <hr style="margin: 15px 0; border: 0; border-top: 1px dashed #ccc;">
+        `,
+        confirmButtonText: 'Cerrar vista previa',
+        confirmButtonColor: '#3c4a45',
+        width: '450px'
+    });
+}
+
+// 8. LÓGICA DE MÓDULOS ADICIONALES ADMIN
+// Pedidos: Ver Detalle
+window.verDetallePedidoAdmin = function(numeroPedido) {
+    Swal.fire({
+        title: `Detalle del Pedido ${numeroPedido}`,
+        html: `
+            <div style="text-align: left; color: #555; font-size: 0.95rem;">
+                <p><strong>Cliente:</strong> Sofía Ramírez (sofia@ejemplo.com)</p>
+                <p><strong>Fecha:</strong> Hoy, 10:45 AM</p>
+                <p><strong>Método de pago:</strong> Tarjeta (Pagado)</p>
+                <hr style="margin: 15px 0;">
+                <ul style="list-style: none; padding: 0; margin-bottom: 15px;">
+                    <li style="margin-bottom: 8px;">2x Chilaquiles (Verdes, con Pollo) - $220.00</li>
+                    <li style="margin-bottom: 8px;">1x Capuchino (Vainilla) - $65.00</li>
+                </ul>
+                <p style="text-align: right; font-size: 1.2rem; font-weight: bold; color: var(--verde-logo);">Total: $285.00</p>
+            </div>
+        `,
+        confirmButtonText: 'Cerrar',
+        confirmButtonColor: '#3c4a45'
+    });
+}
+
+// Pedidos: Avanzar Estado (Simulación visual)
+window.cambiarEstadoPedidoAdmin = function(btn) {
+    let fila = btn.closest('tr');
+    let badge = fila.querySelector('.badge-status');
+    
+    if (badge.classList.contains('pendiente')) {
+        badge.className = 'badge-status preparacion';
+        badge.innerText = 'En Preparación';
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Pedido enviado a cocina', showConfirmButton: false, timer: 2000 });
+    } else if (badge.classList.contains('preparacion')) {
+        badge.className = 'badge-status entregado';
+        badge.innerText = 'Entregado';
+        btn.style.display = 'none'; // Ya se entregó, quitamos el botón de avanzar
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Pedido marcado como entregado', showConfirmButton: false, timer: 2000 });
+    }
+}
+
+// Promociones: Crear o Editar
+window.abrirFormularioPromocion = function(editMode = false) {
+    let title = editMode ? 'Editar Promoción' : 'Nueva Promoción';
+    Swal.fire({
+        title: title,
+        html: `
+            <form style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;">
+                <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Nombre de Promoción:</label>
+                <input class="swal2-input" style="margin:0; width:100%;" placeholder="Ej. 10% Descuento" ${editMode ? 'value="Viernes de Enchiladas"' : ''}>
+                
+                <div style="display:flex; gap:15px;">
+                    <div style="flex:1;">
+                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Descuento:</label>
+                        <input class="swal2-input" style="margin:0; width:100%;" placeholder="Ej. 15%" ${editMode ? 'value="20%"' : ''}>
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Estado:</label>
+                        <select class="swal2-select" style="margin:0; width:100%;">
+                            <option value="activa">Activa</option>
+                            <option value="inactiva">Inactiva</option>
+                        </select>
+                    </div>
+                </div>
+            </form>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Guardar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#3c4a45'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire('Guardado', 'La promoción se ha guardado correctamente.', 'success');
+        }
+    });
+}
+
+// Clientes: Ver Historial
+window.verHistorialCliente = function() {
+    Swal.fire({
+        title: 'Historial de Compras',
+        text: 'Aquí se desplegará la lista de pedidos pasados de este cliente, sus productos favoritos y su total gastado.',
+        icon: 'info',
+        confirmButtonText: 'Cerrar',
+        confirmButtonColor: '#3c4a45'
+    });
+}
+
+// Eliminar General (Promociones, Clientes, etc.)
+window.eliminarAccionAdmin = function(itemType) {
+    Swal.fire({
+        title: '¿Estás seguro?',
+        text: `Se eliminará permanentemente ${itemType}.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonText: 'Cancelar',
+        confirmButtonText: 'Sí, eliminar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire('Eliminado', 'El registro ha sido borrado.', 'success');
+        }
+    });
+}
+
+// Clientes: Formulario para Agregar o Editar
+window.abrirFormularioCliente = function(editMode = false) {
+    let title = editMode ? 'Editar Cliente' : 'Registrar Nuevo Cliente';
+    let btnText = editMode ? 'Guardar Cambios' : 'Guardar Cliente';
+
+    Swal.fire({
+        title: title,
+        html: `
+            <form style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;">
+                <div>
+                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Nombre Completo:</label>
+                    <input type="text" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Ej. María Fernanda" ${editMode ? 'value="Eduardo G."' : ''}>
+                </div>
+                
+                <div>
+                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Correo Electrónico:</label>
+                    <input type="email" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="ejemplo@correo.com" ${editMode ? 'value="eduardo@ejemplo.com"' : ''}>
+                </div>
+
+                <div style="display:flex; gap:15px;">
+                    <div style="flex:1;">
+                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Teléfono (Opcional):</label>
+                        <input type="tel" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="10 dígitos">
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Fecha de Nacimiento:</label>
+                        <input type="date" class="swal2-input" style="margin:5px 0 0 0; width:100%;" ${editMode ? 'value="2005-06-10"' : ''}>
+                    </div>
+                </div>
+
+                <div>
+                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Notas adicionales:</label>
+                    <textarea class="swal2-textarea" style="margin:5px 0 0 0; width:100%; height:60px; resize:none;" placeholder="Alergias, preferencias, etc."></textarea>
+                </div>
+            </form>
+        `,
+        showCancelButton: true,
+        confirmButtonText: btnText,
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#3c4a45',
+        cancelButtonColor: '#8a8a8a',
+        width: '550px'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({
+                icon: 'success',
+                title: '¡Éxito!',
+                text: 'La información del cliente se ha guardado correctamente.',
+                confirmButtonColor: '#3c4a45'
+            });
+        }
+    });
+}

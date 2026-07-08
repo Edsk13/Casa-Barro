@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clientes | Casa Barro</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="admin-body">
+    <div class="admin-layout">
+        <div id="admin-sidebar-container"></div>
+        <main class="admin-main">
+            <header class="admin-header">
+                <div>
+                    <h1>Directorio de Clientes</h1>
+                    <p style="color: #777;">Gestión de usuarios registrados y su historial.</p>
+                </div>
+            </header>
+
+            <div class="admin-toolbar" style="justify-content: space-between;">
+                <input type="text" placeholder="Buscar cliente por nombre o correo..." style="max-width: 400px;">
+                <button class="btn-admin-add" onclick="abrirFormularioCliente()">Agregar Cliente</button>
+            </div>
+
+            <div class="admin-table-container">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Correo Electrónico</th>
+                            <th>Fecha de Registro</th>
+                            <th>Total de Pedidos</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Eduardo G.</strong></td>
+                            <td>eduardo@ejemplo.com</td>
+                            <td>10 Jun, 2025</td>
+                            <td>12</td>
+                            <td class="admin-actions">
+                                <button title="Ver Historial" onclick="verHistorialCliente()">Historial</button>
+                                <button title="Editar" onclick="abrirFormularioCliente(true)">Editar</button>
+                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarAccionAdmin('el cliente')">Eliminar</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Sofía Ramírez</strong></td>
+                            <td>sofia.r@ejemplo.com</td>
+                            <td>Hoy</td>
+                            <td>1</td>
+                            <td class="admin-actions">
+                                <button title="Ver Historial" onclick="verHistorialCliente()">Historial</button>
+                                <button title="Editar" onclick="abrirFormularioCliente(true)">Editar</button>
+                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarAccionAdmin('el cliente')">Eliminar</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Carlos Gómez</strong></td>
+                            <td>carlosg@ejemplo.com</td>
+                            <td>05 Mar, 2026</td>
+                            <td>4</td>
+                            <td class="admin-actions">
+                                <button title="Ver Historial" onclick="verHistorialCliente()">Historial</button>
+                                <button title="Editar" onclick="abrirFormularioCliente(true)">Editar</button>
+                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarAccionAdmin('el cliente')">Eliminar</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+    <script src="js/app.js"></script>
+</body>
+</html>

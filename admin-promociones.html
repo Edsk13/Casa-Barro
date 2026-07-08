@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Promociones | Casa Barro</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="admin-body">
+    <div class="admin-layout">
+        <div id="admin-sidebar-container"></div>
+        <main class="admin-main">
+            <header class="admin-header">
+                <div>
+                    <h1>Promociones</h1>
+                    <p style="color: #777;">Crea cupones y ofertas especiales para tus clientes.</p>
+                </div>
+            </header>
+
+            <div class="admin-toolbar">
+                <button class="btn-admin-add" onclick="abrirFormularioPromocion()">Nueva Promoción</button>
+            </div>
+
+            <div class="admin-table-container">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Nombre de la Promoción</th>
+                            <th>Descuento</th>
+                            <th>Validez</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Viernes de Enchiladas</strong></td>
+                            <td>20% OFF</td>
+                            <td>Todos los Viernes</td>
+                            <td><span class="badge-status activa">Activa</span></td>
+                            <td class="admin-actions">
+                                <button onclick="abrirFormularioPromocion(true)">Editar</button>
+                                <button class="btn-eliminar-admin" onclick="eliminarAccionAdmin('la promoción')">Eliminar</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Café Gratis (Registro)</strong></td>
+                            <td>1 Café Americano</td>
+                            <td>Indefinido</td>
+                            <td><span class="badge-status activa">Activa</span></td>
+                            <td class="admin-actions">
+                                <button onclick="abrirFormularioPromocion(true)">Editar</button>
+                                <button class="btn-eliminar-admin" onclick="eliminarAccionAdmin('la promoción')">Eliminar</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Especial San Valentín</strong></td>
+                            <td>2x1 en Frappes</td>
+                            <td>Feb 14, 2026</td>
+                            <td><span class="badge-status expirada">Expirada</span></td>
+                            <td class="admin-actions">
+                                <button class="btn-eliminar-admin" onclick="eliminarAccionAdmin('la promoción')">Eliminar</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+    <script src="js/app.js"></script>
+</body>
+</html>

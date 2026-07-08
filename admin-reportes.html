@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reportes | Casa Barro</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="admin-body">
+    <div class="admin-layout">
+        <div id="admin-sidebar-container"></div>
+        <main class="admin-main">
+            <header class="admin-header">
+                <div>
+                    <h1>Reportes Financieros</h1>
+                    <p style="color: #777;">Análisis de ventas y rendimiento del menú.</p>
+                </div>
+                <button class="btn-admin-add" onclick="window.print()">Exportar PDF</button>
+            </header>
+
+            <section class="admin-cards">
+                <div class="admin-card">
+                    <h3>Ingresos Hoy</h3>
+                    <p class="admin-stat">$1,240</p>
+                </div>
+                <div class="admin-card">
+                    <h3>Ingresos Semana</h3>
+                    <p class="admin-stat">$5,890</p>
+                </div>
+                <div class="admin-card">
+                    <h3>Ticket Promedio</h3>
+                    <p class="admin-stat">$185</p>
+                </div>
+            </section>
+
+            <div class="admin-grid-2">
+                <section class="admin-section">
+                    <h2>Productos Más Vendidos</h2>
+                    <ul class="activity-list">
+                        <li style="display: flex; justify-content: space-between;">
+                            <span>1. Enchiladas Suizas</span>
+                            <strong>142 uds.</strong>
+                        </li>
+                        <li style="display: flex; justify-content: space-between;">
+                            <span>2. Capuchinos y Lattes</span>
+                            <strong>110 uds.</strong>
+                        </li>
+                        <li style="display: flex; justify-content: space-between;">
+                            <span>3. Chilaquiles</span>
+                            <strong>85 uds.</strong>
+                        </li>
+                        <li style="display: flex; justify-content: space-between;">
+                            <span>4. Frappes Fríos</span>
+                            <strong>74 uds.</strong>
+                        </li>
+                    </ul>
+                </section>
+                
+                <section class="admin-section">
+                    <h2>Ventas por Método de Pago</h2>
+                    <ul class="activity-list">
+                        <li style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>Efectivo (Sucursal)</span>
+                            <div style="width: 50%; background: #eae5db; height: 10px; border-radius: 5px;"><div style="width: 35%; background: var(--verde-logo); height: 100%; border-radius: 5px;"></div></div>
+                            <strong>35%</strong>
+                        </li>
+                        <li style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>Tarjeta (En Línea)</span>
+                            <div style="width: 50%; background: #eae5db; height: 10px; border-radius: 5px;"><div style="width: 65%; background: var(--verde-logo); height: 100%; border-radius: 5px;"></div></div>
+                            <strong>65%</strong>
+                        </li>
+                    </ul>
+                </section>
+            </div>
+        </main>
+    </div>
+    <script src="js/app.js"></script>
+</body>
+</html>
