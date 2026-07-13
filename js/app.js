@@ -417,6 +417,93 @@ window.abrirDetalleMejorado = function(nombre, descripcion, precioStr, imagenUrl
 }
 
 // 5. ALERTAS Y EVENTOS UI (Header, Footer, Autenticación)
+// Función para mostrar el aviso de cookies interactivo
+window.verificarCookies = function() {
+    
+    if (true) { 
+        Swal.fire({
+            title: 'Configuración de Cookies y Privacidad',
+            html: `
+                <div style="text-align: left; font-size: 0.9rem; color: #555; max-height: 400px; overflow-y: auto; padding-right: 10px;">
+                    <p style="margin-bottom: 15px;">En <strong>Casa Barro</strong> valoramos tu privacidad. A continuación, puedes configurar qué tipo de cookies y tecnologías de rastreo permites mientras navegas en nuestro sitio:</p>
+                    
+                    <!-- 1. Esenciales y de Seguridad (Bloqueadas y siempre activas) -->
+                    <div style="margin-bottom: 15px; display: flex; align-items: flex-start; gap: 12px; background: #fcf9f2; padding: 12px; border-radius: 8px; border-left: 4px solid var(--verde-logo);">
+                        <input type="checkbox" id="cookie-seguridad" checked disabled style="margin-top: 4px; accent-color: var(--verde-logo); transform: scale(1.2);">
+                        <div>
+                            <label for="cookie-seguridad" style="font-weight: bold; color: var(--verde-logo);">Esenciales y de Seguridad</label>
+                            <p style="font-size: 0.85rem; margin-top: 4px; line-height: 1.4;">Son obligatorias. Permiten que el carrito de compras guarde tus productos, mantienen activa tu sesión y activan los protocolos anti-fraude al momento de pagar. <em>(No se pueden desactivar)</em>.</p>
+                        </div>
+                    </div>
+
+                    <!-- 2. Ubicación y Preferencias -->
+                    <div style="margin-bottom: 15px; display: flex; align-items: flex-start; gap: 12px; padding: 5px 12px;">
+                        <input type="checkbox" id="cookie-ubicacion" style="margin-top: 4px; accent-color: var(--verde-logo); transform: scale(1.2); cursor: pointer;">
+                        <div>
+                            <label for="cookie-ubicacion" style="font-weight: bold; color: var(--verde-logo); cursor: pointer;">Funcionalidad y Ubicación</label>
+                            <p style="font-size: 0.85rem; margin-top: 4px; line-height: 1.4;">Nos permiten acceder a tu ubicación aproximada (Aguascalientes) para calcular tiempos de entrega, y recordar tus preferencias del sitio (como si prefieres ver los precios con o sin propina incluida).</p>
+                        </div>
+                    </div>
+
+                    <!-- 3. Analíticas y Rendimiento -->
+                    <div style="margin-bottom: 15px; display: flex; align-items: flex-start; gap: 12px; padding: 5px 12px;">
+                        <input type="checkbox" id="cookie-analitica" style="margin-top: 4px; accent-color: var(--verde-logo); transform: scale(1.2); cursor: pointer;">
+                        <div>
+                            <label for="cookie-analitica" style="font-weight: bold; color: var(--verde-logo); cursor: pointer;">Rendimiento y Analíticas</label>
+                            <p style="font-size: 0.85rem; margin-top: 4px; line-height: 1.4;">Recopilan datos anónimos sobre cómo usas el sitio (tiempos de carga, qué platillos del menú se visitan más y mapas de calor) para ayudarnos a detectar errores y optimizar la página.</p>
+                        </div>
+                    </div>
+
+                    <!-- 4. Marketing y Publicidad -->
+                    <div style="margin-bottom: 5px; display: flex; align-items: flex-start; gap: 12px; padding: 5px 12px;">
+                        <input type="checkbox" id="cookie-marketing" style="margin-top: 4px; accent-color: var(--verde-logo); transform: scale(1.2); cursor: pointer;">
+                        <div>
+                            <label for="cookie-marketing" style="font-weight: bold; color: var(--verde-logo); cursor: pointer;">Marketing y Publicidad (Terceros)</label>
+                            <p style="font-size: 0.85rem; margin-top: 4px; line-height: 1.4;">Comparten información de navegación con plataformas como Facebook e Instagram para poder mostrarte anuncios personalizados y cupones de descuento relevantes basados en tus intereses.</p>
+                        </div>
+                    </div>
+                </div>
+            `,
+            width: '650px',
+            showCancelButton: true,
+            confirmButtonText: 'Guardar mis preferencias',
+            cancelButtonText: 'Aceptar todas',
+            confirmButtonColor: '#3c4a45',
+            cancelButtonColor: '#557268',
+            allowOutsideClick: false, 
+            allowEscapeKey: false,
+            
+            // Leemos los 3 checkboxes opcionales
+            preConfirm: () => {
+                const ubicacionActivas = document.getElementById('cookie-ubicacion').checked;
+                const analiticasActivas = document.getElementById('cookie-analitica').checked;
+                const marketingActivas = document.getElementById('cookie-marketing').checked;
+                return { 
+                    ubicacion: ubicacionActivas, 
+                    analiticas: analiticasActivas, 
+                    marketing: marketingActivas 
+                };
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // El usuario eligió manualmente
+                localStorage.setItem('casaBarro_prefs_ubicacion', result.value.ubicacion);
+                localStorage.setItem('casaBarro_prefs_analiticas', result.value.analiticas);
+                localStorage.setItem('casaBarro_prefs_marketing', result.value.marketing);
+                
+                Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Preferencias guardadas', showConfirmButton: false, timer: 2000 });
+            } else if (result.dismiss === Swal.DismissReason.cancel) {
+                // El usuario le dio al botón de "Aceptar todas"
+                localStorage.setItem('casaBarro_prefs_ubicacion', 'true');
+                localStorage.setItem('casaBarro_prefs_analiticas', 'true');
+                localStorage.setItem('casaBarro_prefs_marketing', 'true');
+                
+                Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Todas las cookies aceptadas', showConfirmButton: false, timer: 2000 });
+            }
+        });
+    }
+}
+
 function activarAlertas() {
     const btnLogin = document.getElementById('btn-login');
     if(btnLogin) btnLogin.addEventListener('click', () => window.location.href = 'login.html');
@@ -835,6 +922,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Funciones globales
+    verificarCookies();
     activarAlertas();
     actualizarUI();
     renderizarCarrito();
