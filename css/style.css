@@ -1026,3 +1026,93 @@ nav a:hover {
 .badge-status.cancelado { background-color: #f8d7da; color: #721c24; }
 .badge-status.activa { background-color: #d4edda; color: #155724; }
 .badge-status.expirada { background-color: #e2e3e5; color: #383d41; }
+
+/* 11. PANTALLA DE PROMOCIONES */
+.promo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 2rem;
+    margin-bottom: 3rem;
+    max-width: 1000px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.promo-card {
+    background-color: #ffffff;
+    border-radius: 15px;
+    padding: 25px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    text-align: left;
+    position: relative;
+    border-top: 5px solid var(--verde-logo);
+}
+
+.promo-badge {
+    position: absolute;
+    top: -15px;
+    right: 20px;
+    background-color: var(--verde-logo);
+    color: white;
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.promo-card h3 {
+    color: var(--verde-logo);
+    font-size: 1.4rem;
+    margin-bottom: 10px;
+    margin-top: 5px;
+}
+
+.promo-card p {
+    color: #555;
+    line-height: 1.6;
+    margin-bottom: 20px;
+    font-size: 0.95rem;
+}
+
+/* Tarjeta especial VIP */
+.vip-card {
+    border-top: 5px solid #d4af37; /* Color dorado */
+    background: linear-gradient(135deg, #ffffff 0%, #fcf9f2 100%);
+}
+
+/* Caja de Código de Descuento */
+.promo-code-box {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #f9f9f9;
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    padding: 10px 15px;
+    margin-top: 15px;
+}
+
+.promo-code {
+    font-family: monospace;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--verde-logo);
+    letter-spacing: 2px;
+}
+
+.btn-aplicar {
+    background-color: var(--verde-logo);
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 0.9rem;
+    transition: background-color 0.3s;
+}
+
+.btn-aplicar:hover {
+    background-color: #557268;
+}

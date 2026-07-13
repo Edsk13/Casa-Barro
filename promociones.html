@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Promociones | Casa Barro</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+
+    <div id="navbar-container"></div>
+
+    <main class="catalogo-container">
+        <h1 class="catalogo-titulo">Ofertas Especiales</h1>
+        <p class="catalogo-subtitulo">Aprovecha nuestros descuentos y promociones de lealtad.</p>
+
+        <!-- Promociones Diarias -->
+        <h2 class="categoria-titulo">Promos del Día</h2>
+        <div class="promo-grid">
+            <div class="promo-card">
+                <div class="promo-badge">Lunes a Jueves</div>
+                <h3>Mañanas de Café</h3>
+                <p>En la compra de cualquier platillo (Chilaquiles, Enchiladas o Waffles), llévate un Café Americano por solo $15.</p>
+                <div class="promo-code-box">
+                    <span class="promo-code">MAÑANAS15</span>
+                    <button class="btn-aplicar" onclick="aplicarDescuento('MAÑANAS15', 10)">Aplicar (10% OFF)</button>
+                </div>
+            </div>
+            
+            <div class="promo-card">
+                <div class="promo-badge" style="background-color: #b7410e;">Viernes</div>
+                <h3>Viernes de Enchiladas</h3>
+                <p>Disfruta de nuestras famosas Enchiladas Suizas con un 20% de descuento para comenzar bien el fin de semana.</p>
+                <div class="promo-code-box">
+                    <span class="promo-code">VIERNES20</span>
+                    <button class="btn-aplicar" onclick="aplicarDescuento('VIERNES20', 20)">Aplicar (20% OFF)</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Promociones de Lealtad (Frecuencia) -->
+        <h2 class="categoria-titulo">Club Casa Barro</h2>
+        <div class="promo-grid">
+            <div class="promo-card vip-card">
+                <h3>Cliente Frecuente</h3>
+                <p>Al acumular 5 pedidos en línea, te regalamos un <strong>15% de descuento</strong> en tu sexta compra total. (Válido para usuarios registrados).</p>
+                <div class="promo-code-box">
+                    <span class="promo-code">SOYCLIENTE15</span>
+                    <button class="btn-aplicar" onclick="aplicarDescuento('SOYCLIENTE15', 15)">Aplicar Código</button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="footer-container"></div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

@@ -9,11 +9,10 @@ async function cargarComponente(id, ruta) {
     }
 }
 
-// 2. SISTEMA DE CARRITO PERSISTENTE Y DETALLES
+// 2. SISTEMA DE CARRITO PERSISTENTE Y DESCUENTOS
 let carrito = JSON.parse(localStorage.getItem('casaBarro_carrito')) || [];
-
-// Variable para guardar el porcentaje de propina actual (por defecto 0%)
 let propinaPorcentaje = 0;
+let cuponAplicado = JSON.parse(localStorage.getItem('casaBarro_cupon')) || null;
 
 window.mostrarProximamente = function() {
     Swal.fire({
@@ -25,6 +24,26 @@ window.mostrarProximamente = function() {
     });
 }
 
+// Aplicar cupón de descuento
+window.aplicarDescuento = function(codigo, porcentaje) {
+    cuponAplicado = { codigo: codigo, porcentaje: porcentaje };
+    localStorage.setItem('casaBarro_cupon', JSON.stringify(cuponAplicado));
+    
+    Swal.fire({
+        icon: 'success',
+        title: '¡Descuento Aplicado!',
+        text: `El cupón ${codigo} del ${porcentaje}% se reflejará en tu carrito.`,
+        confirmButtonColor: '#3c4a45',
+        confirmButtonText: 'Ir a mi pedido',
+        showCancelButton: true,
+        cancelButtonText: 'Seguir viendo'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = 'carrito.html';
+        }
+    });
+}
+
 // Modal de Políticas de Compra y Venta
 window.mostrarPoliticas = function() {
     Swal.fire({
@@ -33,15 +52,12 @@ window.mostrarPoliticas = function() {
             <div style="text-align: left; font-size: 0.95rem; line-height: 1.6; color: #555; max-height: 350px; overflow-y: auto; padding-right: 10px;">
                 <h4 style="color:var(--verde-logo); margin-bottom:5px;">1. Pedidos y Preparación</h4>
                 <p style="margin-bottom:15px;">Todos los platillos se preparan al momento. El tiempo estimado de entrega puede variar entre 25 a 45 minutos dependiendo de la demanda en la sucursal.</p>
-                
                 <h4 style="color:var(--verde-logo); margin-bottom:5px;">2. Cancelaciones</h4>
                 <p style="margin-bottom:15px;">Una vez que el pedido pasa al estado de "En preparación" en la cocina, no se aceptarán cancelaciones ni devoluciones monetarias.</p>
-                
                 <h4 style="color:var(--verde-logo); margin-bottom:5px;">3. Alérgenos e Ingredientes</h4>
-                <p style="margin-bottom:15px;">Es responsabilidad del cliente notificar cualquier alergia o intolerancia en las notas del pedido. Casa Barro no se hace responsable por omisiones de esta información.</p>
-                
+                <p style="margin-bottom:15px;">Es responsabilidad del cliente notificar cualquier alergia o intolerancia en las notas del pedido.</p>
                 <h4 style="color:var(--verde-logo); margin-bottom:5px;">4. Reembolsos o Reposiciones</h4>
-                <p style="margin-bottom:15px;">Si tu pedido llegó incompleto, incorrecto o en mal estado, cuentas con 30 minutos a partir de la entrega para reportarlo a nuestros canales de atención y solicitar una reposición o crédito a favor.</p>
+                <p style="margin-bottom:15px;">Si tu pedido llegó incompleto, incorrecto o en mal estado, cuentas con 30 minutos a partir de la entrega para reportarlo.</p>
             </div>
         `,
         confirmButtonText: 'Aceptar y Cerrar',
@@ -50,7 +66,6 @@ window.mostrarPoliticas = function() {
     });
 }
 
-// Actualizar el número del carrito en la barra de navegación
 window.actualizarUI = function() {
     const cartCountElement = document.getElementById('cart-count');
     if (cartCountElement) {
@@ -59,7 +74,6 @@ window.actualizarUI = function() {
     }
 }
 
-// Lógica para aumentar o disminuir cantidad dentro del Modal (Catálogo)
 window.cambiarCantidad = function(cambio) {
     let el = document.getElementById('swal-cantidad');
     let cantidadActual = parseInt(el.innerText);
@@ -69,7 +83,6 @@ window.cambiarCantidad = function(cambio) {
     }
 }
 
-// Aumentar o disminuir cantidad desde la vista del carrito
 window.cambiarCantidadCarrito = function(index, cambio) {
     if (carrito[index].cantidad + cambio >= 1) {
         carrito[index].cantidad += cambio;
@@ -79,11 +92,13 @@ window.cambiarCantidadCarrito = function(index, cambio) {
     }
 }
 
-// Función que captura los datos del modal
+// Agregar al Carrito (Lee opción base y extras si existen)
 window.confirmarAgregarAlCarrito = function(nombre, precio) {
     let cantidad = parseInt(document.getElementById('swal-cantidad').innerText);
+    
     let selectorOpciones = document.getElementById('swal-opciones');
     let opcionSeleccionada = selectorOpciones ? selectorOpciones.value : null;
+
     let selectorExtras = document.getElementById('swal-extras');
     let extraSeleccionado = selectorExtras ? selectorExtras.value : null;
 
@@ -120,16 +135,83 @@ window.confirmarAgregarAlCarrito = function(nombre, precio) {
     });
 }
 
-// Función para actualizar la propina y re-dibujar el carrito
 window.cambiarPropina = function(porcentaje) {
     propinaPorcentaje = porcentaje;
     renderizarCarrito();
 }
 
+window.vaciarCarrito = function() {
+    Swal.fire({
+        title: '¿Vaciar carrito?',
+        text: "Se eliminarán todos los productos de tu pedido.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#8a8a8a',
+        confirmButtonText: 'Sí, vaciar',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            carrito = [];
+            localStorage.removeItem('casaBarro_carrito');
+            cuponAplicado = null;
+            localStorage.removeItem('casaBarro_cupon');
+            
+            actualizarUI();
+            renderizarCarrito();
+            
+            Swal.fire({
+                toast: true, position: 'top-end', icon: 'success', 
+                title: 'Carrito vacío', showConfirmButton: false, timer: 1500
+            });
+        }
+    });
+}
+
+window.removerDescuento = function() {
+    cuponAplicado = null;
+    localStorage.removeItem('casaBarro_cupon');
+    renderizarCarrito();
+}
+
 // 3. PINTAR LA PANTALLA DEL CARRITO
+window.validarCuponManual = function() {
+    let input = document.getElementById('input-cupon').value.trim().toUpperCase(); // Convierte a mayúsculas automático
+    
+    if (!input) {
+        Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: 'Escribe un código primero', showConfirmButton: false, timer: 2000 });
+        return;
+    }
+
+    let porcentaje = 0;
+    
+    // Diccionario de cupones válidos
+    if (input === 'MAÑANAS15') porcentaje = 10;
+    else if (input === 'VIERNES20') porcentaje = 20;
+    else if (input === 'SOYCLIENTE15') porcentaje = 15;
+    else {
+        Swal.fire({
+            icon: 'error',
+            title: 'Cupón inválido',
+            text: 'El código ingresado no existe o ha expirado.',
+            confirmButtonColor: '#3c4a45'
+        });
+        return;
+    }
+    
+    cuponAplicado = { codigo: input, porcentaje: porcentaje };
+    localStorage.setItem('casaBarro_cupon', JSON.stringify(cuponAplicado));
+    
+    renderizarCarrito(); // Re-dibujar el carrito con el descuento
+    
+    Swal.fire({
+        toast: true, position: 'top-end', icon: 'success', 
+        title: '¡Cupón aplicado!', showConfirmButton: false, timer: 2000
+    });
+}
 window.renderizarCarrito = function() {
     const contenedor = document.getElementById('carrito-contenido');
-    if (!contenedor) return; // Si no estamos en carrito.html, detenemos la función
+    if (!contenedor) return; 
 
     if (carrito.length === 0) {
         contenedor.innerHTML = `
@@ -143,6 +225,16 @@ window.renderizarCarrito = function() {
     }
 
     let htmlItems = '<div class="carrito-grid"><div class="carrito-items">';
+    
+    // Botón de Vaciar Carrito
+    htmlItems += `
+        <div style="text-align: right; margin-bottom: 15px;">
+            <button class="btn-eliminar" onclick="vaciarCarrito()">
+                Vaciar carrito
+            </button>
+        </div>
+    `;
+
     let subtotal = 0;
 
     carrito.forEach((item, index) => {
@@ -174,14 +266,40 @@ window.renderizarCarrito = function() {
 
     htmlItems += '</div>';
 
-    // CÁLCULOS DE PROPINA
-    let propinaCalculada = subtotal * (propinaPorcentaje / 100);
-    let totalFinal = subtotal + propinaCalculada;
+    // === CÁLCULOS MATEMÁTICOS ===
+    let montoDescuento = 0;
+    let htmlDescuento = '';
 
-    // Guardamos el total final en memoria para que la página de pago lo pueda leer
+    if (cuponAplicado) {
+        montoDescuento = subtotal * (cuponAplicado.porcentaje / 100);
+        htmlDescuento = `
+            <div style="display:flex; justify-content:space-between; margin-bottom:15px; color: #b7410e; font-weight: bold;">
+                <span>Descuento (${cuponAplicado.codigo} - ${cuponAplicado.porcentaje}%):</span>
+                <span>-$${montoDescuento.toFixed(2)}</span>
+            </div>
+            <div style="text-align: right; margin-bottom: 15px;">
+                <button onclick="removerDescuento()" style="background:none; border:none; color:#777; font-size:0.8rem; text-decoration:underline; cursor:pointer;">Quitar cupón</button>
+            </div>
+        `;
+    } else {
+        htmlDescuento = `
+            <div style="margin-bottom: 20px;">
+                <p style="color: #555; margin-bottom: 8px; font-size: 0.95rem;">¿Tienes un código de descuento?</p>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="input-cupon" placeholder="Ej. VIERNES20" style="flex:1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 0.95rem; outline: none; font-family: inherit; text-transform: uppercase;">
+                    <button onclick="validarCuponManual()" class="btn-primary" style="padding: 8px 15px; border-radius: 8px; font-size: 0.95rem;">Aplicar</button>
+                </div>
+            </div>
+        `;
+    }
+
+    let subtotalConDescuento = subtotal - montoDescuento;
+    let propinaCalculada = subtotalConDescuento * (propinaPorcentaje / 100);
+    let totalFinal = subtotalConDescuento + propinaCalculada;
+
     localStorage.setItem('casaBarro_totalFinal', totalFinal.toFixed(2));
 
-    // INTERFAZ DEL TICKET
+    // === INTERFAZ DEL TICKET ===
     htmlItems += `
         <div class="resumen-carrito">
             <h3 style="color:var(--verde-logo); margin-bottom:20px; font-size: 1.3rem;">Resumen de Compra</h3>
@@ -191,14 +309,15 @@ window.renderizarCarrito = function() {
                 <span>$${subtotal.toFixed(2)}</span>
             </div>
 
-            <!-- Botones para elegir la propina -->
+            ${htmlDescuento}
+
             <div style="margin-bottom: 15px;">
                 <p style="color: #555; margin-bottom: 8px; font-size: 0.95rem;">¿Deseas agregar propina?</p>
                 <div style="display: flex; gap: 8px;">
-                    <button onclick="cambiarPropina(0)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 0 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 0 ? 'white' : 'var(--verde-logo)'}; cursor: pointer; transition: all 0.2s;">0%</button>
-                    <button onclick="cambiarPropina(10)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 10 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 10 ? 'white' : 'var(--verde-logo)'}; cursor: pointer; transition: all 0.2s;">10%</button>
-                    <button onclick="cambiarPropina(15)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 15 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 15 ? 'white' : 'var(--verde-logo)'}; cursor: pointer; transition: all 0.2s;">15%</button>
-                    <button onclick="cambiarPropina(20)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 20 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 20 ? 'white' : 'var(--verde-logo)'}; cursor: pointer; transition: all 0.2s;">20%</button>
+                    <button onclick="cambiarPropina(0)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 0 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 0 ? 'white' : 'var(--verde-logo)'}; cursor: pointer;">0%</button>
+                    <button onclick="cambiarPropina(10)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 10 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 10 ? 'white' : 'var(--verde-logo)'}; cursor: pointer;">10%</button>
+                    <button onclick="cambiarPropina(15)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 15 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 15 ? 'white' : 'var(--verde-logo)'}; cursor: pointer;">15%</button>
+                    <button onclick="cambiarPropina(20)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 20 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 20 ? 'white' : 'var(--verde-logo)'}; cursor: pointer;">20%</button>
                 </div>
             </div>
             
@@ -224,7 +343,6 @@ window.renderizarCarrito = function() {
     contenedor.innerHTML = htmlItems;
 }
 
-// Eliminar un producto específico del carrito
 window.eliminarDelCarrito = function(index) {
     carrito.splice(index, 1); 
     localStorage.setItem('casaBarro_carrito', JSON.stringify(carrito)); 
@@ -232,12 +350,11 @@ window.eliminarDelCarrito = function(index) {
     renderizarCarrito(); 
 }
 
-// 4. MODAL DE PRODUCTO
+// 4. MODAL DE PRODUCTO FRONT-END (C/ 2 DROPDOWNS)
 window.abrirDetalleMejorado = function(nombre, descripcion, precioStr, imagenUrl, alineacion = 'center', opcionesStr = '', extrasStr = '') {
     let precioNum = parseFloat(precioStr.replace('$', '').replace(' MXN', ''));
     let opcionesHtml = '';
     
-    // Construir el primer dropdown (Opción Base)
     if (opcionesStr) {
         let opcionesArray = opcionesStr.split(',');
         opcionesHtml += `
@@ -248,7 +365,6 @@ window.abrirDetalleMejorado = function(nombre, descripcion, precioStr, imagenUrl
         `;
     }
 
-    // Construir el segundo dropdown (Complemento / Sabor)
     if (extrasStr) {
         let extrasArray = extrasStr.split(',');
         opcionesHtml += `
@@ -259,10 +375,9 @@ window.abrirDetalleMejorado = function(nombre, descripcion, precioStr, imagenUrl
         `;
     }
 
-    // Actualizamos las sugerencias del modal con los nuevos parámetros
     let relacionadosHtml = `
         <div style="display:flex; gap:15px; overflow-x:auto; padding: 10px 0; scrollbar-width: thin;">
-            <div onclick="Swal.close(); setTimeout(() => abrirDetalleMejorado('Capuchinos y Lattes', 'Nuestras especialidades calientes.', '$65.00 MXN', 'LatteCaliente.jpeg', 'bottom', 'Capuchino, Latte', 'Clásico, Caramelo, Crema Irlandesa, Vainilla'), 300);" style="min-width:110px; text-align:center; cursor:pointer;">
+            <div onclick="Swal.close(); setTimeout(() => abrirDetalleMejorado('Capuchinos y Lattes', 'Nuestras especialidades calientes. Elige tu base y sabor favorito.', '$65.00 MXN', 'LatteCaliente.jpeg', 'bottom', 'Capuchino, Latte', 'Clásico, Caramelo, Crema Irlandesa, Avellana, Vainilla, Matcha, Chai'), 300);" style="min-width:110px; text-align:center; cursor:pointer;">
                 <img src="LatteCaliente.jpeg" style="width:100%; height:90px; object-fit:cover; border-radius:10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
                 <p style="font-size:0.85rem; margin-top:8px; color:var(--verde-logo); font-weight:bold;">Café Latte</p>
             </div>
@@ -301,12 +416,10 @@ window.abrirDetalleMejorado = function(nombre, descripcion, precioStr, imagenUrl
     });
 }
 
-// 5. ALERTAS Y EVENTOS UI (Header, Footer, Formularios)
+// 5. ALERTAS Y EVENTOS UI (Header, Footer, Autenticación)
 function activarAlertas() {
     const btnLogin = document.getElementById('btn-login');
-    if(btnLogin) btnLogin.addEventListener('click', () => {
-        window.location.href = 'login.html';
-    });
+    if(btnLogin) btnLogin.addEventListener('click', () => window.location.href = 'login.html');
 
     const btnHistoria = document.getElementById('btn-historia');
     if(btnHistoria) btnHistoria.addEventListener('click', () => {
@@ -353,142 +466,366 @@ function activarAlertas() {
             }
         }).then((result) => {
             if (result.isConfirmed) {
-                Swal.fire({
-                    title: '¡Mensaje Enviado!',
-                    text: 'Gracias ' + result.value.nombre + ', hemos recibido tu mensaje.',
-                    icon: 'success',
-                    confirmButtonText: 'Aceptar',
-                    confirmButtonColor: '#3c4a45'
-                });
+                Swal.fire({ title: '¡Mensaje Enviado!', text: 'Gracias ' + result.value.nombre + ', hemos recibido tu mensaje.', icon: 'success', confirmButtonColor: '#3c4a45' });
             }
         });
     });
 
     const formRegistro = document.getElementById('form-registro');
-    if(formRegistro) {
-        formRegistro.addEventListener('submit', (e) => {
-            e.preventDefault();
-            Swal.fire({
-                title: '¡Registro exitoso!',
-                text: 'Tu cuenta ha sido creada correctamente (Simulado).',
-                icon: 'success',
-                confirmButtonText: 'Ir a Iniciar Sesión',
-                confirmButtonColor: '#3c4a45'
-            }).then(() => {
-                window.location.href = 'login.html';
-            });
-        });
-    }
+    if(formRegistro) formRegistro.addEventListener('submit', (e) => {
+        e.preventDefault();
+        Swal.fire({ title: '¡Registro exitoso!', text: 'Tu cuenta ha sido creada correctamente (Simulado).', icon: 'success', confirmButtonColor: '#3c4a45' }).then(() => window.location.href = 'login.html');
+    });
 
     const formLogin = document.getElementById('form-login');
-    if(formLogin) {
-        formLogin.addEventListener('submit', (e) => {
-            e.preventDefault();
-            Swal.fire({
-                title: 'Entrando...',
-                text: 'Validando credenciales',
-                icon: 'success',
-                timer: 1000,
-                showConfirmButton: false
-            }).then(() => {
-                window.location.href = 'perfil.html';
-            });
-        });
-    }
+    if(formLogin) formLogin.addEventListener('submit', (e) => {
+        e.preventDefault();
+        Swal.fire({ title: 'Entrando...', text: 'Validando credenciales', icon: 'success', timer: 1000, showConfirmButton: false }).then(() => window.location.href = 'perfil.html');
+    });
 
     const btnRecuperar = document.getElementById('btn-recuperar');
-    if(btnRecuperar) {
-        btnRecuperar.addEventListener('click', (e) => {
-            e.preventDefault();
-            Swal.fire({
-                title: 'Recuperar contraseña',
-                text: 'Ingresa tu correo electrónico para enviarte un enlace de recuperación:',
-                input: 'email',
-                inputPlaceholder: 'tu@correo.com',
-                showCancelButton: true,
-                confirmButtonText: 'Enviar enlace',
-                cancelButtonText: 'Cancelar',
-                confirmButtonColor: '#3c4a45',
-                inputValidator: (value) => {
-                    if (!value) {
-                        return '¡Necesitas ingresar un correo válido!';
-                    }
-                }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    Swal.fire({
-                        title: '¡Enlace enviado!',
-                        text: 'Revisa tu bandeja de entrada para restablecer tu contraseña.',
-                        icon: 'success',
-                        confirmButtonText: 'Entendido',
-                        confirmButtonColor: '#3c4a45'
-                    });
-                }
-            });
+    if(btnRecuperar) btnRecuperar.addEventListener('click', (e) => {
+        e.preventDefault();
+        Swal.fire({
+            title: 'Recuperar contraseña',
+            text: 'Ingresa tu correo electrónico para enviarte un enlace de recuperación:',
+            input: 'email',
+            inputPlaceholder: 'tu@correo.com',
+            showCancelButton: true,
+            confirmButtonText: 'Enviar enlace',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#3c4a45',
+            inputValidator: (value) => { if (!value) return '¡Necesitas ingresar un correo válido!'; }
+        }).then((result) => {
+            if (result.isConfirmed) Swal.fire({ title: '¡Enlace enviado!', text: 'Revisa tu bandeja de entrada para restablecer tu contraseña.', icon: 'success', confirmButtonColor: '#3c4a45' });
         });
-    }
+    });
 
     const btnCerrarSesion = document.getElementById('btn-cerrar-sesion');
-    if(btnCerrarSesion) {
-        btnCerrarSesion.addEventListener('click', () => {
-            Swal.fire({
-                title: '¿Quieres cerrar sesión?',
-                text: 'Tendrás que volver a ingresar tus datos la próxima vez.',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#557268',
-                cancelButtonColor: '#8a8a8a',
-                confirmButtonText: 'Sí, salir',
-                cancelButtonText: 'Cancelar'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    Swal.fire({
-                        title: 'Sesión cerrada',
-                        text: '¡Esperamos verte pronto en Casa Barro!',
-                        icon: 'success',
-                        timer: 1500,
-                        showConfirmButton: false
-                    }).then(() => {
-                        window.location.href = 'index.html'; 
-                    });
-                }
-            });
+    if(btnCerrarSesion) btnCerrarSesion.addEventListener('click', () => {
+        Swal.fire({
+            title: '¿Quieres cerrar sesión?',
+            text: 'Tendrás que volver a ingresar tus datos la próxima vez.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#557268',
+            cancelButtonColor: '#8a8a8a',
+            confirmButtonText: 'Sí, salir',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) Swal.fire({ title: 'Sesión cerrada', text: '¡Esperamos verte pronto en Casa Barro!', icon: 'success', timer: 1500, showConfirmButton: false }).then(() => window.location.href = 'index.html');
         });
-    }
+    });
 
     const btnIg = document.getElementById('btn-ig');
-    if(btnIg) btnIg.addEventListener('click', () => {
-        Swal.fire({ title: 'Instagram', text: 'Mensaje enviado con exito.', icon: 'info', confirmButtonText: 'Entendido', confirmButtonColor: '#3c4a45' }); 
-    });
+    if(btnIg) btnIg.addEventListener('click', () => Swal.fire({ title: 'Instagram', text: 'Mensaje enviado con exito.', icon: 'info', confirmButtonColor: '#3c4a45' })); 
 
     const btnFb = document.getElementById('btn-fb');
-    if(btnFb) btnFb.addEventListener('click', () => {
-        Swal.fire({ title: '¡Redirigiendo a Facebook!', text: 'Aquí se abriría la página de Facebook de Casa Barro.', icon: 'info', confirmButtonText: 'Entendido', confirmButtonColor: '#3c4a45' });
-    });
+    if(btnFb) btnFb.addEventListener('click', () => Swal.fire({ title: '¡Redirigiendo a Facebook!', text: 'Aquí se abriría la página de Facebook de Casa Barro.', icon: 'info', confirmButtonColor: '#3c4a45' }));
 
     const btnPhone = document.getElementById('btn-phone');
-    if(btnPhone) btnPhone.addEventListener('click', () => {
-        Swal.fire({ title: '¡Iniciando llamada!', text: 'Llamada realizada con exito.', icon: 'success', confirmButtonText: 'Perfecto', confirmButtonColor: '#3c4a45' });
+    if(btnPhone) btnPhone.addEventListener('click', () => Swal.fire({ title: '¡Iniciando llamada!', text: 'Llamada realizada con exito.', icon: 'success', confirmButtonColor: '#3c4a45' }));
+}
+
+// 6. LÓGICA DEL PANEL DE ADMINISTRADOR (PRODUCTOS)
+window.mostrarSimulacion = function(titulo, mensaje) {
+    Swal.fire({ title: titulo, text: mensaje, icon: 'info', confirmButtonText: 'Entendido', confirmButtonColor: '#3c4a45' });
+}
+
+window.filtrarProductosAdmin = function() {
+    let inputBusqueda = document.getElementById('admin-search');
+    let selectCategoria = document.getElementById('admin-filter-cat');
+    let selectEstado = document.getElementById('admin-filter-status');
+
+    if (!inputBusqueda || !selectCategoria || !selectEstado) return;
+
+    let texto = inputBusqueda.value.toLowerCase();
+    let categoria = selectCategoria.value;
+    let estado = selectEstado.value;
+    
+    let filas = document.querySelectorAll('.admin-row');
+    
+    filas.forEach(fila => {
+        let nombre = fila.getAttribute('data-nombre').toLowerCase();
+        let cat = fila.getAttribute('data-categoria');
+        let est = fila.getAttribute('data-estado');
+        
+        let coincideTexto = nombre.includes(texto);
+        let coincideCat = (categoria === 'todos') || (cat === categoria);
+        let coincideEst = (estado === 'todos') || (est === estado);
+        
+        if (coincideTexto && coincideCat && coincideEst) {
+            fila.style.display = '';
+        } else {
+            fila.style.display = 'none';
+        }
     });
 }
 
-// 6. INICIALIZADOR AL CARGAR LA PÁGINA
+window.abrirFormularioProducto = function(editMode = false) {
+    let title = editMode ? 'Editar Producto' : 'Agregar Nuevo Producto';
+    let btnText = editMode ? 'Guardar Cambios' : 'Guardar Producto';
+
+    Swal.fire({
+        title: title,
+        html: `
+            <form id="admin-prod-form" style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;">
+                <div>
+                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Nombre del producto:</label>
+                    <input class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Ej. Torta de Cochinita" ${editMode ? 'value="Producto Seleccionado"' : ''}>
+                </div>
+                <div style="display:flex; gap:15px;">
+                    <div style="flex:1;">
+                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Categoría:</label>
+                        <select class="swal2-select" style="margin:5px 0 0 0; width:100%;">
+                            <option value="alimentos" ${editMode ? 'selected' : ''}>Alimentos</option>
+                            <option value="calientes">Bebidas Calientes</option>
+                            <option value="frias">Bebidas Frías</option>
+                            <option value="postres">Postres</option>
+                        </select>
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Precio (MXN):</label>
+                        <input type="number" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Ej. 120" ${editMode ? 'value="125"' : ''}>
+                    </div>
+                </div>
+                <div>
+                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Descripción:</label>
+                    <textarea class="swal2-textarea" style="margin:5px 0 0 0; width:100%; height:80px; resize:none;">${editMode ? 'Descripción del producto actual...' : ''}</textarea>
+                </div>
+                <div>
+                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Imagen (URL / Archivo):</label>
+                    <input type="text" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Enlace o nombre de la imagen" ${editMode ? 'value="imagen.jpeg"' : ''}>
+                </div>
+                <div style="display:flex; gap:15px;">
+                    <div style="flex:1;">
+                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Existencia:</label>
+                        <input type="number" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Cant." ${editMode ? 'value="45"' : ''}>
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Estado:</label>
+                        <select class="swal2-select" style="margin:5px 0 0 0; width:100%;">
+                            <option value="disponible" ${editMode ? 'selected' : ''}>Disponible (Activo)</option>
+                            <option value="agotado">Agotado (Inactivo)</option>
+                        </select>
+                    </div>
+                </div>
+            </form>
+        `,
+        showCancelButton: true,
+        confirmButtonText: btnText,
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#3c4a45',
+        cancelButtonColor: '#8a8a8a',
+        width: '550px'
+    }).then((result) => {
+        if (result.isConfirmed) Swal.fire({ icon: 'success', title: '¡Guardado!', text: 'Los datos del producto han sido guardados correctamente (Simulado).', confirmButtonColor: '#3c4a45' });
+    });
+}
+
+window.eliminarProductoAdmin = function(nombreProducto) {
+    Swal.fire({
+        title: `¿Eliminar ${nombreProducto}?`,
+        text: "Esta acción no se puede deshacer y el producto desaparecerá del menú público.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#8a8a8a',
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) Swal.fire({ icon: 'success', title: 'Eliminado', text: 'El producto ha sido borrado exitosamente.', confirmButtonColor: '#3c4a45' });
+    });
+}
+
+window.verDetalleAdmin = function(nombre, descripcion, precio, imagenUrl) {
+    Swal.fire({
+        title: nombre,
+        html: `
+            <img src="${imagenUrl}" alt="${nombre}" style="width: 100%; height: 220px; object-fit: cover; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+            <p style="text-align: justify; margin-bottom: 15px; color: #555; line-height: 1.5;">${descripcion}</p>
+            <h3 style="color: var(--verde-logo); font-size: 1.6rem; font-weight: bold; margin-bottom: 10px;">${precio}</h3>
+            <hr style="margin: 15px 0; border: 0; border-top: 1px dashed #ccc;">
+            <p style="font-size: 0.85rem; color: #777;"><em>👀 Vista previa de cómo lo ven los clientes.</em></p>
+        `,
+        confirmButtonText: 'Cerrar vista previa',
+        confirmButtonColor: '#3c4a45',
+        width: '450px'
+    });
+}
+
+window.cambiarEstadoRapido = function(btn) {
+    let fila = btn.closest('tr');
+    let badge = fila.querySelector('.badge-status');
+    let estadoActual = fila.getAttribute('data-estado');
+
+    if(estadoActual === 'disponible') {
+        fila.setAttribute('data-estado', 'agotado');
+        badge.className = 'badge-status agotado';
+        badge.innerText = 'Agotado';
+        Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: 'Marcado como Agotado', showConfirmButton: false, timer: 2000 });
+    } else {
+        fila.setAttribute('data-estado', 'disponible');
+        badge.className = 'badge-status disponible';
+        badge.innerText = 'Disponible';
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Marcado como Disponible', showConfirmButton: false, timer: 2000 });
+    }
+    filtrarProductosAdmin();
+}
+
+// 7. LÓGICA DE MÓDULOS ADMIN
+window.verDetallePedidoAdmin = function(numeroPedido) {
+    Swal.fire({
+        title: `Detalle del Pedido ${numeroPedido}`,
+        html: `
+            <div style="text-align: left; color: #555; font-size: 0.95rem;">
+                <p><strong>Cliente:</strong> Sofía Ramírez (sofia@ejemplo.com)</p>
+                <p><strong>Fecha:</strong> Hoy, 10:45 AM</p>
+                <p><strong>Método de pago:</strong> Tarjeta (Pagado)</p>
+                <hr style="margin: 15px 0;">
+                <ul style="list-style: none; padding: 0; margin-bottom: 15px;">
+                    <li style="margin-bottom: 8px;">2x Chilaquiles (Verdes, con Pollo) - $220.00</li>
+                    <li style="margin-bottom: 8px;">1x Capuchino (Vainilla) - $65.00</li>
+                </ul>
+                <p style="text-align: right; font-size: 1.2rem; font-weight: bold; color: var(--verde-logo);">Total: $285.00</p>
+            </div>
+        `,
+        confirmButtonText: 'Cerrar',
+        confirmButtonColor: '#3c4a45'
+    });
+}
+
+window.cambiarEstadoPedidoAdmin = function(btn) {
+    let fila = btn.closest('tr');
+    let badge = fila.querySelector('.badge-status');
+    
+    if (badge.classList.contains('pendiente')) {
+        badge.className = 'badge-status preparacion';
+        badge.innerText = 'En Preparación';
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Pedido enviado a cocina', showConfirmButton: false, timer: 2000 });
+    } else if (badge.classList.contains('preparacion')) {
+        badge.className = 'badge-status entregado';
+        badge.innerText = 'Entregado';
+        btn.style.display = 'none'; 
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Pedido marcado como entregado', showConfirmButton: false, timer: 2000 });
+    }
+}
+
+window.abrirFormularioPromocion = function(editMode = false) {
+    let title = editMode ? 'Editar Promoción' : 'Nueva Promoción';
+    Swal.fire({
+        title: title,
+        html: `
+            <form style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;">
+                <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Nombre de Promoción:</label>
+                <input class="swal2-input" style="margin:0; width:100%;" placeholder="Ej. 10% Descuento" ${editMode ? 'value="Viernes de Enchiladas"' : ''}>
+                <div style="display:flex; gap:15px;">
+                    <div style="flex:1;">
+                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Descuento:</label>
+                        <input class="swal2-input" style="margin:0; width:100%;" placeholder="Ej. 15%" ${editMode ? 'value="20%"' : ''}>
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Estado:</label>
+                        <select class="swal2-select" style="margin:0; width:100%;">
+                            <option value="activa">Activa</option>
+                            <option value="inactiva">Inactiva</option>
+                        </select>
+                    </div>
+                </div>
+            </form>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Guardar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#3c4a45'
+    }).then((result) => {
+        if (result.isConfirmed) Swal.fire('Guardado', 'La promoción se ha guardado correctamente.', 'success');
+    });
+}
+
+window.abrirFormularioCliente = function(editMode = false) {
+    let title = editMode ? 'Editar Cliente' : 'Registrar Nuevo Cliente';
+    let btnText = editMode ? 'Guardar Cambios' : 'Guardar Cliente';
+
+    Swal.fire({
+        title: title,
+        html: `
+            <form style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;">
+                <div>
+                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Nombre Completo:</label>
+                    <input type="text" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Ej. María Fernanda" ${editMode ? 'value="Eduardo G."' : ''}>
+                </div>
+                <div>
+                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Correo Electrónico:</label>
+                    <input type="email" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="ejemplo@correo.com" ${editMode ? 'value="eduardo@ejemplo.com"' : ''}>
+                </div>
+                <div style="display:flex; gap:15px;">
+                    <div style="flex:1;">
+                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Teléfono (Opcional):</label>
+                        <input type="tel" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="10 dígitos">
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Fecha Nacimiento:</label>
+                        <input type="date" class="swal2-input" style="margin:5px 0 0 0; width:100%;" ${editMode ? 'value="2005-06-10"' : ''}>
+                    </div>
+                </div>
+                <div>
+                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Notas adicionales:</label>
+                    <textarea class="swal2-textarea" style="margin:5px 0 0 0; width:100%; height:60px; resize:none;" placeholder="Alergias, preferencias, etc."></textarea>
+                </div>
+            </form>
+        `,
+        showCancelButton: true,
+        confirmButtonText: btnText,
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#3c4a45',
+        cancelButtonColor: '#8a8a8a',
+        width: '550px'
+    }).then((result) => {
+        if (result.isConfirmed) Swal.fire({ icon: 'success', title: '¡Éxito!', text: 'La información del cliente se ha guardado correctamente.', confirmButtonColor: '#3c4a45' });
+    });
+}
+
+window.verHistorialCliente = function() {
+    Swal.fire({
+        title: 'Historial de Compras',
+        text: 'Aquí se desplegará la lista de pedidos pasados de este cliente, sus productos favoritos y su total gastado.',
+        icon: 'info',
+        confirmButtonText: 'Cerrar',
+        confirmButtonColor: '#3c4a45'
+    });
+}
+
+window.eliminarAccionAdmin = function(itemType) {
+    Swal.fire({
+        title: '¿Estás seguro?',
+        text: `Se eliminará permanentemente ${itemType}.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonText: 'Cancelar',
+        confirmButtonText: 'Sí, eliminar'
+    }).then((result) => {
+        if (result.isConfirmed) Swal.fire('Eliminado', 'El registro ha sido borrado.', 'success');
+    });
+}
+
+// 8. INICIALIZADOR AL CARGAR LA PÁGINA
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Cargar Navbar y Footer dinámicamente (Para la tienda pública)
+    
+    // Cargar Navbar y Footer (Tienda pública)
     await cargarComponente('navbar-container', 'components/navbar.html');
     await cargarComponente('footer-container', 'components/footer.html');
     
-    // 2. Cargar Sidebar Dinámico (Para el Panel de Administrador)
+    // Cargar Sidebar (Panel Admin)
     const adminSidebarContainer = document.getElementById('admin-sidebar-container');
     if (adminSidebarContainer) {
         await cargarComponente('admin-sidebar-container', 'components/admin-sidebar.html');
         
-        // Lógica para iluminar el botón correcto en el menú lateral
         const currentPath = window.location.pathname.split('/').pop();
         const adminLinks = document.querySelectorAll('#admin-nav-links a');
         
         adminLinks.forEach(link => {
-            // Si el data-page coincide con la URL actual, le ponemos la clase active
             if (link.getAttribute('data-page') === currentPath) {
                 link.classList.add('active');
             } else {
@@ -497,12 +834,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // 3. Activar funcionalidades globales
+    // Funciones globales
     activarAlertas();
     actualizarUI();
     renderizarCarrito();
 
-    // 4. Redirección del botón de carrito en el navbar
+    // Redirección carrito
     const btnCarritoNav = document.getElementById('btn-carrito-nav');
     if(btnCarritoNav) {
         btnCarritoNav.addEventListener('click', () => {
@@ -510,7 +847,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // 5. Lógica de Filtros y Búsqueda (Tienda pública)
+    // Filtros del catálogo público
     const buscador = document.getElementById('buscador-productos');
     const filtroCategoria = document.getElementById('filtro-categoria');
 
@@ -551,302 +888,3 @@ document.addEventListener('DOMContentLoaded', async () => {
         filtroCategoria.addEventListener('change', filtrarCatalogo);
     }
 });
-
-// 7. LÓGICA DEL PANEL DE ADMINISTRADOR
-// 1. Filtros y Búsqueda Dinámica en la tabla de productos
-window.filtrarProductosAdmin = function() {
-    let inputBusqueda = document.getElementById('admin-search');
-    let selectCategoria = document.getElementById('admin-filter-cat');
-    let selectEstado = document.getElementById('admin-filter-status');
-    if (!inputBusqueda || !selectCategoria || !selectEstado) return;
-
-    let texto = inputBusqueda.value.toLowerCase();
-    let categoria = selectCategoria.value;
-    let estado = selectEstado.value;
-    let filas = document.querySelectorAll('.admin-row');
-    
-    filas.forEach(fila => {
-        let nombre = fila.getAttribute('data-nombre').toLowerCase();
-        let cat = fila.getAttribute('data-categoria');
-        let est = fila.getAttribute('data-estado');
-        let coincideTexto = nombre.includes(texto);
-        let coincideCat = (categoria === 'todos') || (cat === categoria);
-        let coincideEst = (estado === 'todos') || (est === estado);
-        if (coincideTexto && coincideCat && coincideEst) {
-            fila.style.display = '';
-        } else {
-            fila.style.display = 'none';
-        }
-    });
-}
-
-// 2. Formulario para Agregar o Editar Producto (Simulado)
-window.abrirFormularioProducto = function(editMode = false) {
-    let title = editMode ? 'Editar Producto' : 'Agregar Nuevo Producto';
-    let btnText = editMode ? 'Guardar Cambios' : 'Guardar Producto';
-
-    Swal.fire({
-        title: title,
-        html: `
-            <form id="admin-prod-form" style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;">
-                
-                <div>
-                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Nombre del producto:</label>
-                    <input id="swal-nombre" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Ej. Torta de Cochinita" ${editMode ? 'value="Producto Seleccionado"' : ''}>
-                </div>
-
-                <div style="display:flex; gap:15px;">
-                    <div style="flex:1;">
-                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Categoría:</label>
-                        <select id="swal-categoria" class="swal2-select" style="margin:5px 0 0 0; width:100%;">
-                            <option value="alimentos" ${editMode ? 'selected' : ''}>Alimentos</option>
-                            <option value="calientes">Bebidas Calientes</option>
-                            <option value="frias">Bebidas Frías</option>
-                            <option value="postres">Postres</option>
-                        </select>
-                    </div>
-                    <div style="flex:1;">
-                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Precio (MXN):</label>
-                        <input id="swal-precio" type="number" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Ej. 120" ${editMode ? 'value="125"' : ''}>
-                    </div>
-                </div>
-
-                <div>
-                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Descripción:</label>
-                    <textarea id="swal-desc" class="swal2-textarea" style="margin:5px 0 0 0; width:100%; height:80px; resize:none;">${editMode ? 'Descripción del producto actual...' : ''}</textarea>
-                </div>
-
-                <div>
-                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Imagen (URL / Archivo):</label>
-                    <input id="swal-img" type="text" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Enlace o nombre de la imagen" ${editMode ? 'value="imagen.jpeg"' : ''}>
-                </div>
-
-                <div style="display:flex; gap:15px;">
-                    <div style="flex:1;">
-                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Existencia:</label>
-                        <input id="swal-stock" type="number" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Cant." ${editMode ? 'value="45"' : ''}>
-                    </div>
-                    <div style="flex:1;">
-                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Estado:</label>
-                        <select id="swal-estado" class="swal2-select" style="margin:5px 0 0 0; width:100%;">
-                            <option value="disponible" ${editMode ? 'selected' : ''}>Disponible (Activo)</option>
-                            <option value="agotado">Agotado (Inactivo)</option>
-                        </select>
-                    </div>
-                </div>
-            </form>
-        `,
-        showCancelButton: true,
-        confirmButtonText: btnText,
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#3c4a45',
-        cancelButtonColor: '#8a8a8a',
-        width: '550px'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            Swal.fire({
-                icon: 'success',
-                title: '¡Guardado!',
-                text: 'Los datos del producto han sido guardados correctamente (Simulado).',
-                confirmButtonColor: '#3c4a45'
-            });
-        }
-    });
-}
-
-// 3. Acción: Confirmación para Eliminar
-window.eliminarProductoAdmin = function(nombreProducto) {
-    Swal.fire({
-        title: `¿Eliminar ${nombreProducto}?`,
-        text: "Esta acción no se puede deshacer y el producto desaparecerá del menú público.",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#8a8a8a',
-        confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            Swal.fire({
-                icon: 'success',
-                title: 'Eliminado',
-                text: 'El producto ha sido borrado exitosamente.',
-                confirmButtonColor: '#3c4a45'
-            });
-        }
-    });
-}
-
-// 4. Acción: Ver Detalle rápido en modo admin
-window.verDetalleAdmin = function(nombre, descripcion, precio, imagenUrl) {
-    Swal.fire({
-        title: nombre,
-        html: `
-            <img src="${imagenUrl}" alt="${nombre}" style="width: 100%; height: 220px; object-fit: cover; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-            <p style="text-align: justify; margin-bottom: 15px; color: #555; line-height: 1.5;">${descripcion}</p>
-            <h3 style="color: var(--verde-logo); font-size: 1.6rem; font-weight: bold; margin-bottom: 10px;">${precio}</h3>
-            <hr style="margin: 15px 0; border: 0; border-top: 1px dashed #ccc;">
-        `,
-        confirmButtonText: 'Cerrar vista previa',
-        confirmButtonColor: '#3c4a45',
-        width: '450px'
-    });
-}
-
-// 8. LÓGICA DE MÓDULOS ADICIONALES ADMIN
-// Pedidos: Ver Detalle
-window.verDetallePedidoAdmin = function(numeroPedido) {
-    Swal.fire({
-        title: `Detalle del Pedido ${numeroPedido}`,
-        html: `
-            <div style="text-align: left; color: #555; font-size: 0.95rem;">
-                <p><strong>Cliente:</strong> Sofía Ramírez (sofia@ejemplo.com)</p>
-                <p><strong>Fecha:</strong> Hoy, 10:45 AM</p>
-                <p><strong>Método de pago:</strong> Tarjeta (Pagado)</p>
-                <hr style="margin: 15px 0;">
-                <ul style="list-style: none; padding: 0; margin-bottom: 15px;">
-                    <li style="margin-bottom: 8px;">2x Chilaquiles (Verdes, con Pollo) - $220.00</li>
-                    <li style="margin-bottom: 8px;">1x Capuchino (Vainilla) - $65.00</li>
-                </ul>
-                <p style="text-align: right; font-size: 1.2rem; font-weight: bold; color: var(--verde-logo);">Total: $285.00</p>
-            </div>
-        `,
-        confirmButtonText: 'Cerrar',
-        confirmButtonColor: '#3c4a45'
-    });
-}
-
-// Pedidos: Avanzar Estado (Simulación visual)
-window.cambiarEstadoPedidoAdmin = function(btn) {
-    let fila = btn.closest('tr');
-    let badge = fila.querySelector('.badge-status');
-    
-    if (badge.classList.contains('pendiente')) {
-        badge.className = 'badge-status preparacion';
-        badge.innerText = 'En Preparación';
-        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Pedido enviado a cocina', showConfirmButton: false, timer: 2000 });
-    } else if (badge.classList.contains('preparacion')) {
-        badge.className = 'badge-status entregado';
-        badge.innerText = 'Entregado';
-        btn.style.display = 'none'; // Ya se entregó, quitamos el botón de avanzar
-        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Pedido marcado como entregado', showConfirmButton: false, timer: 2000 });
-    }
-}
-
-// Promociones: Crear o Editar
-window.abrirFormularioPromocion = function(editMode = false) {
-    let title = editMode ? 'Editar Promoción' : 'Nueva Promoción';
-    Swal.fire({
-        title: title,
-        html: `
-            <form style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;">
-                <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Nombre de Promoción:</label>
-                <input class="swal2-input" style="margin:0; width:100%;" placeholder="Ej. 10% Descuento" ${editMode ? 'value="Viernes de Enchiladas"' : ''}>
-                
-                <div style="display:flex; gap:15px;">
-                    <div style="flex:1;">
-                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Descuento:</label>
-                        <input class="swal2-input" style="margin:0; width:100%;" placeholder="Ej. 15%" ${editMode ? 'value="20%"' : ''}>
-                    </div>
-                    <div style="flex:1;">
-                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Estado:</label>
-                        <select class="swal2-select" style="margin:0; width:100%;">
-                            <option value="activa">Activa</option>
-                            <option value="inactiva">Inactiva</option>
-                        </select>
-                    </div>
-                </div>
-            </form>
-        `,
-        showCancelButton: true,
-        confirmButtonText: 'Guardar',
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#3c4a45'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            Swal.fire('Guardado', 'La promoción se ha guardado correctamente.', 'success');
-        }
-    });
-}
-
-// Clientes: Ver Historial
-window.verHistorialCliente = function() {
-    Swal.fire({
-        title: 'Historial de Compras',
-        text: 'Aquí se desplegará la lista de pedidos pasados de este cliente, sus productos favoritos y su total gastado.',
-        icon: 'info',
-        confirmButtonText: 'Cerrar',
-        confirmButtonColor: '#3c4a45'
-    });
-}
-
-// Eliminar General (Promociones, Clientes, etc.)
-window.eliminarAccionAdmin = function(itemType) {
-    Swal.fire({
-        title: '¿Estás seguro?',
-        text: `Se eliminará permanentemente ${itemType}.`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonText: 'Cancelar',
-        confirmButtonText: 'Sí, eliminar'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            Swal.fire('Eliminado', 'El registro ha sido borrado.', 'success');
-        }
-    });
-}
-
-// Clientes: Formulario para Agregar o Editar
-window.abrirFormularioCliente = function(editMode = false) {
-    let title = editMode ? 'Editar Cliente' : 'Registrar Nuevo Cliente';
-    let btnText = editMode ? 'Guardar Cambios' : 'Guardar Cliente';
-
-    Swal.fire({
-        title: title,
-        html: `
-            <form style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;">
-                <div>
-                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Nombre Completo:</label>
-                    <input type="text" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Ej. María Fernanda" ${editMode ? 'value="Eduardo G."' : ''}>
-                </div>
-                
-                <div>
-                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Correo Electrónico:</label>
-                    <input type="email" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="ejemplo@correo.com" ${editMode ? 'value="eduardo@ejemplo.com"' : ''}>
-                </div>
-
-                <div style="display:flex; gap:15px;">
-                    <div style="flex:1;">
-                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Teléfono (Opcional):</label>
-                        <input type="tel" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="10 dígitos">
-                    </div>
-                    <div style="flex:1;">
-                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Fecha de Nacimiento:</label>
-                        <input type="date" class="swal2-input" style="margin:5px 0 0 0; width:100%;" ${editMode ? 'value="2005-06-10"' : ''}>
-                    </div>
-                </div>
-
-                <div>
-                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Notas adicionales:</label>
-                    <textarea class="swal2-textarea" style="margin:5px 0 0 0; width:100%; height:60px; resize:none;" placeholder="Alergias, preferencias, etc."></textarea>
-                </div>
-            </form>
-        `,
-        showCancelButton: true,
-        confirmButtonText: btnText,
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#3c4a45',
-        cancelButtonColor: '#8a8a8a',
-        width: '550px'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            Swal.fire({
-                icon: 'success',
-                title: '¡Éxito!',
-                text: 'La información del cliente se ha guardado correctamente.',
-                confirmButtonColor: '#3c4a45'
-            });
-        }
-    });
-}
