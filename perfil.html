@@ -10,40 +10,78 @@
 </head>
 <body>
 
+    <!-- Menú de Navegación -->
     <div id="navbar-container"></div>
 
+    <!-- Contenedor Principal del Perfil -->
     <main class="perfil-container">
-        <!-- Encabezado del Perfil -->
+        
         <div class="perfil-header">
+            <!-- Saludo personalizado -->
             <h1>Hola, Eduardo</h1>
             <button class="btn-logout" id="btn-cerrar-sesion">Cerrar Sesión</button>
         </div>
-        
-        <!-- Tarjetas de Información -->
+
         <div class="perfil-grid">
             
-            <!-- Tarjeta 1: Mis Datos -->
+            <!-- 1. Datos Personales -->
             <div class="perfil-card">
-                <h3>Mis Datos</h3>
+                <h3>Datos Personales</h3>
                 <p><strong>Nombre:</strong> Eduardo G.</p>
                 <p><strong>Correo:</strong> eduardo@ejemplo.com</p>
-                <p><strong>Contraseña:</strong> ********</p>
-                <button class="auth-btn" style="margin-top: 15px; width: auto; padding: 8px 20px; font-size: 0.9rem;" onclick="mostrarProximamente()">Editar datos</button>
+                <p><strong>Teléfono:</strong> +52 449 123 4567</p>
+                <button class="btn-primary" style="margin-top: 15px; padding: 8px 15px; font-size: 0.9rem;" onclick="mostrarProximamente()">Editar datos</button>
             </div>
 
-            <!-- Tarjeta 2: Mis Compras -->
+            <!-- 2. Historial de Pedidos -->
             <div class="perfil-card">
-                <h3>Mis Compras <span class="badge-proximamente">Próximamente</span></h3>
-                <p>Aquí podrás ver el historial de tus pedidos, repetir tus compras favoritas y rastrear tus entregas en tiempo real.</p>
-                <div style="margin-top: 20px; text-align: center; color: #eae5db; font-size: 4rem;">
+                <h3>Mis Pedidos</h3>
+                <p>Tienes <strong>12</strong> pedidos realizados.</p>
+                <p style="margin-top: 10px; color: var(--verde-logo);"><strong>Último pedido:</strong></p>
+                <p>#125 - Ayer, 10:45 AM ($285.00)</p>
+                <button class="btn-primary" style="margin-top: 15px; padding: 8px 15px; font-size: 0.9rem;" onclick="mostrarProximamente()">Ver historial completo</button>
+            </div>
+
+            <!-- 3. Métodos de Pago -->
+            <div class="perfil-card">
+                <h3>Métodos de Pago <span class="badge-proximamente">Próximamente</span></h3>
+                <p>Guarda tus tarjetas de forma segura para compras más rápidas.</p>
+            </div>
+
+            <!-- 4. NUEVA SECCIÓN: Mis Comentarios -->
+            <div class="perfil-card">
+                <h3>Mis Comentarios</h3>
+                
+                <!-- Contenedor con scroll para que no haga la tarjeta gigante si hay muchas reseñas -->
+                <div style="max-height: 200px; overflow-y: auto; padding-right: 10px;">
+                    
+                    <!-- Comentario 1 -->
+                    <div style="background: #fcf9f2; padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 3px solid var(--verde-logo);">
+                        <p style="font-size: 0.85rem; color: #777; margin-bottom: 5px;">Hace 2 días en <strong>Waffles Bruce</strong></p>
+                        <p style="font-size: 0.95rem; color: #444; line-height: 1.4;">"Están deliciosos, me encantó la combinación con los frutos rojos. Súper recomendados."</p>
+                        <div style="text-align: right; margin-top: 5px;">
+                            <button onclick="mostrarProximamente()" style="background: none; border: none; color: #ff4c4c; cursor: pointer; font-size: 0.8rem; font-weight: bold; transition: opacity 0.3s;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'">Eliminar</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Comentario 2 -->
+                    <div style="background: #fcf9f2; padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 3px solid var(--verde-logo);">
+                        <p style="font-size: 0.85rem; color: #777; margin-bottom: 5px;">Hace 1 semana en <strong>Enchiladas Suizas</strong></p>
+                        <p style="font-size: 0.95rem; color: #444; line-height: 1.4;">"Muy buena porción y el queso gratinado estaba en su punto exacto. El ambiente increíble."</p>
+                        <div style="text-align: right; margin-top: 5px;">
+                            <button onclick="mostrarProximamente()" style="background: none; border: none; color: #ff4c4c; cursor: pointer; font-size: 0.8rem; font-weight: bold; transition: opacity 0.3s;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'">Eliminar</button>
+                        </div>
+                    </div>
+
                 </div>
             </div>
-            
+
         </div>
     </main>
 
+    <!-- Pie de Página -->
     <div id="footer-container"></div>
-
+    
     <script src="js/app.js"></script>
 </body>
 </html>

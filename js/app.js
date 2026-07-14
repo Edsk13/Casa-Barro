@@ -922,7 +922,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Funciones globales
-    verificarCookies();
+    //verificarCookies();
     activarAlertas();
     actualizarUI();
     renderizarCarrito();
@@ -976,3 +976,66 @@ document.addEventListener('DOMContentLoaded', async () => {
         filtroCategoria.addEventListener('change', filtrarCatalogo);
     }
 });
+
+// 9. LÓGICA DE COMUNIDAD 
+window.publicarComentario = function(event) {
+    event.preventDefault(); // Evita que la página se recargue al enviar el form
+
+    const inputNombre = document.getElementById('comentario-nombre');
+    const inputTexto = document.getElementById('comentario-texto');
+    const listaComentarios = document.getElementById('lista-comentarios');
+
+    if (!inputNombre || !inputTexto || !listaComentarios) return;
+
+    const nombre = inputNombre.value.trim();
+    const texto = inputTexto.value.trim();
+
+    if (nombre === '' || texto === '') {
+        Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Llena todos los campos', showConfirmButton: false, timer: 2000 });
+        return;
+    }
+
+    // Obtener la inicial del nombre para el círculo del avatar
+    const inicial = nombre.charAt(0).toUpperCase();
+
+    // Crear el nuevo recuadro de comentario
+    const nuevoComentario = document.createElement('div');
+    nuevoComentario.className = 'comentario-item';
+    
+    // Lo ocultamos inicialmente para hacer el efecto visual de entrada
+    nuevoComentario.style.opacity = '0';
+    nuevoComentario.style.transform = 'translateY(-10px)';
+    nuevoComentario.style.transition = 'all 0.4s ease';
+
+    // Insertamos el HTML dentro de la tarjeta
+    nuevoComentario.innerHTML = `
+        <div class="comentario-avatar" style="background-color: #557268;">${inicial}</div>
+        <div class="comentario-contenido">
+            <strong>${nombre}</strong> <span class="comentario-fecha">Hace un momento</span>
+            <p>${texto}</p>
+        </div>
+    `;
+
+    // Lo agregamos en la parte más alta de la lista (el más reciente primero)
+    listaComentarios.insertBefore(nuevoComentario, listaComentarios.firstChild);
+
+    // Limpiamos los campos para el siguiente comentario
+    inputNombre.value = '';
+    inputTexto.value = '';
+
+    // Ejecutamos la animación visual
+    setTimeout(() => {
+        nuevoComentario.style.opacity = '1';
+        nuevoComentario.style.transform = 'translateY(0)';
+    }, 50);
+
+    // Mostramos la alerta de éxito en la esquina
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: '¡Comentario publicado!',
+        showConfirmButton: false,
+        timer: 2000
+    });
+}

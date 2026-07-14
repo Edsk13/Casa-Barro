@@ -1116,3 +1116,188 @@ nav a:hover {
 .btn-aplicar:hover {
     background-color: #557268;
 }
+
+/* 12. PÁGINA DE CAMPAÑA Y COMUNIDAD */
+/* Hero de Campaña */
+.campana-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1200px;
+    margin: 4rem auto;
+    padding: 0 5%;
+    gap: 4rem;
+}
+
+.campana-texto { flex: 1; }
+
+.campana-badge {
+    display: inline-block;
+    background-color: #b7410e;
+    color: white;
+    padding: 6px 15px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: bold;
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.campana-texto h1 {
+    font-size: 3.5rem;
+    color: var(--verde-logo);
+    margin-bottom: 1.5rem;
+    line-height: 1.1;
+}
+
+.campana-texto p {
+    font-size: 1.15rem;
+    color: #555;
+    margin-bottom: 2.5rem;
+    line-height: 1.6;
+}
+
+.campana-imagen {
+    flex: 1;
+    text-align: right;
+}
+
+.campana-imagen img {
+    max-width: 100%;
+    border-radius: 20px;
+    box-shadow: 0 15px 30px rgba(0,0,0,0.15);
+    transform: rotate(2deg); /* Un toque lúdico y dinámico */
+    transition: transform 0.3s ease;
+}
+
+.campana-imagen img:hover {
+    transform: rotate(0deg) scale(1.02);
+}
+
+@media (max-width: 900px) {
+    .campana-hero { flex-direction: column; text-align: center; gap: 2rem; }
+    .campana-texto h1 { font-size: 2.5rem; }
+    .campana-imagen { text-align: center; }
+}
+
+/* Testimonios */
+.testimonios-seccion {
+    background-color: var(--verde-logo);
+    padding: 4rem 5%;
+    text-align: center;
+    color: white;
+}
+
+.testimonios-seccion h2 {
+    font-size: 2.2rem;
+    margin-bottom: 3rem;
+    color: white;
+}
+
+.testimonios-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.testimonio-card {
+    background-color: rgba(255,255,255,0.1);
+    padding: 2rem;
+    border-radius: 15px;
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: transform 0.3s ease;
+}
+
+.testimonio-card:hover {
+    transform: translateY(-5px);
+}
+
+.estrellas { margin-bottom: 1rem; font-size: 1.2rem; letter-spacing: 2px;}
+.testimonio-card p { font-style: italic; margin-bottom: 1.5rem; line-height: 1.6; color: #eae5db; }
+.testimonio-card h4 { font-weight: bold; color: white; }
+
+/* Comunidad y Comentarios */
+.comunidad-seccion { max-width: 1000px; margin: 4rem auto; padding: 0 5%; }
+.comunidad-seccion h2 { font-size: 2.2rem; color: var(--verde-logo); text-align: center; margin-bottom: 0.5rem; }
+.comunidad-sub { text-align: center; color: #555; margin-bottom: 3rem; }
+
+.comunidad-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.5fr;
+    gap: 3rem;
+}
+
+@media (max-width: 768px) {
+    .comunidad-grid { grid-template-columns: 1fr; }
+}
+
+.comentario-form-container {
+    background-color: white;
+    padding: 2rem;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    height: fit-content;
+    position: sticky;
+    top: 100px;
+}
+
+.comentario-form-container h3 { color: var(--verde-logo); margin-bottom: 1.5rem; }
+
+.comentario-form-container input,
+.comentario-form-container textarea {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+.comentario-form-container input:focus,
+.comentario-form-container textarea:focus { border-color: var(--verde-logo); }
+
+.comentarios-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    max-height: 500px;
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+/* Diseño del scrollbar de comentarios */
+.comentarios-lista::-webkit-scrollbar { width: 6px; }
+.comentarios-lista::-webkit-scrollbar-thumb { background-color: #ccc; border-radius: 3px; }
+
+.comentario-item {
+    display: flex;
+    gap: 15px;
+    background-color: white;
+    padding: 1.5rem;
+    border-radius: 15px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+}
+
+.comentario-avatar {
+    width: 45px;
+    height: 45px;
+    background-color: var(--verde-logo);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.2rem;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.comentario-contenido strong { color: var(--verde-logo); font-size: 1.05rem; }
+.comentario-fecha { font-size: 0.8rem; color: #999; margin-left: 10px; }
+.comentario-contenido p { color: #555; margin-top: 8px; line-height: 1.5; font-size: 0.95rem; }

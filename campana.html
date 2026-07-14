@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Especial de Temporada | Casa Barro</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+    <!-- Navbar -->
+    <div id="navbar-container"></div>
+
+    <!-- Escaparate de Marketing (Hero) -->
+    <section class="campana-hero">
+        <div class="campana-texto">
+            <span class="campana-badge">¡Nuevo Lanzamiento!</span>
+            <h1>Waffles Bruce</h1>
+            <p>El postre definitivo ha llegado a Casa Barro. Esponjosos waffles bañados en una abundante capa de crema de avellana, coronados con frutos rojos frescos y nuez crujiente. ¿Te vas a quedar con el antojo?</p>
+            
+            <!-- Llamado a la acción que abre tu modal dinámico ya existente -->
+            <button class="btn-primary" onclick="abrirDetalleMejorado('Waffles Bruce', 'El postre definitivo. Waffles bañados en crema de avellana, acompañados con frutos rojos y nuez.', '$125.00 MXN', 'WaffleBruce.jpeg')">Comprar ahora ♡</button>
+        </div>
+        <div class="campana-imagen">
+            <!-- Asegúrate de tener la imagen WaffleBruce.jpeg en tu carpeta -->
+            <img src="WaffleBruce.jpeg" alt="Waffles Bruce">
+        </div>
+    </section>
+
+    <!-- Sección de Testimonios y Reseñas (Simulados) -->
+    <section class="testimonios-seccion">
+        <h2>Lo que dicen nuestros clientes</h2>
+        <div class="testimonios-grid">
+            <div class="testimonio-card">
+                <div class="estrellas">✯✯✯✯✯</div>
+                <p>"Simplemente espectaculares. El contraste de la crema de avellana con los frutos rojos es perfecto. ¡Totalmente recomendados!"</p>
+                <h4>- Ana Sofía L.</h4>
+            </div>
+            <div class="testimonio-card">
+                <div class="estrellas">✯✯✯✯✯</div>
+                <p>"El mejor brunch que he probado. El lugar es hermoso y la atención de primera. Los Waffles Bruce son otro nivel."</p>
+                <h4>- Carlos M.</h4>
+            </div>
+            <div class="testimonio-card">
+                <div class="estrellas">✯✯✯✯</div>
+                <p>"Muy ricos, la porción es bastante generosa. Ideal para compartir con un buen Capuchino."</p>
+                <h4>- Valeria R.</h4>
+            </div>
+        </div>
+    </section>
+
+    <!-- Sección de Comunidad y Comentarios -->
+    <section class="comunidad-seccion">
+        <h2>Comunidad Casa Barro</h2>
+        <p class="comunidad-sub">Déjanos tu opinión, sugerencia o simplemente cuéntanos qué tal te pareció tu visita.</p>
+        
+        <div class="comunidad-grid">
+            
+            <!-- Formulario interactivo -->
+            <div class="comentario-form-container">
+                <h3>Deja tu comentario</h3>
+                <form id="form-comentario" onsubmit="publicarComentario(event)">
+                    <input type="text" id="comentario-nombre" placeholder="Tu nombre o apodo" required>
+                    <textarea id="comentario-texto" rows="4" placeholder="Escribe tu reseña o comentario aquí..." required></textarea>
+                    <button type="submit" class="btn-primary" style="width: 100%; border-radius: 8px;">Publicar comentario</button>
+                </form>
+            </div>
+
+            <!-- Lista dinámica de comentarios -->
+            <div class="comentarios-lista" id="lista-comentarios">
+                
+                <!-- Comentario estático 1 -->
+                <div class="comentario-item">
+                    <div class="comentario-avatar">M</div>
+                    <div class="comentario-contenido" style="width: 100%;">
+                        <strong>Miguel A.</strong> <span class="comentario-fecha">Hace 2 días</span>
+                        <p>Me encantó el ambiente. Fui con mi perrito y nos trataron súper bien. ¡Súper pet-friendly!</p>
+                        <!-- Botón de reacción -->
+                        <div style="margin-top: 10px; border-top: 1px dashed #eae5db; padding-top: 8px;">
+                            <button onclick="reaccionarComentario(this)" style="background: none; border: none; cursor: pointer; color: #777; font-size: 0.95rem; display: flex; align-items: center; gap: 5px; font-weight: bold; transition: all 0.2s;">
+                                <span class="icono-reaccion">♡</span> <span class="contador-reaccion">14</span> Me gusta
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Comentario estático 2 -->
+                <div class="comentario-item">
+                    <div class="comentario-avatar" style="background-color: #b7410e;">D</div>
+                    <div class="comentario-contenido" style="width: 100%;">
+                        <strong>Diana T.</strong> <span class="comentario-fecha">Hace 1 semana</span>
+                        <p>Las enchiladas suizas son las mejores que he probado en mucho tiempo. Regresaré pronto.</p>
+                        <!-- Botón de reacción -->
+                        <div style="margin-top: 10px; border-top: 1px dashed #eae5db; padding-top: 8px;">
+                            <button onclick="reaccionarComentario(this)" style="background: none; border: none; cursor: pointer; color: #777; font-size: 0.95rem; display: flex; align-items: center; gap: 5px; font-weight: bold; transition: all 0.2s;">
+                                <span class="icono-reaccion">♡</span> <span class="contador-reaccion">5</span> Me gusta
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <div id="footer-container"></div>
+    <script src="js/app.js"></script>
+</body>
+</html>
