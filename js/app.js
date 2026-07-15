@@ -1039,3 +1039,19 @@ window.publicarComentario = function(event) {
         timer: 2000
     });
 }
+
+// 10. MODELO PUBLICACION
+window.publicarProductoC2C = function(event) {
+    event.preventDefault(); // Evita que la página se recargue de golpe
+    
+    // Mostramos directamente el mensaje de éxito simulado
+    Swal.fire({
+        icon: 'success',
+        title: '¡Publicado!',
+        text: 'Tu producto ya está visible para la comunidad (Simulación).',
+        confirmButtonColor: '#3c4a45'
+    }).then(() => {
+        // Redirige al perfil al darle clic a "OK"
+        window.location.href = 'perfil.html';
+    });
+}

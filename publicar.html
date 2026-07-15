@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Publicar Producto | C2C</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+    <div id="navbar-container"></div>
+
+    <main class="auth-container">
+        <div class="auth-card" style="max-width: 500px;">
+            <h2>Publica tu producto</h2>
+            <p>Sube tu artículo para que la comunidad lo vea.</p>
+            
+            <form id="form-c2c" class="auth-form" onsubmit="publicarProductoC2C(event)">
+                <input type="text" id="c2c-nombre" placeholder="Nombre del producto" required>
+                <input type="number" id="c2c-precio" placeholder="Precio en MXN" required>
+                <textarea id="c2c-desc" rows="4" placeholder="Describe tu producto (estado, detalles, etc.)..." style="padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-family: inherit; resize: none; outline: none;" required></textarea>
+                
+                <div style="text-align: left; margin-top: -5px;">
+                    <label style="font-size: 0.9rem; color: var(--verde-logo); font-weight: bold;">Foto del producto:</label>
+                    <input type="file" id="c2c-foto" accept="image/*" style="padding: 8px; border: 1px dashed #ccc; background: #fcf9f2;">
+                </div>
+                
+                <button type="submit" class="auth-btn">Publicar</button>
+            </form>
+        </div>
+    </main>
+
+    <div id="footer-container"></div>
+    <script src="js/app.js"></script>
+</body>
+</html>

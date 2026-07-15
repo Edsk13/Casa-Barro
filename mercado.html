@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mercado Comunitario | Casa Barro</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+    <!-- Navbar -->
+    <div id="navbar-container"></div>
+
+    <main class="catalogo-container">
+        <h1 class="catalogo-titulo">Mercado Comunitario</h1>
+        <p class="catalogo-subtitulo">Compra y vende artículos de café, tazas y accesorios con otros miembros de Casa Barro.</p>
+
+        <!-- Botón para incentivar la publicación -->
+        <div style="margin-bottom: 3rem;">
+            <button class="btn-primary" onclick="window.location.href='publicar.html'">Publicar un artículo</button>
+        </div>
+
+        <!-- Grid del Marketplace -->
+        <div class="grid-productos">
+            
+            <!-- Producto de Usuario 1 -->
+            <div class="tarjeta-producto">
+                <span class="badge-etiqueta badge-nuevo">Casi Nuevo</span>
+                <!-- Puedes usar una imagen genérica o de relleno si no tienes una -->
+                <div style="width: 100%; height: 220px; background-color: #eae5db; display: flex; justify-content: center; align-items: center; font-size: 3rem;">☕</div>
+                
+                <div class="info-producto">
+                    <h3>Prensa Francesa 1L</h3>
+                    <p style="font-size: 0.9rem; color: #555; margin-bottom: 10px; line-height: 1.4;">Solo se usó un par de veces. Cristal intacto y filtro de repuesto incluido.</p>
+                    <p class="precio">$250.00 MXN</p>
+                    
+                    <!-- Info del Vendedor -->
+                    <div class="vendedor-info">
+                        <div class="vendedor-avatar">E</div>
+                        <span class="vendedor-nombre">Vendido por: <strong>Eduardo G.</strong></span>
+                    </div>
+
+                    <button class="btn-primary" style="width: 100%; padding: 10px; border-radius: 8px; font-size: 0.95rem; margin-top: 15px;" onclick="mostrarProximamente()">Contactar Vendedor</button>
+                </div>
+            </div>
+
+            <!-- Producto de Usuario 2 -->
+            <div class="tarjeta-producto">
+                <!-- Imagen de relleno temporal -->
+                <div style="width: 100%; height: 220px; background-color: #eae5db; display: flex; justify-content: center; align-items: center; font-size: 3rem;">🏺</div>
+                
+                <div class="info-producto">
+                    <h3>Juego de Tazas de Barro</h3>
+                    <p style="font-size: 0.9rem; color: #555; margin-bottom: 10px; line-height: 1.4;">Set de 4 tazas artesanales hechas en Oaxaca. Ideales para café de olla.</p>
+                    <p class="precio">$380.00 MXN</p>
+                    
+                    <!-- Info del Vendedor -->
+                    <div class="vendedor-info">
+                        <div class="vendedor-avatar" style="background-color: #b7410e;">A</div>
+                        <span class="vendedor-nombre">Vendido por: <strong>Ana S.</strong></span>
+                    </div>
+
+                    <button class="btn-primary" style="width: 100%; padding: 10px; border-radius: 8px; font-size: 0.95rem; margin-top: 15px;" onclick="mostrarProximamente()">Contactar Vendedor</button>
+                </div>
+            </div>
+
+            <!-- Producto de Usuario 3 -->
+            <div class="tarjeta-producto">
+                <span class="badge-etiqueta badge-oferta">Oferta</span>
+                <!-- Imagen de relleno temporal -->
+                <div style="width: 100%; height: 220px; background-color: #eae5db; display: flex; justify-content: center; align-items: center; font-size: 3rem;">⚖️</div>
+                
+                <div class="info-producto">
+                    <h3>Báscula Gramera Digital</h3>
+                    <p style="font-size: 0.9rem; color: #555; margin-bottom: 10px; line-height: 1.4;">Perfecta para medir tus extracciones de espresso. Baterías nuevas.</p>
+                    <p class="precio">$150.00 MXN</p>
+                    
+                    <!-- Info del Vendedor -->
+                    <div class="vendedor-info">
+                        <div class="vendedor-avatar" style="background-color: #557268;">C</div>
+                        <span class="vendedor-nombre">Vendido por: <strong>Carlos M.</strong></span>
+                    </div>
+
+                    <button class="btn-primary" style="width: 100%; padding: 10px; border-radius: 8px; font-size: 0.95rem; margin-top: 15px;" onclick="mostrarProximamente()">Contactar Vendedor</button>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <div id="footer-container"></div>
+    <script src="js/app.js"></script>
+</body>
+</html>

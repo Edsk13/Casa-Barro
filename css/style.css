@@ -1301,3 +1301,35 @@ nav a:hover {
 .comentario-contenido strong { color: var(--verde-logo); font-size: 1.05rem; }
 .comentario-fecha { font-size: 0.8rem; color: #999; margin-left: 10px; }
 .comentario-contenido p { color: #555; margin-top: 8px; line-height: 1.5; font-size: 0.95rem; }
+
+/* 13. MARKETPLACE */
+.vendedor-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px dashed #eae5db;
+}
+
+.vendedor-avatar {
+    width: 30px;
+    height: 30px;
+    background-color: var(--verde-logo);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 0.85rem;
+    font-weight: bold;
+}
+
+.vendedor-nombre {
+    font-size: 0.85rem;
+    color: #777;
+}
+
+.vendedor-nombre strong {
+    color: var(--verde-logo);
+}
