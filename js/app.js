@@ -95,21 +95,10 @@ window.cambiarCantidadCarrito = function(index, cambio) {
 // Agregar al Carrito (Lee opción base y extras si existen)
 window.confirmarAgregarAlCarrito = function(nombre, precio) {
     let cantidad = parseInt(document.getElementById('swal-cantidad').innerText);
-    
     let selectorOpciones = document.getElementById('swal-opciones');
     let opcionSeleccionada = selectorOpciones ? selectorOpciones.value : null;
-
     let selectorExtras = document.getElementById('swal-extras');
     let extraSeleccionado = selectorExtras ? selectorExtras.value : null;
-
-    if (selectorOpciones && !opcionSeleccionada) {
-        Swal.showValidationMessage('Por favor, selecciona una opción');
-        return;
-    }
-    if (selectorExtras && !extraSeleccionado) {
-        Swal.showValidationMessage('Por favor, selecciona un complemento o sabor');
-        return;
-    }
 
     let textoFinal = [];
     if (opcionSeleccionada) textoFinal.push(opcionSeleccionada);
@@ -127,11 +116,9 @@ window.confirmarAgregarAlCarrito = function(nombre, precio) {
     actualizarUI(); 
 
     Swal.fire({
-        icon: 'success',
-        title: '¡Agregado!',
+        icon: 'success', title: '¡Agregado!',
         text: `Agregaste ${cantidad}x ${nombre} a tu pedido.`,
-        showConfirmButton: false,
-        timer: 1500
+        showConfirmButton: false, timer: 1500
     });
 }
 
@@ -359,8 +346,7 @@ window.abrirDetalleMejorado = function(nombre, descripcion, precioStr, imagenUrl
         let opcionesArray = opcionesStr.split(',');
         opcionesHtml += `
             <select id="swal-opciones" class="swal2-select" style="display:flex; width:100%; margin: 10px 0 ${extrasStr ? '10px' : '20px'} 0; font-size: 1rem;">
-                <option value="" disabled selected>Elige tu opción...</option>
-                ${opcionesArray.map(op => `<option value="${op.trim()}">${op.trim()}</option>`).join('')}
+                ${opcionesArray.map((op, index) => `<option value="${op.trim()}" ${index === 0 ? 'selected' : ''}>${op.trim()}</option>`).join('')}
             </select>
         `;
     }
@@ -369,21 +355,16 @@ window.abrirDetalleMejorado = function(nombre, descripcion, precioStr, imagenUrl
         let extrasArray = extrasStr.split(',');
         opcionesHtml += `
             <select id="swal-extras" class="swal2-select" style="display:flex; width:100%; margin: 0 0 20px 0; font-size: 1rem;">
-                <option value="" disabled selected>Elige tu complemento/sabor...</option>
-                ${extrasArray.map(ex => `<option value="${ex.trim()}">${ex.trim()}</option>`).join('')}
+                ${extrasArray.map((ex, index) => `<option value="${ex.trim()}" ${index === 0 ? 'selected' : ''}>${ex.trim()}</option>`).join('')}
             </select>
         `;
     }
 
     let relacionadosHtml = `
         <div style="display:flex; gap:15px; overflow-x:auto; padding: 10px 0; scrollbar-width: thin;">
-            <div onclick="Swal.close(); setTimeout(() => abrirDetalleMejorado('Capuchinos y Lattes', 'Nuestras especialidades calientes. Elige tu base y sabor favorito.', '$65.00 MXN', 'LatteCaliente.jpeg', 'bottom', 'Capuchino, Latte', 'Clásico, Caramelo, Crema Irlandesa, Avellana, Vainilla, Matcha, Chai'), 300);" style="min-width:110px; text-align:center; cursor:pointer;">
-                <img src="LatteCaliente.jpeg" style="width:100%; height:90px; object-fit:cover; border-radius:10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+            <div onclick="Swal.close(); setTimeout(() => abrirDetalleMejorado('Capuchinos y Lattes', 'Nuestras especialidades calientes.', '$65.00 MXN', 'LatteCaliente.jpeg', 'bottom', 'Capuchino, Latte', 'Clásico, Vainilla'), 300);" style="min-width:110px; text-align:center; cursor:pointer;">
+                <img src="LatteCaliente.jpeg" style="width:100%; height:90px; object-fit:cover; border-radius:10px;">
                 <p style="font-size:0.85rem; margin-top:8px; color:var(--verde-logo); font-weight:bold;">Café Latte</p>
-            </div>
-            <div onclick="Swal.close(); setTimeout(() => abrirDetalleMejorado('Croissants', 'A elegir: 3 quesos, jamón de pavo o jamón serrano.', '$90.00 MXN', 'Crossaint.jpeg', 'bottom', '3 Quesos, Jamón de pavo, Jamón serrano'), 300);" style="min-width:110px; text-align:center; cursor:pointer;">
-                <img src="Crossaint.jpeg" style="width:100%; height:90px; object-fit:cover; border-radius:10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-                <p style="font-size:0.85rem; margin-top:8px; color:var(--verde-logo); font-weight:bold;">Croissants</p>
             </div>
         </div>
     `;
@@ -398,21 +379,19 @@ window.abrirDetalleMejorado = function(nombre, descripcion, precioStr, imagenUrl
             ${opcionesHtml}
 
             <div style="display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 25px;">
-                <button onclick="cambiarCantidad(-1)" style="background-color: #eae5db; border:none; border-radius:50%; width:40px; height:40px; font-size:1.5rem; cursor:pointer; color:#3c4a45; font-weight:bold; transition: background 0.2s;">-</button>
+                <button onclick="cambiarCantidad(-1)" style="background-color: #eae5db; border:none; border-radius:50%; width:40px; height:40px; font-size:1.5rem; cursor:pointer; color:#3c4a45; font-weight:bold;">-</button>
                 <span id="swal-cantidad" style="font-size:1.4rem; font-weight:bold; min-width: 30px;">1</span>
-                <button onclick="cambiarCantidad(1)" style="background-color: var(--verde-logo); border:none; border-radius:50%; width:40px; height:40px; font-size:1.5rem; cursor:pointer; color:white; font-weight:bold; transition: transform 0.2s;">+</button>
+                <button onclick="cambiarCantidad(1)" style="background-color: var(--verde-logo); border:none; border-radius:50%; width:40px; height:40px; font-size:1.5rem; cursor:pointer; color:white; font-weight:bold;">+</button>
             </div>
 
             <button onclick="confirmarAgregarAlCarrito('${nombre}', ${precioNum})" class="btn-primary" style="width: 100%; padding: 12px; border-radius: 30px; margin-bottom: 25px;">Agregar al carrito</button>
 
             <div style="text-align: left; border-top: 2px solid #fcf9f2; padding-top: 15px;">
-                <h4 style="color: #3c4a45; margin-bottom: 10px; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;">Sugerencias</h4>
+                <h4 style="color: #3c4a45; margin-bottom: 10px; font-size: 1rem; text-transform: uppercase;">Sugerencias</h4>
                 ${relacionadosHtml}
             </div>
         `,
-        showConfirmButton: false,
-        showCloseButton: true,
-        width: '480px'
+        showConfirmButton: false, showCloseButton: true, width: '480px'
     });
 }
 
@@ -529,26 +508,16 @@ function activarAlertas() {
         Swal.fire({
             title: 'Contáctanos',
             html: `
-                <div style="text-align: left; background-color: #fcf9f2; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 0.95rem; color: #3c4a45;">
-                    <p style="margin-bottom: 5px;"><strong>Dirección:</strong> Constitución 101, Barrio La Purísima</p>
-                    <p><strong>Instagram:</strong> @casabarro.ags</p>
-                </div>
-                <input type="text" id="form-nombre" class="swal2-input" placeholder="Tu nombre o cuenta" style="margin-bottom: 10px;">
-                <input type="email" id="form-correo" class="swal2-input" placeholder="Tu correo electrónico" style="margin-bottom: 10px;">
-                <textarea id="form-mensaje" class="swal2-textarea" placeholder="¿En qué te podemos ayudar?" style="margin-bottom: 0; resize: none; height: 100px;"></textarea>
+                <input type="text" id="form-nombre" class="swal2-input" placeholder="Tu nombre (Opcional)" style="margin-bottom: 10px;">
+                <input type="text" id="form-correo" class="swal2-input" placeholder="Tu correo electrónico (Opcional)" style="margin-bottom: 10px;">
+                <textarea id="form-mensaje" class="swal2-textarea" placeholder="Mensaje..."></textarea>
             `,
             confirmButtonText: 'Enviar Mensaje',
             confirmButtonColor: '#3c4a45',
             showCancelButton: true,
-            cancelButtonText: 'Cancelar',
+
             preConfirm: () => {
-                const nombre = document.getElementById('form-nombre').value;
-                const correo = document.getElementById('form-correo').value;
-                const mensaje = document.getElementById('form-mensaje').value;
-                if (!nombre || !correo || !mensaje) {
-                    Swal.showValidationMessage('Por favor, completa todos los campos.');
-                    return false;
-                }
+                let nombre = document.getElementById('form-nombre').value || "Amigo";
                 return { nombre: nombre };
             }
         }).then((result) => {
@@ -575,16 +544,13 @@ function activarAlertas() {
         e.preventDefault();
         Swal.fire({
             title: 'Recuperar contraseña',
-            text: 'Ingresa tu correo electrónico para enviarte un enlace de recuperación:',
-            input: 'email',
-            inputPlaceholder: 'tu@correo.com',
+            input: 'text', // Tipo texto para evitar validación de @
+            inputPlaceholder: 'Ingresa correo o déjalo vacío',
             showCancelButton: true,
             confirmButtonText: 'Enviar enlace',
-            cancelButtonText: 'Cancelar',
             confirmButtonColor: '#3c4a45',
-            inputValidator: (value) => { if (!value) return '¡Necesitas ingresar un correo válido!'; }
         }).then((result) => {
-            if (result.isConfirmed) Swal.fire({ title: '¡Enlace enviado!', text: 'Revisa tu bandeja de entrada para restablecer tu contraseña.', icon: 'success', confirmButtonColor: '#3c4a45' });
+            if (result.isConfirmed) Swal.fire({ title: '¡Enlace enviado!', text: 'Revisa tu bandeja de entrada', icon: 'success', confirmButtonColor: '#3c4a45' });
         });
     });
 
@@ -975,61 +941,74 @@ document.addEventListener('DOMContentLoaded', async () => {
         buscador.addEventListener('input', filtrarCatalogo);
         filtroCategoria.addEventListener('change', filtrarCatalogo);
     }
+
+    
+    // 1. Quitamos el atributo 'required' de todos los inputs, textareas y selects
+    document.querySelectorAll('input, textarea, select').forEach(campo => {
+        campo.removeAttribute('required');
+    });
+    
+    // 2. Le decimos a los formularios que ignoren las validaciones nativas del navegador
+    document.querySelectorAll('form').forEach(formulario => {
+        formulario.setAttribute('novalidate', 'true');
+    });
 });
 
 // 9. LÓGICA DE COMUNIDAD 
 window.publicarComentario = function(event) {
-    event.preventDefault(); // Evita que la página se recargue al enviar el form
+    event.preventDefault(); // Evita que la página se recargue
 
     const inputNombre = document.getElementById('comentario-nombre');
     const inputTexto = document.getElementById('comentario-texto');
     const listaComentarios = document.getElementById('lista-comentarios');
 
     if (!inputNombre || !inputTexto || !listaComentarios) return;
+    let nombre = inputNombre.value.trim();
+    let texto = inputTexto.value.trim();
 
-    const nombre = inputNombre.value.trim();
-    const texto = inputTexto.value.trim();
+    if (nombre === '') nombre = 'Anónimo';
+    if (texto === '') texto = 'Me encantó la experiencia, ¡excelente servicio!';
 
-    if (nombre === '' || texto === '') {
-        Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Llena todos los campos', showConfirmButton: false, timer: 2000 });
-        return;
-    }
-
-    // Obtener la inicial del nombre para el círculo del avatar
+    // Obtener la inicial del nombre (ahora seguro porque siempre hay un nombre)
     const inicial = nombre.charAt(0).toUpperCase();
 
     // Crear el nuevo recuadro de comentario
     const nuevoComentario = document.createElement('div');
     nuevoComentario.className = 'comentario-item';
     
-    // Lo ocultamos inicialmente para hacer el efecto visual de entrada
+    // Animación inicial oculta
     nuevoComentario.style.opacity = '0';
     nuevoComentario.style.transform = 'translateY(-10px)';
     nuevoComentario.style.transition = 'all 0.4s ease';
 
-    // Insertamos el HTML dentro de la tarjeta
+    // HTML del nuevo comentario
     nuevoComentario.innerHTML = `
         <div class="comentario-avatar" style="background-color: #557268;">${inicial}</div>
-        <div class="comentario-contenido">
+        <div class="comentario-contenido" style="width: 100%;">
             <strong>${nombre}</strong> <span class="comentario-fecha">Hace un momento</span>
             <p>${texto}</p>
+            <div style="margin-top: 10px; border-top: 1px dashed #eae5db; padding-top: 8px;">
+                <button onclick="reaccionarComentario(this)" style="background: none; border: none; cursor: pointer; color: #777; font-size: 0.95rem; display: flex; align-items: center; gap: 5px; font-weight: bold; transition: all 0.2s;">
+                    <span class="icono-reaccion">♡</Gspan> <span class="contador-reaccion">0</span> Me gusta
+                </button>
+            </div>
         </div>
     `;
 
-    // Lo agregamos en la parte más alta de la lista (el más reciente primero)
+    // Lo agregamos hasta arriba
     listaComentarios.insertBefore(nuevoComentario, listaComentarios.firstChild);
 
-    // Limpiamos los campos para el siguiente comentario
+    // Limpiamos los campos
     inputNombre.value = '';
     inputTexto.value = '';
 
-    // Ejecutamos la animación visual
+    // Ejecutamos la animación
     setTimeout(() => {
         nuevoComentario.style.opacity = '1';
         nuevoComentario.style.transform = 'translateY(0)';
     }, 50);
 
-    // Mostramos la alerta de éxito en la esquina
+    // Alerta de éxito directa
     Swal.fire({
         toast: true,
         position: 'top-end',
@@ -1138,40 +1117,26 @@ window.abrirSubastaSimulada = function() {
     // Función anidada para procesar el clic en el botón "Ofertar"
     window.realizarOferta = function() {
         const input = document.getElementById('input-oferta');
-        const valorOferta = parseFloat(input.value);
+        let valorOferta = parseFloat(input.value);
+        if (isNaN(valorOferta) || valorOferta <= ofertaActual) {
+            valorOferta = ofertaActual + 50;
+        }
+
         const precioDisplay = document.getElementById('precio-actual-subasta');
         const lista = document.getElementById('lista-ofertas');
-
-        // Validación: La oferta debe ser un número válido y mayor a la oferta actual
-        if (isNaN(valorOferta) || valorOferta <= ofertaActual) {
-            Swal.showValidationMessage(`Tu oferta debe ser mayor a $${ofertaActual}`);
-            // Pintamos el borde del input de rojo para guiar al usuario
-            input.style.borderColor = '#3c4a45';
-            return;
-        }
-        Swal.resetValidationMessage();
-        input.style.borderColor = '#ccc';
+        
         ofertaActual = valorOferta;
         precioDisplay.innerText = `$${ofertaActual.toFixed(2)} MXN`;
         input.value = '';
-        input.placeholder = `Monto mayor a $${ofertaActual}`;
+        input.placeholder = `Siguiente puja...`;
 
-        // Inyectamos la nueva oferta al principio de la lista de historial
         const nuevaOferta = document.createElement('div');
         nuevaOferta.style.cssText = 'display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px dashed #eae5db; background-color: #d4edda; transition: background-color 1s ease;';
-        nuevaOferta.innerHTML = `
-            <span><strong>Tú</strong></span>
-            <span style="color: var(--verde-logo); font-weight: bold;">$${ofertaActual.toFixed(2)}</span>
-        `;
-        
+        nuevaOferta.innerHTML = `<span><strong>Tú</strong></span><span style="color: var(--verde-logo); font-weight: bold;">$${ofertaActual.toFixed(2)}</span>`;
         lista.insertBefore(nuevaOferta, lista.firstChild);
         setTimeout(() => nuevaOferta.style.backgroundColor = 'transparent', 1000);
-
-        // Alerta pequeña de éxito
-        Swal.fire({
-            toast: true, position: 'top-end', icon: 'success', 
-            title: 'Oferta registrada', showConfirmButton: false, timer: 2000
-        });
+        
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Oferta registrada', showConfirmButton: false, timer: 2000 });
     }
 }
 
@@ -1219,17 +1184,6 @@ window.abrirFormularioSubasta = function() {
         cancelButtonColor: '#8a8a8a',
         width: '550px',
         
-        // Validación antes de cerrar
-        preConfirm: () => {
-            const nombre = document.getElementById('subasta-nombre').value;
-            const precio = document.getElementById('subasta-precio').value;
-            
-            if (!nombre || !precio) {
-                Swal.showValidationMessage('Por favor, ingresa al menos el nombre y el precio inicial.');
-                return false;
-            }
-            return true;
-        }
     }).then((result) => {
         if (result.isConfirmed) {
             Swal.fire({
@@ -1238,6 +1192,48 @@ window.abrirFormularioSubasta = function() {
                 text: 'Tu artículo ya está disponible en el mercado y el reloj ha comenzado.',
                 confirmButtonColor: '#3c4a45'
             });
+        }
+    });
+}
+
+// 12. EDICIÓN SIMULADA EN PERFIL
+window.editarComentario = function() {
+    Swal.fire({
+        title: 'Editar Comentario',
+        input: 'textarea',
+        inputValue: 'Están deliciosos, me encantó la combinación...', // Texto precargado
+        showCancelButton: true,
+        confirmButtonColor: '#3c4a45',
+        cancelButtonColor: '#8a8a8a',
+        confirmButtonText: 'Guardar',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if(result.isConfirmed) {
+            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Comentario actualizado', showConfirmButton: false, timer: 2000});
+        }
+    });
+}
+
+window.editarPublicacion = function() {
+    Swal.fire({
+        title: 'Editar Publicación',
+        html: `
+            <div style="text-align: left;">
+                <label style="font-size: 0.9rem; color: var(--verde-logo); font-weight: bold;">Nombre:</label>
+                <input type="text" class="swal2-input" style="width: 100%; margin: 5px 0 15px 0;" value="Prensa Francesa (Usada)">
+                
+                <label style="font-size: 0.9rem; color: var(--verde-logo); font-weight: bold;">Precio:</label>
+                <input type="number" class="swal2-input" style="width: 100%; margin: 5px 0 0 0;" value="250">
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonColor: '#3c4a45',
+        cancelButtonColor: '#8a8a8a',
+        confirmButtonText: 'Guardar cambios',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if(result.isConfirmed) {
+            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Publicación actualizada', showConfirmButton: false, timer: 2000});
         }
     });
 }
