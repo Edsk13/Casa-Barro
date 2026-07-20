@@ -15,9 +15,9 @@
         <h1 class="catalogo-titulo">Mercado Comunitario</h1>
         <p class="catalogo-subtitulo">Compra y vende artículos de café, tazas y accesorios con otros miembros de Casa Barro.</p>
 
-        <!-- Botón para incentivar la publicación -->
         <div style="margin-bottom: 3rem;">
             <button class="btn-primary" onclick="window.location.href='publicar.html'">Publicar un artículo</button>
+            <button class="btn-primary" style="background-color: #3c4a45;" onclick="abrirFormularioSubasta()">Publicar una Subasta</button>
         </div>
 
         <!-- Grid del Marketplace -->
@@ -26,15 +26,12 @@
             <!-- Producto de Usuario 1 -->
             <div class="tarjeta-producto">
                 <span class="badge-etiqueta badge-nuevo">Casi Nuevo</span>
-                <!-- Puedes usar una imagen genérica o de relleno si no tienes una -->
-                <div style="width: 100%; height: 220px; background-color: #eae5db; display: flex; justify-content: center; align-items: center; font-size: 3rem;">☕</div>
-                
+                <img src="prensa.jpg" alt="Prensa Francesa" style="width: 100%; height: 220px; object-fit: cover;">
                 <div class="info-producto">
                     <h3>Prensa Francesa 1L</h3>
                     <p style="font-size: 0.9rem; color: #555; margin-bottom: 10px; line-height: 1.4;">Solo se usó un par de veces. Cristal intacto y filtro de repuesto incluido.</p>
                     <p class="precio">$250.00 MXN</p>
-                    
-                    <!-- Info del Vendedor -->
+
                     <div class="vendedor-info">
                         <div class="vendedor-avatar">E</div>
                         <span class="vendedor-nombre">Vendido por: <strong>Eduardo G.</strong></span>
@@ -46,17 +43,14 @@
 
             <!-- Producto de Usuario 2 -->
             <div class="tarjeta-producto">
-                <!-- Imagen de relleno temporal -->
-                <div style="width: 100%; height: 220px; background-color: #eae5db; display: flex; justify-content: center; align-items: center; font-size: 3rem;">🏺</div>
-                
+                <img src="tasas.jpg" alt="Tazas de Barro" style="width: 100%; height: 220px; object-fit: cover;">
                 <div class="info-producto">
                     <h3>Juego de Tazas de Barro</h3>
                     <p style="font-size: 0.9rem; color: #555; margin-bottom: 10px; line-height: 1.4;">Set de 4 tazas artesanales hechas en Oaxaca. Ideales para café de olla.</p>
                     <p class="precio">$380.00 MXN</p>
                     
-                    <!-- Info del Vendedor -->
                     <div class="vendedor-info">
-                        <div class="vendedor-avatar" style="background-color: #b7410e;">A</div>
+                        <div class="vendedor-avatar" style="background-color: #3c4a45;">A</div>
                         <span class="vendedor-nombre">Vendido por: <strong>Ana S.</strong></span>
                     </div>
 
@@ -67,15 +61,12 @@
             <!-- Producto de Usuario 3 -->
             <div class="tarjeta-producto">
                 <span class="badge-etiqueta badge-oferta">Oferta</span>
-                <!-- Imagen de relleno temporal -->
-                <div style="width: 100%; height: 220px; background-color: #eae5db; display: flex; justify-content: center; align-items: center; font-size: 3rem;">⚖️</div>
-                
+                <img src="bascula.webp" alt="Báscula Gramera" style="width: 100%; height: 220px; object-fit: cover;">
                 <div class="info-producto">
                     <h3>Báscula Gramera Digital</h3>
                     <p style="font-size: 0.9rem; color: #555; margin-bottom: 10px; line-height: 1.4;">Perfecta para medir tus extracciones de espresso. Baterías nuevas.</p>
                     <p class="precio">$150.00 MXN</p>
-                    
-                    <!-- Info del Vendedor -->
+
                     <div class="vendedor-info">
                         <div class="vendedor-avatar" style="background-color: #557268;">C</div>
                         <span class="vendedor-nombre">Vendido por: <strong>Carlos M.</strong></span>
@@ -84,6 +75,30 @@
                     <button class="btn-primary" style="width: 100%; padding: 10px; border-radius: 8px; font-size: 0.95rem; margin-top: 15px;" onclick="mostrarProximamente()">Contactar Vendedor</button>
                 </div>
             </div>
+
+            <!-- Producto 4: EN SUBASTA -->
+            <div class="tarjeta-producto" style="border: 2px solid #3c4a45; box-shadow: 0 4px 15px rgba(183, 65, 14, 0.15);">
+                <span class="badge-etiqueta" style="background-color: #b7410e; display: flex; align-items: center; gap: 5px;">
+                    Subasta en Vivo
+                </span>
+                <img src="moka.webp" alt="Cafetera Moka" style="width: 100%; height: 220px; object-fit: cover;">
+
+                <div class="info-producto">
+                    <h3>Cafetera Moka (Vintage)</h3>
+                    <p style="font-size: 0.9rem; color: #555; margin-bottom: 10px; line-height: 1.4;">Pieza italiana de los años 80, restaurada y funcional. Perfecta para coleccionistas.</p>
+                    
+                    <p class="precio" style="color: #b7410e; font-size: 1.1rem;">Oferta actual: $400.00 MXN</p>
+                    
+                    <div class="vendedor-info">
+                        <div class="vendedor-avatar" style="background-color: #3c4a45;">J</div>
+                        <span class="vendedor-nombre">Subastado por: <strong>Jorge M.</strong></span>
+                    </div>
+
+                    <button class="btn-primary" style="width: 100%; padding: 10px; border-radius: 8px; font-size: 0.95rem; margin-top: 15px; background-color: #3c4a45;" onclick="abrirSubastaSimulada()">Participar en subasta</button>
+                </div>
+            </div>
+
+        </div>
 
         </div>
     </main>

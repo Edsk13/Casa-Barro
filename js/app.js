@@ -1042,16 +1042,202 @@ window.publicarComentario = function(event) {
 
 // 10. MODELO PUBLICACION
 window.publicarProductoC2C = function(event) {
-    event.preventDefault(); // Evita que la página se recargue de golpe
-    
-    // Mostramos directamente el mensaje de éxito simulado
+    event.preventDefault();
+
     Swal.fire({
         icon: 'success',
         title: '¡Publicado!',
-        text: 'Tu producto ya está visible para la comunidad (Simulación).',
+        text: 'Tu producto ya está visible para la comunidad.',
         confirmButtonColor: '#3c4a45'
     }).then(() => {
-        // Redirige al perfil al darle clic a "OK"
         window.location.href = 'perfil.html';
+    });
+}
+
+// 11. MERCADO C2C: SISTEMA DE SUBASTAS
+window.abrirSubastaSimulada = function() {
+    let ofertaActual = 400; 
+
+    Swal.fire({
+        title: 'Subasta en Vivo',
+        html: `
+            <div style="text-align: left; color: #555; font-family: inherit;">
+                
+                <!-- Cabecera del producto -->
+                <div style="display: flex; gap: 15px; margin-bottom: 20px; align-items: center;">
+                    <img src="moka.webp" style="width: 80px; height: 80px; object-fit: cover; border-radius: 10px; border: 1px solid #eae5db;">
+                    <div>
+                        <h4 style="color: var(--verde-logo); margin: 0 0 5px 0; font-size: 1.1rem;">Cafetera Moka Italiana</h4>
+                        <p style="margin: 0; font-size: 0.9rem;">Termina en: <strong id="timer-subasta" style="color: #b7410e; font-size: 1.2rem; display: inline-block; min-width: 70px;">15:00</strong></p>
+                    </div>
+                </div>
+
+                <!-- Precio actual -->
+                <div style="background: #fcf9f2; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 20px; border: 1px dashed #ccc;">
+                    <p style="margin: 0; font-size: 0.9rem; color: #777;">Oferta más alta:</p>
+                    <h2 id="precio-actual-subasta" style="color: var(--verde-logo); margin: 5px 0 0 0; font-size: 2rem;">$${ofertaActual}.00 MXN</h2>
+                </div>
+
+                <!-- Campo para hacer oferta -->
+                <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                    <input type="number" id="input-oferta" placeholder="Monto mayor a $${ofertaActual}" style="flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-family: inherit; font-size: 1rem; outline: none; transition: border-color 0.3s;">
+                    <button onclick="realizarOferta()" style="background-color: var(--verde-logo); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: background 0.3s;">Ofertar</button>
+                </div>
+
+                <!-- Lista de Ofertas -->
+                <h4 style="color: var(--verde-logo); margin-bottom: 10px; border-bottom: 2px solid #eae5db; padding-bottom: 5px; font-size: 1rem;">Historial de Ofertas</h4>
+                <div id="lista-ofertas" style="max-height: 150px; overflow-y: auto; font-size: 0.95rem; padding-right: 10px;">
+                    <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px dashed #eae5db;">
+                        <span><strong>Ana S.</strong></span>
+                        <span style="color: var(--verde-logo); font-weight: bold;">$400.00</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px dashed #eae5db;">
+                        <span><strong>Miguel A.</strong></span>
+                        <span style="color: var(--verde-logo); font-weight: bold;">$380.00</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; padding: 10px 0;">
+                        <span><strong>Diana T.</strong></span>
+                        <span style="color: var(--verde-logo); font-weight: bold;">$350.00</span>
+                    </div>
+                </div>
+            </div>
+        `,
+        showConfirmButton: false,
+        showCloseButton: true,
+        allowOutsideClick: false, // Evita que se cierre por accidente mientras escriben
+        width: '500px',
+        
+        // Esta función arranca en cuanto la ventana se abre
+        didOpen: () => {
+            // Lógica del Temporizador Visual (Simulación de 15 minutos)
+            let tiempoRestante = 15 * 60; 
+            const display = document.getElementById('timer-subasta');
+            
+            // Guardamos el intervalo en window para poder limpiarlo al cerrar la alerta
+            window.intervaloSubasta = setInterval(() => {
+                let minutos = parseInt(tiempoRestante / 60, 10);
+                let segundos = parseInt(tiempoRestante % 60, 10);
+
+                minutos = minutos < 10 ? "0" + minutos : minutos;
+                segundos = segundos < 10 ? "0" + segundos : segundos;
+
+                if(display) display.textContent = minutos + ":" + segundos;
+
+                if (--tiempoRestante < 0) {
+                    clearInterval(window.intervaloSubasta);
+                    if(display) display.textContent = "TERMINADO";
+                }
+            }, 1000);
+        },
+        willClose: () => {
+            // Apagamos el reloj si cierran la ventana para ahorrar memoria
+            clearInterval(window.intervaloSubasta); 
+        }
+    });
+
+    // Función anidada para procesar el clic en el botón "Ofertar"
+    window.realizarOferta = function() {
+        const input = document.getElementById('input-oferta');
+        const valorOferta = parseFloat(input.value);
+        const precioDisplay = document.getElementById('precio-actual-subasta');
+        const lista = document.getElementById('lista-ofertas');
+
+        // Validación: La oferta debe ser un número válido y mayor a la oferta actual
+        if (isNaN(valorOferta) || valorOferta <= ofertaActual) {
+            Swal.showValidationMessage(`Tu oferta debe ser mayor a $${ofertaActual}`);
+            // Pintamos el borde del input de rojo para guiar al usuario
+            input.style.borderColor = '#3c4a45';
+            return;
+        }
+        Swal.resetValidationMessage();
+        input.style.borderColor = '#ccc';
+        ofertaActual = valorOferta;
+        precioDisplay.innerText = `$${ofertaActual.toFixed(2)} MXN`;
+        input.value = '';
+        input.placeholder = `Monto mayor a $${ofertaActual}`;
+
+        // Inyectamos la nueva oferta al principio de la lista de historial
+        const nuevaOferta = document.createElement('div');
+        nuevaOferta.style.cssText = 'display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px dashed #eae5db; background-color: #d4edda; transition: background-color 1s ease;';
+        nuevaOferta.innerHTML = `
+            <span><strong>Tú</strong></span>
+            <span style="color: var(--verde-logo); font-weight: bold;">$${ofertaActual.toFixed(2)}</span>
+        `;
+        
+        lista.insertBefore(nuevaOferta, lista.firstChild);
+        setTimeout(() => nuevaOferta.style.backgroundColor = 'transparent', 1000);
+
+        // Alerta pequeña de éxito
+        Swal.fire({
+            toast: true, position: 'top-end', icon: 'success', 
+            title: 'Oferta registrada', showConfirmButton: false, timer: 2000
+        });
+    }
+}
+
+// Función para abrir el formulario de creación de subasta
+window.abrirFormularioSubasta = function() {
+    Swal.fire({
+        title: 'Crear Subasta',
+        html: `
+            <form id="form-nueva-subasta" style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;">
+                <div>
+                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Nombre del artículo:</label>
+                    <input type="text" id="subasta-nombre" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Ej. Molino Manual Antiguo">
+                </div>
+                
+                <div style="display:flex; gap:15px;">
+                    <div style="flex:1;">
+                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Precio inicial (MXN):</label>
+                        <input type="number" id="subasta-precio" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Ej. 300">
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Duración:</label>
+                        <select id="subasta-duracion" class="swal2-select" style="margin:5px 0 0 0; width:100%; font-size: 0.95rem;">
+                            <option value="15">15 Minutos (Rápida)</option>
+                            <option value="60">1 Hora</option>
+                            <option value="1440">24 Horas</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div>
+                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Descripción y detalles:</label>
+                    <textarea id="subasta-desc" class="swal2-textarea" style="margin:5px 0 0 0; width:100%; height:80px; resize:none;" placeholder="Menciona el estado del artículo, si tiene detalles estéticos, etc."></textarea>
+                </div>
+                
+                <div>
+                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Foto del producto:</label>
+                    <input type="file" accept="image/*" class="swal2-file" style="margin:5px 0 0 0; width:100%; font-size: 0.9rem;">
+                </div>
+            </form>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Iniciar Subasta',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#3c4a45',
+        cancelButtonColor: '#8a8a8a',
+        width: '550px',
+        
+        // Validación antes de cerrar
+        preConfirm: () => {
+            const nombre = document.getElementById('subasta-nombre').value;
+            const precio = document.getElementById('subasta-precio').value;
+            
+            if (!nombre || !precio) {
+                Swal.showValidationMessage('Por favor, ingresa al menos el nombre y el precio inicial.');
+                return false;
+            }
+            return true;
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({
+                icon: 'success',
+                title: '¡Subasta en vivo!',
+                text: 'Tu artículo ya está disponible en el mercado y el reloj ha comenzado.',
+                confirmButtonColor: '#3c4a45'
+            });
+        }
     });
 }
