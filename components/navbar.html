@@ -9,13 +9,17 @@
             <li><a href="catalogo.html">Menú</a></li>
             <li><a href="promociones.html">Promociones</a></li>
             <li><a href="campana.html">Campaña</a></li>
-            <li><a href="mercado.html">Mercado</a></li>
+            <li><a href="mercado.html">Mercado C2C</a></li>
             <li><a id="btn-historia">Nuestra Historia</a></li>
             <li><a id="btn-contacto">Contacto</a></li>
         </ul>
     </nav>
     
-    <div class="nav-botones">
+    <div class="nav-botones" style="display: flex; gap: 10px; align-items: center;">
+        <button onclick="window.location.href='admin-productos.html'" style="background-color: #3c4a45; color: white; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.9rem; transition: opacity 0.3s;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+            Admin
+        </button>
+
         <button class="btn-login" id="btn-login">Iniciar Sesión</button>
         <button class="btn-carrito-nav" id="btn-carrito-nav">
             🛒 <span class="badge-contador" id="cart-count">0</span>

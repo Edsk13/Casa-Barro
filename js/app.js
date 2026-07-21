@@ -530,7 +530,7 @@ function activarAlertas() {
     const formRegistro = document.getElementById('form-registro');
     if(formRegistro) formRegistro.addEventListener('submit', (e) => {
         e.preventDefault();
-        Swal.fire({ title: '¡Registro exitoso!', text: 'Tu cuenta ha sido creada correctamente (Simulado).', icon: 'success', confirmButtonColor: '#3c4a45' }).then(() => window.location.href = 'login.html');
+        Swal.fire({ title: '¡Registro exitoso!', text: 'Tu cuenta ha sido creada correctamente.', icon: 'success', confirmButtonColor: '#3c4a45' }).then(() => window.location.href = 'login.html');
     });
 
     const formLogin = document.getElementById('form-login');
@@ -672,7 +672,7 @@ window.abrirFormularioProducto = function(editMode = false) {
         cancelButtonColor: '#8a8a8a',
         width: '550px'
     }).then((result) => {
-        if (result.isConfirmed) Swal.fire({ icon: 'success', title: '¡Guardado!', text: 'Los datos del producto han sido guardados correctamente (Simulado).', confirmButtonColor: '#3c4a45' });
+        if (result.isConfirmed) Swal.fire({ icon: 'success', title: '¡Guardado!', text: 'Los datos del producto han sido guardados correctamente.', confirmButtonColor: '#3c4a45' });
     });
 }
 
@@ -989,7 +989,7 @@ window.publicarComentario = function(event) {
             <p>${texto}</p>
             <div style="margin-top: 10px; border-top: 1px dashed #eae5db; padding-top: 8px;">
                 <button onclick="reaccionarComentario(this)" style="background: none; border: none; cursor: pointer; color: #777; font-size: 0.95rem; display: flex; align-items: center; gap: 5px; font-weight: bold; transition: all 0.2s;">
-                    <span class="icono-reaccion">♡</Gspan> <span class="contador-reaccion">0</span> Me gusta
+                    <span class="icono-reaccion">♡</span> <span class="contador-reaccion">0</span> Me gusta
                 </button>
             </div>
         </div>
@@ -1034,6 +1034,40 @@ window.publicarProductoC2C = function(event) {
 }
 
 // 11. MERCADO C2C: SISTEMA DE SUBASTAS
+window.abrirFormularioArticulo = function() {
+    Swal.fire({
+        title: 'Publicar Artículo',
+        html: `
+            <form id="form-nuevo-articulo" style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;">
+                <div>
+                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Nombre del producto:</label>
+                    <input type="text" id="articulo-nombre" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Opcional en fase de pruebas">
+                </div>
+                <div>
+                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Precio (MXN):</label>
+                    <input type="number" id="articulo-precio" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Opcional">
+                </div>
+                <div>
+                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Descripción y detalles:</label>
+                    <textarea id="articulo-desc" class="swal2-textarea" style="margin:5px 0 0 0; width:100%; height:80px; resize:none;"></textarea>
+                </div>
+                <div>
+                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Foto del producto:</label>
+                    <input type="file" accept="image/*" class="swal2-file" style="margin:5px 0 0 0; width:100%; font-size: 0.9rem;">
+                </div>
+            </form>
+        `,
+        showCancelButton: true, confirmButtonText: 'Publicar', cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#3c4a45', cancelButtonColor: '#8a8a8a',
+        
+        preConfirm: () => { return true; } // Sin validaciones
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({ icon: 'success', title: '¡Publicado!', text: 'Tu artículo ya está visible.', confirmButtonColor: '#3c4a45' });
+        }
+    });
+}
+
 window.abrirSubastaSimulada = function() {
     let ofertaActual = 400; 
 
@@ -1234,6 +1268,117 @@ window.editarPublicacion = function() {
     }).then((result) => {
         if(result.isConfirmed) {
             Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Publicación actualizada', showConfirmButton: false, timer: 2000});
+        }
+    });
+}
+
+// 13. SIMULACIONES EXTRAS
+window.contactarVendedor = function(nombreVendedor) {
+    Swal.fire({
+        title: `Contactar a ${nombreVendedor}`,
+        html: `
+            <p style="font-size:0.9rem; color:#555; margin-bottom:10px;">Envíale una pregunta o negocia el precio:</p>
+            <textarea class="swal2-textarea" placeholder="Hola, ¿todavía lo tienes disponible?..." style="margin:0; width:100%; height:100px; resize:none;"></textarea>
+        `,
+        showCancelButton: true,
+        confirmButtonColor: '#3c4a45',
+        cancelButtonColor: '#8a8a8a',
+        confirmButtonText: 'Enviar mensaje',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Mensaje enviado', showConfirmButton: false, timer: 2000 });
+    });
+}
+
+// Editar Datos Personales
+window.editarDatosPerfil = function() {
+    Swal.fire({
+        title: 'Editar Perfil',
+        html: `
+            <div style="text-align: left;">
+                <label style="font-size: 0.9rem; color: var(--verde-logo); font-weight: bold;">Nombre:</label>
+                <input type="text" class="swal2-input" style="width: 100%; margin: 5px 0 10px 0;" value="Eduardo G.">
+                
+                <label style="font-size: 0.9rem; color: var(--verde-logo); font-weight: bold;">Correo:</label>
+                <input type="email" class="swal2-input" style="width: 100%; margin: 5px 0 10px 0;" value="eduardo@ejemplo.com">
+
+                <label style="font-size: 0.9rem; color: var(--verde-logo); font-weight: bold;">Teléfono:</label>
+                <input type="tel" class="swal2-input" style="width: 100%; margin: 5px 0 0 0;" value="+52 449 123 4567">
+            </div>
+        `,
+        showCancelButton: true, confirmButtonColor: '#3c4a45', cancelButtonColor: '#8a8a8a',
+        confirmButtonText: 'Guardar cambios', cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if(result.isConfirmed) Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 2000});
+    });
+}
+
+// Ver Historial Completo
+window.verHistorialPedidos = function() {
+    Swal.fire({
+        title: 'Historial de Pedidos',
+        html: `
+            <div style="text-align: left; max-height: 200px; overflow-y: auto;">
+                <div style="border-bottom: 1px solid #eae5db; padding: 10px 0;">
+                    <strong>#125</strong> - Ayer, 10:45 AM <br> <span style="color:#777; font-size:0.9rem;">2x Chilaquiles, 1x Capuchino</span> <strong style="float:right; color:var(--verde-logo);">$285.00</strong>
+                </div>
+                <div style="border-bottom: 1px solid #eae5db; padding: 10px 0;">
+                    <strong>#108</strong> - 12 Jun 2026 <br> <span style="color:#777; font-size:0.9rem;">1x Waffles Bruce</span> <strong style="float:right; color:var(--verde-logo);">$125.00</strong>
+                </div>
+                <div style="padding: 10px 0;">
+                    <strong>#094</strong> - 05 Jun 2026 <br> <span style="color:#777; font-size:0.9rem;">2x Croissants, 2x Latte</span> <strong style="float:right; color:var(--verde-logo);">$310.00</strong>
+                </div>
+            </div>
+        `,
+        confirmButtonColor: '#3c4a45', confirmButtonText: 'Cerrar'
+    });
+}
+
+// Agregar Método de Pago
+window.agregarMetodoPago = function() {
+    Swal.fire({
+        title: 'Agregar Tarjeta',
+        html: `
+            <div style="text-align: left;">
+                <input type="text" class="swal2-input" style="width: 100%; margin: 5px 0 10px 0;" placeholder="Número de Tarjeta (16 dígitos)">
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" class="swal2-input" style="flex: 1; margin: 0;" placeholder="MM/AA">
+                    <input type="text" class="swal2-input" style="flex: 1; margin: 0;" placeholder="CVV">
+                </div>
+                <input type="text" class="swal2-input" style="width: 100%; margin: 10px 0 0 0;" placeholder="Nombre del Titular">
+            </div>
+        `,
+        showCancelButton: true, confirmButtonColor: '#557268', cancelButtonColor: '#8a8a8a',
+        confirmButtonText: 'Guardar Tarjeta', cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if(result.isConfirmed) Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Tarjeta vinculada con éxito', showConfirmButton: false, timer: 2000});
+    });
+}
+
+// Eliminar un elemento con animación visual
+window.eliminarItemSimulado = function(boton) {
+    Swal.fire({
+        title: '¿Estás seguro?',
+        text: "Se eliminará permanentemente de tu perfil.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ff4c4c',
+        cancelButtonColor: '#8a8a8a',
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if(result.isConfirmed) {
+            // Buscamos el contenedor padre (item-dinamico) y lo borramos de la pantalla
+            if(boton) {
+                let contenedor = boton.closest('.item-dinamico');
+                if(contenedor) {
+                    contenedor.style.transition = 'all 0.3s ease';
+                    contenedor.style.opacity = '0';
+                    contenedor.style.transform = 'scale(0.9)';
+                    setTimeout(() => contenedor.remove(), 300);
+                }
+            }
+            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Eliminado correctamente', showConfirmButton: false, timer: 2000});
         }
     });
 }

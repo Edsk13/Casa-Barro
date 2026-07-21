@@ -15,8 +15,8 @@
         <h1 class="catalogo-titulo">Mercado Comunitario</h1>
         <p class="catalogo-subtitulo">Compra y vende artículos de café, tazas y accesorios con otros miembros de Casa Barro.</p>
 
-        <div style="margin-bottom: 3rem;">
-            <button class="btn-primary" onclick="window.location.href='publicar.html'">Publicar un artículo</button>
+       <div style="margin-bottom: 3rem; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
+            <button class="btn-primary" onclick="abrirFormularioArticulo()">Publicar un artículo</button>
             <button class="btn-primary" style="background-color: #3c4a45;" onclick="abrirFormularioSubasta()">Publicar una Subasta</button>
         </div>
 
@@ -37,7 +37,7 @@
                         <span class="vendedor-nombre">Vendido por: <strong>Eduardo G.</strong></span>
                     </div>
 
-                    <button class="btn-primary" style="width: 100%; padding: 10px; border-radius: 8px; font-size: 0.95rem; margin-top: 15px;" onclick="mostrarProximamente()">Contactar Vendedor</button>
+                    <button class="btn-primary" style="width: 100%; padding: 10px; border-radius: 8px; font-size: 0.95rem; margin-top: 15px;" onclick="contactarVendedor('Eduardo G.')">Contactar Vendedor</button>
                 </div>
             </div>
 
@@ -54,7 +54,7 @@
                         <span class="vendedor-nombre">Vendido por: <strong>Ana S.</strong></span>
                     </div>
 
-                    <button class="btn-primary" style="width: 100%; padding: 10px; border-radius: 8px; font-size: 0.95rem; margin-top: 15px;" onclick="mostrarProximamente()">Contactar Vendedor</button>
+                    <button class="btn-primary" style="width: 100%; padding: 10px; border-radius: 8px; font-size: 0.95rem; margin-top: 15px;" onclick="contactarVendedor('Ana S.')">Contactar Vendedor</button>
                 </div>
             </div>
 
@@ -72,7 +72,7 @@
                         <span class="vendedor-nombre">Vendido por: <strong>Carlos M.</strong></span>
                     </div>
 
-                    <button class="btn-primary" style="width: 100%; padding: 10px; border-radius: 8px; font-size: 0.95rem; margin-top: 15px;" onclick="mostrarProximamente()">Contactar Vendedor</button>
+                    <button class="btn-primary" style="width: 100%; padding: 10px; border-radius: 8px; font-size: 0.95rem; margin-top: 15px;" onclick="contactarVendedor('Carlos M.')">Contactar Vendedor</button>
                 </div>
             </div>
 
@@ -97,8 +97,6 @@
                     <button class="btn-primary" style="width: 100%; padding: 10px; border-radius: 8px; font-size: 0.95rem; margin-top: 15px; background-color: #3c4a45;" onclick="abrirSubastaSimulada()">Participar en subasta</button>
                 </div>
             </div>
-
-        </div>
 
         </div>
     </main>
