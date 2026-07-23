@@ -3,26 +3,144 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pago Seguro | Casa Barro</title>
-    
+    <title>Finalizar Pedido | Casa Barro</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        @media (max-width: 768px) {
+            .checkout-container { grid-template-columns: 1fr !important; }
+            .checkout-resumen { order: -1; margin-bottom: 20px; }
+        }
+        .checkout-step {
+            transition: all 0.3s ease;
+        }
+    </style>
 </head>
 <body>
-
+    <!-- Navbar -->
     <div id="navbar-container"></div>
-
-    <main class="carrito-container" style="text-align: center; padding: 5rem 2rem;">
-        <h1 style="color: var(--verde-logo); font-size: 3rem; margin-bottom: 1rem;">Método de Pago</h1>
-        <p style="color: #555; font-size: 1.2rem; margin-bottom: 2rem;">Estamos configurando nuestro sistema para recibir pagos con tarjeta de forma segura.</p>
+    
+    <main class="checkout-container" style="max-width: 1000px; margin: 40px auto; padding: 0 20px; display: grid; grid-template-columns: 2fr 1fr; gap: 30px;">
         
-        <div style="font-size: 5rem; margin-bottom: 2rem;">
-            PROXIMAMENTE!!
+        <!-- Pasos del Checkout -->
+        <div class="checkout-pasos">
+            <h1 style="color: var(--verde-logo); margin-bottom: 25px;">Finalizar Pedido</h1>
+            
+            <!-- PASO 1: Dirección -->
+            <div id="paso-1" class="checkout-step" style="background: #fff; padding: 25px; border-radius: 12px; border: 1px solid #eae5db; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.03);">
+                <h2 style="font-size: 1.3rem; margin-bottom: 15px; color: #3c4a45;">1. Dirección de Entrega</h2>
+                
+                <form novalidate>
+                    <input type="text" class="swal2-input" style="width: 100%; margin: 5px 0 15px 0; font-size: 0.95rem;" placeholder="Calle y número exterior/interior">
+                    
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                        <input type="text" class="swal2-input" style="flex: 1; min-width: 150px; margin: 0 0 15px 0; font-size: 0.95rem;" placeholder="Colonia">
+                        <input type="text" class="swal2-input" style="flex: 1; min-width: 150px; margin: 0 0 15px 0; font-size: 0.95rem;" placeholder="Código Postal">
+                    </div>
+                    
+                    <textarea class="swal2-textarea" style="width: 100%; margin: 0 0 15px 0; height: 60px; resize: none; font-size: 0.95rem;" placeholder="Referencias (Ej. Portón negro, frente al parque)"></textarea>
+                    
+                    <button type="button" class="btn-primary" style="width: 100%; padding: 12px; border-radius: 8px;" onclick="siguientePaso(2)">Continuar al Pago</button>
+                </form>
+            </div>
+
+            <!-- PASO 2: Método de Pago (Inicialmente desactivado visualmente) -->
+            <div id="paso-2" class="checkout-step" style="background: #fff; padding: 25px; border-radius: 12px; border: 1px solid #eae5db; margin-bottom: 20px; opacity: 0.4; pointer-events: none;">
+                <h2 style="font-size: 1.3rem; margin-bottom: 15px; color: #3c4a45;">2. Método de Pago</h2>
+                
+                <div style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;">
+                    
+                    <!-- 1. Tarjeta -->
+                    <label style="display: flex; align-items: center; gap: 10px; padding: 15px; border: 1px solid var(--verde-logo); border-radius: 8px; cursor: pointer; background: #fcf9f2;">
+                        <input type="radio" name="pago" checked>
+                        <strong>Tarjeta de Crédito / Débito</strong>
+                    </label>
+                    
+                    <!-- Simulación visual de tarjeta (Se queda vinculada a la primera opción) -->
+                    <div style="padding: 15px; border: 1px dashed #ccc; border-radius: 8px; margin-top: -5px;">
+                        <input type="text" class="swal2-input" style="width: 100%; margin: 0 0 10px 0; font-size: 0.95rem;" placeholder="Número de tarjeta">
+                        <div style="display: flex; gap: 15px;">
+                            <input type="text" class="swal2-input" style="width: 100%; margin: 0; font-size: 0.95rem;" placeholder="MM/AA">
+                            <input type="password" class="swal2-input" style="width: 100%; margin: 0; font-size: 0.95rem;" placeholder="CVV">
+                        </div>
+                    </div>
+
+                    <!-- 2. PayPal -->
+                    <label style="display: flex; align-items: center; gap: 10px; padding: 15px; border: 1px solid #eae5db; border-radius: 8px; cursor: pointer; transition: background 0.3s;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='transparent'">
+                        <input type="radio" name="pago">
+                        <strong>PayPal</strong>
+                        <span style="font-size: 0.85rem; color: #777; margin-left: auto;">Redirección segura</span>
+                    </label>
+
+                    <!-- 3. Billeteras Digitales -->
+                    <label style="display: flex; align-items: center; gap: 10px; padding: 15px; border: 1px solid #eae5db; border-radius: 8px; cursor: pointer; transition: background 0.3s;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='transparent'">
+                        <input type="radio" name="pago">
+                        <strong>Apple Pay / Google Pay</strong>
+                        <span style="font-size: 0.85rem; color: #777; margin-left: auto;">E-Wallet</span>
+                    </label>
+
+                    <!-- 4. Mercado Pago (Súper usado en México) -->
+                    <label style="display: flex; align-items: center; gap: 10px; padding: 15px; border: 1px solid #eae5db; border-radius: 8px; cursor: pointer; transition: background 0.3s;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='transparent'">
+                        <input type="radio" name="pago">
+                        <strong>Mercado Pago</strong>
+                        <span style="font-size: 0.85rem; color: #777; margin-left: auto;">App o Código QR</span>
+                    </label>
+
+                    <!-- 5. Efectivo -->
+                    <label style="display: flex; align-items: center; gap: 10px; padding: 15px; border: 1px solid #eae5db; border-radius: 8px; cursor: pointer; transition: background 0.3s;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='transparent'">
+                        <input type="radio" name="pago">
+                        <strong>Efectivo</strong>
+                    </label>
+                </div>
+
+                <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                    <button type="button" class="btn-primary" style="background: #8a8a8a; flex: 1; min-width: 100px; padding: 12px; border-radius: 8px;" onclick="siguientePaso(1)">Atrás</button>
+                    <button type="button" class="btn-primary" style="flex: 2; min-width: 200px; padding: 12px; border-radius: 8px;" onclick="siguientePaso(3)">Revisar Pedido</button>
+                </div>
+            </div>
+
+            <!-- PASO 3: Confirmación -->
+            <div id="paso-3" class="checkout-step" style="background: #fff; padding: 25px; border-radius: 12px; border: 1px solid #eae5db; margin-bottom: 20px; opacity: 0.4; pointer-events: none;">
+                <h2 style="font-size: 1.3rem; margin-bottom: 15px; color: #3c4a45;">3. Confirmación</h2>
+                
+                <p style="color: #555; margin-bottom: 15px; line-height: 1.5;">Tu pedido está casi listo. Verifica que tus datos y el monto total sean correctos antes de confirmar.</p>
+                <div style="background-color: #fcf9f2; padding: 15px; border-radius: 8px; border: 1px dashed #ccc; margin-bottom: 20px; font-size: 0.95rem; color: #444; line-height: 1.6;">
+                    <h4 style="color: var(--verde-logo); margin-bottom: 10px; font-size: 1.05rem; border-bottom: 1px solid #eae5db; padding-bottom: 5px;">Tus Datos</h4>
+                    <p style="margin-bottom: 5px;"><strong>Dirección:</strong> Av. de la Convención 450, Col. Centro, C.P. 20000.</p>
+                    <p style="margin-bottom: 5px;"><strong>Referencias:</strong> Casa blanca con portón negro.</p>
+                    <p style="margin-bottom: 0;"><strong>Método de Pago:</strong> Tarjeta de Crédito terminada en **** 4589</p>
+                </div>
+                
+                <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                    <button type="button" class="btn-primary" style="background: #8a8a8a; flex: 1; min-width: 100px; padding: 12px; border-radius: 8px;" onclick="siguientePaso(2)">Atrás</button>
+                    <!-- BOTÓN FINAL DE COMPRA -->
+                    <button type="button" class="btn-primary" style="flex: 2; min-width: 200px; padding: 12px; background: var(--verde-logo); border-radius: 8px;" onclick="finalizarPedido()">Confirmar y Pagar</button>
+                </div>
+            </div>
+
         </div>
+
+        <!-- COLUMNA DERECHA: Resumen de compra -->
+        <div class="checkout-resumen">
+            <div style="background: #fcf9f2; padding: 25px; border-radius: 12px; position: sticky; top: 20px; border: 1px solid #eae5db;">
+                <h3 style="color: var(--verde-logo); margin-bottom: 15px; font-size: 1.2rem;">Resumen de tu Pedido</h3>
+                
+                <!-- Aquí se inyectan los productos mediante JS -->
+                <div id="checkout-lista-items" style="max-height: 300px; overflow-y: auto; margin-bottom: 15px; border-bottom: 2px dashed #eae5db; padding-bottom: 15px;">
+                    Cargando pedido...
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 1.4rem; font-weight: bold; color: #b7410e;">
+                    <span>Total:</span>
+                    <span id="checkout-total">$0.00</span>
+                </div>
+            </div>
+        </div>
+
     </main>
 
+    <!-- Footer -->
     <div id="footer-container"></div>
-
     <script src="js/app.js"></script>
 </body>
 </html>

@@ -517,7 +517,7 @@ function activarAlertas() {
             showCancelButton: true,
 
             preConfirm: () => {
-                let nombre = document.getElementById('form-nombre').value || "Amigo";
+                let nombre = document.getElementById('form-nombre').value || "";
                 return { nombre: nombre };
             }
         }).then((result) => {
@@ -1368,7 +1368,6 @@ window.eliminarItemSimulado = function(boton) {
         cancelButtonText: 'Cancelar'
     }).then((result) => {
         if(result.isConfirmed) {
-            // Buscamos el contenedor padre (item-dinamico) y lo borramos de la pantalla
             if(boton) {
                 let contenedor = boton.closest('.item-dinamico');
                 if(contenedor) {
@@ -1382,3 +1381,70 @@ window.eliminarItemSimulado = function(boton) {
         }
     });
 }
+
+// 14. CHECKOUT
+window.siguientePaso = function(pasoDestino) {
+    for(let i = 1; i <= 3; i++) {
+        let el = document.getElementById('paso-' + i);
+        if(el) {
+            if(i === pasoDestino) {
+                // Paso activo
+                el.style.opacity = '1';
+                el.style.pointerEvents = 'auto';
+                el.style.boxShadow = '0 4px 15px rgba(85, 114, 104, 0.15)';
+                el.style.border = '1px solid var(--verde-logo)';
+            } else {
+                el.style.opacity = '0.4';
+                el.style.pointerEvents = 'none';
+                el.style.boxShadow = 'none';
+                el.style.border = '1px solid #eae5db';
+            }
+        }
+    }
+}
+
+window.finalizarPedido = function() {
+    Swal.fire({
+        title: '¡Pedido Confirmado!',
+        text: 'Tu pedido ha sido recibido y está siendo preparado.',
+        icon: 'success',
+        showConfirmButton: false,
+        timer: 3500,
+        timerProgressBar: true,
+        didClose: () => {
+            carrito = [];
+            localStorage.removeItem('casaBarro_carrito');
+            localStorage.removeItem('casaBarro_cupon');
+            localStorage.removeItem('casaBarro_totalFinal');
+            
+            window.location.href = 'perfil.html';
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const listaItems = document.getElementById('checkout-lista-items');
+    const totalPagar = document.getElementById('checkout-total');
+    
+    if(listaItems && totalPagar) {
+        let html = '';
+        if(carrito.length === 0) {
+            window.location.href = 'catalogo.html';
+            return;
+        }
+
+        carrito.forEach(item => {
+            const precioIndividual = item.precio * item.cantidad;
+            html += `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 0.95rem; color: #555;">
+                    <span style="flex: 1; padding-right: 10px;"><strong>${item.cantidad}x</strong> ${item.producto}</span>
+                    <strong style="color: #3c4a45;">$${precioIndividual.toFixed(2)}</strong>
+                </div>
+            `;
+        });
+        
+        listaItems.innerHTML = html;
+        let totalStorage = localStorage.getItem('casaBarro_totalFinal') || 0;
+        totalPagar.innerText = `$${parseFloat(totalStorage).toFixed(2)} MXN`;
+    }
+});
