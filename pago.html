@@ -22,78 +22,142 @@
     
     <main class="checkout-container" style="max-width: 1000px; margin: 40px auto; padding: 0 20px; display: grid; grid-template-columns: 2fr 1fr; gap: 30px;">
         
-        <!-- Pasos del Checkout -->
+        <!-- COLUMNA IZQUIERDA: 3 Pasos del Checkout -->
         <div class="checkout-pasos">
             <h1 style="color: var(--verde-logo); margin-bottom: 25px;">Finalizar Pedido</h1>
             
-            <!-- PASO 1: Dirección -->
-            <div id="paso-1" class="checkout-step" style="background: #fff; padding: 25px; border-radius: 12px; border: 1px solid #eae5db; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.03);">
-                <h2 style="font-size: 1.3rem; margin-bottom: 15px; color: #3c4a45;">1. Dirección de Entrega</h2>
+            <!-- PASO 1: Opciones de Entrega -->
+            <div id="paso-1" class="checkout-step" style="background: #fff; padding: 25px; border-radius: 12px; border: 1px solid var(--verde-logo); margin-bottom: 20px; box-shadow: 0 4px 15px rgba(85, 114, 104, 0.15);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2 style="font-size: 1.3rem; color: #3c4a45; margin: 0;">1. Opciones de Entrega</h2>
+                </div>
                 
-                <form novalidate>
-                    <input type="text" class="swal2-input" style="width: 100%; margin: 5px 0 15px 0; font-size: 0.95rem;" placeholder="Calle y número exterior/interior">
+                <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
                     
-                    <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-                        <input type="text" class="swal2-input" style="flex: 1; min-width: 150px; margin: 0 0 15px 0; font-size: 0.95rem;" placeholder="Colonia">
-                        <input type="text" class="swal2-input" style="flex: 1; min-width: 150px; margin: 0 0 15px 0; font-size: 0.95rem;" placeholder="Código Postal">
-                    </div>
-                    
-                    <textarea class="swal2-textarea" style="width: 100%; margin: 0 0 15px 0; height: 60px; resize: none; font-size: 0.95rem;" placeholder="Referencias (Ej. Portón negro, frente al parque)"></textarea>
-                    
-                    <button type="button" class="btn-primary" style="width: 100%; padding: 12px; border-radius: 8px;" onclick="siguientePaso(2)">Continuar al Pago</button>
-                </form>
-            </div>
+                    <p style="font-size: 0.9rem; color: #777; margin: 5px 0;">Retiro en sucursal</p>
 
-            <!-- PASO 2: Método de Pago (Inicialmente desactivado visualmente) -->
-            <div id="paso-2" class="checkout-step" style="background: #fff; padding: 25px; border-radius: 12px; border: 1px solid #eae5db; margin-bottom: 20px; opacity: 0.4; pointer-events: none;">
-                <h2 style="font-size: 1.3rem; margin-bottom: 15px; color: #3c4a45;">2. Método de Pago</h2>
-                
-                <div style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;">
-                    
-                    <!-- 1. Tarjeta -->
-                    <label style="display: flex; align-items: center; gap: 10px; padding: 15px; border: 1px solid var(--verde-logo); border-radius: 8px; cursor: pointer; background: #fcf9f2;">
-                        <input type="radio" name="pago" checked>
-                        <strong>Tarjeta de Crédito / Débito</strong>
-                    </label>
-                    
-                    <!-- Simulación visual de tarjeta (Se queda vinculada a la primera opción) -->
-                    <div style="padding: 15px; border: 1px dashed #ccc; border-radius: 8px; margin-top: -5px;">
-                        <input type="text" class="swal2-input" style="width: 100%; margin: 0 0 10px 0; font-size: 0.95rem;" placeholder="Número de tarjeta">
-                        <div style="display: flex; gap: 15px;">
-                            <input type="text" class="swal2-input" style="width: 100%; margin: 0; font-size: 0.95rem;" placeholder="MM/AA">
-                            <input type="password" class="swal2-input" style="width: 100%; margin: 0; font-size: 0.95rem;" placeholder="CVV">
+                    <!-- Opción: Recoger en establecimiento -->
+                    <label style="display: flex; align-items: flex-start; gap: 15px; padding: 15px; border: 1px solid var(--verde-logo); border-radius: 8px; cursor: pointer; background: #fcf9f2;">
+                        <input type="radio" name="direccion" checked style="margin-top: 5px;">
+                        <div>
+                            <p style="margin: 0; font-weight: bold; color: #3c4a45;">Recoger en Casa Barro</p>
+                            <p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #555;">Constitución 101, Barrio La Purísima</p>
+                            <p style="margin: 5px 0 0 0; font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">Gratis - Listo en 25 minutos</p>
                         </div>
-                    </div>
-
-                    <!-- 2. PayPal -->
-                    <label style="display: flex; align-items: center; gap: 10px; padding: 15px; border: 1px solid #eae5db; border-radius: 8px; cursor: pointer; transition: background 0.3s;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='transparent'">
-                        <input type="radio" name="pago">
-                        <strong>PayPal</strong>
-                        <span style="font-size: 0.85rem; color: #777; margin-left: auto;">Redirección segura</span>
                     </label>
 
-                    <!-- 3. Billeteras Digitales -->
-                    <label style="display: flex; align-items: center; gap: 10px; padding: 15px; border: 1px solid #eae5db; border-radius: 8px; cursor: pointer; transition: background 0.3s;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='transparent'">
-                        <input type="radio" name="pago">
-                        <strong>Apple Pay / Google Pay</strong>
-                        <span style="font-size: 0.85rem; color: #777; margin-left: auto;">E-Wallet</span>
-                    </label>
+                    <p style="font-size: 0.9rem; color: #777; margin: 15px 0 5px 0;">Envío a domicilio</p>
 
-                    <!-- 4. Mercado Pago (Súper usado en México) -->
-                    <label style="display: flex; align-items: center; gap: 10px; padding: 15px; border: 1px solid #eae5db; border-radius: 8px; cursor: pointer; transition: background 0.3s;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='transparent'">
-                        <input type="radio" name="pago">
-                        <strong>Mercado Pago</strong>
-                        <span style="font-size: 0.85rem; color: #777; margin-left: auto;">App o Código QR</span>
-                    </label>
-
-                    <!-- 5. Efectivo -->
-                    <label style="display: flex; align-items: center; gap: 10px; padding: 15px; border: 1px solid #eae5db; border-radius: 8px; cursor: pointer; transition: background 0.3s;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='transparent'">
-                        <input type="radio" name="pago">
-                        <strong>Efectivo</strong>
+                    <!-- Dirección 1 (Principal) -->
+                    <label style="display: flex; align-items: flex-start; gap: 15px; padding: 15px; border: 1px solid #eae5db; border-radius: 8px; cursor: pointer; transition: background 0.3s;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='transparent'">
+                        <input type="radio" name="direccion" style="margin-top: 5px;">
+                        <div>
+                            <p style="margin: 0; font-weight: bold; color: #3c4a45;">Av. de la Convención de 1914 #450</p>
+                            <p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #555;">Col. Centro, C.P. 20000, Aguascalientes, Ags.</p>
+                            <p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #777;">Eduardo G. - +52 449 123 4567</p>
+                        </div>
                     </label>
                 </div>
 
-                <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                <!-- Botón Agregar Nueva Dirección -->
+                <button type="button" onclick="mostrarFormNuevo('direccion')" style="background: none; border: none; color: var(--verde-logo); font-weight: bold; cursor: pointer; font-size: 0.95rem; margin-bottom: 20px; display: flex; align-items: center; gap: 5px;">
+                    <span style="font-size: 1.2rem;">+</span> Agregar nueva dirección
+                </button>
+
+                <!-- Formulario Oculto de Nueva Dirección -->
+                <div id="form-nueva-direccion" style="display: none; padding: 15px; border: 1px dashed #ccc; border-radius: 8px; margin-bottom: 20px; background: #fafafa;">
+                    <input type="text" class="swal2-input" style="width: 100%; margin: 0 0 10px 0; font-size: 0.9rem;" placeholder="Calle y número">
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <input type="text" class="swal2-input" style="flex: 1; margin: 0; font-size: 0.9rem;" placeholder="Colonia">
+                        <input type="text" class="swal2-input" style="flex: 1; margin: 0; font-size: 0.9rem;" placeholder="C.P.">
+                    </div>
+                    <button type="button" class="btn-primary" style="width: 100%; padding: 10px; border-radius: 8px;" onclick="simularGuardado('direccion')">Guardar Dirección</button>
+                </div>
+
+                <button type="button" class="btn-primary" style="width: 100%; padding: 12px; border-radius: 8px;" onclick="siguientePaso(2)">Continuar al Pago</button>
+            </div>
+
+            <!-- PASO 2: Método de Pago -->
+            <div id="paso-2" class="checkout-step" style="background: #fff; padding: 25px; border-radius: 12px; border: 1px solid #eae5db; margin-bottom: 20px; opacity: 0.4; pointer-events: none;">
+                <h2 style="font-size: 1.3rem; margin-  bottom: 15px; color: #3c4a45;">2. Método de Pago</h2>
+                
+                <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
+                    
+                    <p style="font-size: 0.9rem; color: #777; margin: 5px 0;">Tus tarjetas guardadas</p>
+                    
+                    <!-- Tarjeta Guardada 1 -->
+                    <label style="display: flex; align-items: center; gap: 15px; padding: 15px; border: 1px solid var(--verde-logo); border-radius: 8px; cursor: pointer; background: #fcf9f2;">
+                        <input type="radio" name="pago" onclick="mostrarDetallePagoML('ninguno')" checked>
+                        <div style="background: #1a1f36; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; font-size: 0.8rem;">VISA</div>
+                        <div>
+                            <p style="margin: 0; font-weight: bold; color: #3c4a45;">Terminada en 4589</p>
+                            <p style="margin: 0; font-size: 0.85rem; color: #777;">Crédito</p>
+                        </div>
+                    </label>
+
+                    <!-- Tarjeta Guardada 2 -->
+                    <label style="display: flex; align-items: center; gap: 15px; padding: 15px; border: 1px solid #eae5db; border-radius: 8px; cursor: pointer; transition: background 0.3s;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='transparent'">
+                        <input type="radio" name="pago" onclick="mostrarDetallePagoML('ninguno')">
+                        <div style="background: #eb001b; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; font-size: 0.8rem;">MC</div>
+                        <div>
+                            <p style="margin: 0; font-weight: bold; color: #3c4a45;">Terminada en 1234</p>
+                            <p style="margin: 0; font-size: 0.85rem; color: #777;">Débito</p>
+                        </div>
+                    </label>
+
+                    <!-- Botón Agregar Nueva Tarjeta -->
+                    <button type="button" onclick="mostrarFormNuevo('tarjeta')" style="background: none; border: none; color: var(--verde-logo); font-weight: bold; cursor: pointer; font-size: 0.95rem; margin: 5px 0 15px 0; display: flex; align-items: center; gap: 5px; text-align: left;">
+                        <span style="font-size: 1.2rem;">+</span> Nueva tarjeta de crédito o débito
+                    </button>
+
+                    <!-- Formulario Oculto de Nueva Tarjeta -->
+                    <div id="form-nueva-tarjeta" style="display: none; padding: 15px; border: 1px dashed #ccc; border-radius: 8px; margin-bottom: 15px; background: #fafafa;">
+                        <input type="text" class="swal2-input" style="width: 100%; margin: 0 0 10px 0; font-size: 0.9rem;" placeholder="Número de la tarjeta">
+                        <input type="text" class="swal2-input" style="width: 100%; margin: 0 0 10px 0; font-size: 0.9rem;" placeholder="Nombre del titular">
+                        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                            <input type="text" class="swal2-input" style="flex: 1; margin: 0; font-size: 0.9rem;" placeholder="MM/AA">
+                            <input type="password" class="swal2-input" style="flex: 1; margin: 0; font-size: 0.9rem;" placeholder="CVV">
+                        </div>
+                        <button type="button" class="btn-primary" style="width: 100%; padding: 10px; border-radius: 8px;" onclick="simularGuardado('tarjeta')">Guardar Tarjeta</button>
+                    </div>
+
+                    <p style="font-size: 0.9rem; color: #777; margin: 5px 0;">Otros medios de pago</p>
+
+                    <!-- E-Wallet -->
+                    <label style="display: flex; align-items: center; gap: 15px; padding: 15px; border: 1px solid #eae5db; border-radius: 8px; cursor: pointer; transition: background 0.3s;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='transparent'">
+                        <input type="radio" name="pago" onclick="mostrarDetallePagoML('ewallet')">
+                        <div>
+                            <p style="margin: 0; font-weight: bold; color: #3c4a45;">E-Wallet</p>
+                            <p style="margin: 0; font-size: 0.85rem; color: #777;">Saldo disponible</p>
+                        </div>
+                    </label>
+
+                    <!-- Saldo E-Wallet -->
+                    <div id="detalle-ewallet" style="display: none; padding: 15px; border: 1px dashed var(--verde-logo); border-radius: 8px; margin-top: -5px; background: #eef5f2;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 0.95rem; color: #555;">Tu saldo actual:</span>
+                            <strong style="color: var(--verde-logo); font-size: 1.2rem;">$1,500.00 MXN</strong>
+                        </div>
+                    </div>
+
+                    <!-- Transferencia -->
+                    <label style="display: flex; align-items: center; gap: 15px; padding: 15px; border: 1px solid #eae5db; border-radius: 8px; cursor: pointer; transition: background 0.3s;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='transparent'">
+                        <input type="radio" name="pago" onclick="mostrarDetallePagoML('transferencia')">
+                        <div>
+                            <p style="margin: 0; font-weight: bold; color: #3c4a45;">Transferencia (SPEI)</p>
+                            <p style="margin: 0; font-size: 0.85rem; color: #777;">Aprobación en minutos</p>
+                        </div>
+                    </label>
+
+                    <!-- Datos Transferencia -->
+                    <div id="detalle-transferencia" style="display: none; padding: 15px; border: 1px dashed #ccc; border-radius: 8px; margin-top: -5px; background: #fcf9f2;">
+                        <p style="margin-bottom: 5px; font-size: 0.9rem;"><strong>Banco:</strong> BBVA México</p>
+                        <p style="margin-bottom: 0; font-size: 0.9rem;"><strong>CLABE:</strong> 012345678910111213</p>
+                    </div>
+
+                </div>
+
+                <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 25px;">
                     <button type="button" class="btn-primary" style="background: #8a8a8a; flex: 1; min-width: 100px; padding: 12px; border-radius: 8px;" onclick="siguientePaso(1)">Atrás</button>
                     <button type="button" class="btn-primary" style="flex: 2; min-width: 200px; padding: 12px; border-radius: 8px;" onclick="siguientePaso(3)">Revisar Pedido</button>
                 </div>
@@ -124,12 +188,9 @@
         <div class="checkout-resumen">
             <div style="background: #fcf9f2; padding: 25px; border-radius: 12px; position: sticky; top: 20px; border: 1px solid #eae5db;">
                 <h3 style="color: var(--verde-logo); margin-bottom: 15px; font-size: 1.2rem;">Resumen de tu Pedido</h3>
-                
-                <!-- Aquí se inyectan los productos mediante JS -->
                 <div id="checkout-lista-items" style="max-height: 300px; overflow-y: auto; margin-bottom: 15px; border-bottom: 2px dashed #eae5db; padding-bottom: 15px;">
                     Cargando pedido...
                 </div>
-                
                 <div style="display: flex; justify-content: space-between; align-items: center; font-size: 1.4rem; font-weight: bold; color: #b7410e;">
                     <span>Total:</span>
                     <span id="checkout-total">$0.00</span>

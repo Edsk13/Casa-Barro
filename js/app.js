@@ -1404,19 +1404,94 @@ window.siguientePaso = function(pasoDestino) {
 }
 
 window.finalizarPedido = function() {
+    let totalStorage = localStorage.getItem('casaBarro_totalFinal') || 0;
+    let totalDisplay = parseFloat(totalStorage).toFixed(2);
+
+    let numeroPedido = Math.floor(Math.random() * 90000) + 10000;
+    let fechaActual = new Date().toLocaleDateString('es-MX', { 
+        year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute:'2-digit' 
+    });
+
+    let htmlProductos = '';
+    if(carrito && carrito.length > 0) {
+        carrito.forEach(item => {
+            let totalItem = (item.precio * item.cantidad).toFixed(2);
+            htmlProductos += `
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; color: #555; border-bottom: 1px dashed #eee; padding-bottom: 6px;">
+                    <span style="flex: 1; text-align: left;">${item.cantidad}x ${item.producto}</span>
+                    <span style="font-weight: bold;">$${totalItem}</span>
+                </div>
+            `;
+        });
+    }
+
+    carrito = [];
+    localStorage.removeItem('casaBarro_carrito');
+    localStorage.removeItem('casaBarro_cupon');
+    localStorage.removeItem('casaBarro_totalFinal');
+
     Swal.fire({
-        title: '¡Pedido Confirmado!',
-        text: 'Tu pedido ha sido recibido y está siendo preparado.',
-        icon: 'success',
-        showConfirmButton: false,
-        timer: 3500,
-        timerProgressBar: true,
-        didClose: () => {
-            carrito = [];
-            localStorage.removeItem('casaBarro_carrito');
-            localStorage.removeItem('casaBarro_cupon');
-            localStorage.removeItem('casaBarro_totalFinal');
-            
+        title: '¡Pago Aprobado!',
+        html: `
+            <div style="background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #ccc; box-shadow: 2px 2px 10px rgba(0,0,0,0.05); text-align: center; font-family: monospace;">
+                
+                <h3 style="margin: 0; color: #3c4a45; font-size: 1.4rem; font-family: sans-serif;">CASA BARRO</h3>
+                <p style="margin: 5px 0 15px 0; font-size: 0.8rem; color: #777; font-family: sans-serif;">Cafetería & Panadería Artesanal<br>Constitución 101, Aguascalientes</p>
+                
+                <hr style="border: 0; border-top: 2px dashed #ccc; margin: 10px 0;">
+                
+                <div style="text-align: left; font-size: 0.85rem; color: #444; margin-bottom: 15px; line-height: 1.4;">
+                    <p style="margin: 2px 0;"><strong>Folio:</strong> #CB-${numeroPedido}</p>
+                    <p style="margin: 2px 0;"><strong>Fecha:</strong> ${fechaActual}</p>
+                    <p style="margin: 2px 0;"><strong>Cliente:</strong> José Eduardo Gutiérrez del Toro</p>
+                </div>
+                
+                <hr style="border: 0; border-top: 2px dashed #ccc; margin: 10px 0;">
+                
+                <div style="margin-bottom: 15px;">
+                    <p style="text-align: left; font-weight: bold; font-size: 0.9rem; margin-bottom: 10px; color: #3c4a45;">Cant. Descripción <span style="float: right;">Importe</span></p>
+                    ${htmlProductos}
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: bold; color: var(--verde-logo); margin-top: 15px; padding-top: 10px; border-top: 2px solid #eae5db;">
+                    <span>TOTAL:</span>
+                    <span>$${totalDisplay} MXN</span>
+                </div>
+
+                <p style="margin-top: 15px; font-size: 0.8rem; color: #777;">¡Gracias por tu preferencia!<br>Tu pedido ya pasó a preparación.</p>
+            </div>
+        `,
+        showCancelButton: true,
+        allowOutsideClick: false,
+        confirmButtonText: 'Factura PDF',
+        cancelButtonText: 'Ir a mi perfil',
+        confirmButtonColor: '#3c4a45',
+        cancelButtonColor: '#3c4a45',  
+        width: '450px'
+    }).then((result) => {
+        
+        if (result.isConfirmed) {
+            Swal.fire({
+                title: 'Descargando...',
+                text: 'Generando tu factura en PDF',
+                icon: 'info',
+                timer: 2000,
+                timerProgressBar: true,
+                showConfirmButton: false,
+                allowOutsideClick: false
+            }).then(() => {
+                Swal.fire({
+                    title: '¡Descarga completa!',
+                    text: 'El archivo Factura_CB-' + numeroPedido + '.pdf se guardó en tus descargas.',
+                    icon: 'success',
+                    confirmButtonText: 'Continuar a mi perfil',
+                    confirmButtonColor: '#3c4a45',
+                    allowOutsideClick: false
+                }).then(() => {
+                    window.location.href = 'perfil.html';
+                });
+            });
+        } else {
             window.location.href = 'perfil.html';
         }
     });
@@ -1428,7 +1503,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if(listaItems && totalPagar) {
         let html = '';
-        if(carrito.length === 0) {
+        if(carrito.length === 0) {  
             window.location.href = 'catalogo.html';
             return;
         }
@@ -1448,3 +1523,48 @@ document.addEventListener('DOMContentLoaded', () => {
         totalPagar.innerText = `$${parseFloat(totalStorage).toFixed(2)} MXN`;
     }
 });
+
+// FUNCIONES DE CHECKOUT
+// Mostrar/Ocultar formularios para agregar algo nuevo
+window.mostrarFormNuevo = function(tipo) {
+    if (tipo === 'direccion') {
+        const form = document.getElementById('form-nueva-direccion');
+        form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    } else if (tipo === 'tarjeta') {
+        const form = document.getElementById('form-nueva-tarjeta');
+        form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+// Simular que el usuario guardó una tarjeta o dirección
+window.simularGuardado = function(tipo) {
+    let mensaje = tipo === 'direccion' ? 'Dirección agregada' : 'Tarjeta vinculada';
+    
+    Swal.fire({
+        toast: true, position: 'top-end', icon: 'success', 
+        title: mensaje, showConfirmButton: false, timer: 2000
+    });
+
+    if (tipo === 'direccion') {
+        document.getElementById('form-nueva-direccion').style.display = 'none';
+    } else {
+        document.getElementById('form-nueva-tarjeta').style.display = 'none';
+    }
+}
+
+// Mostrar los datos extra (Saldo o Banco) solo si escogen Transferencia o E-Wallet
+window.mostrarDetallePagoML = function(metodo) {
+    const detTransferencia = document.getElementById('detalle-transferencia');
+    const detEwallet = document.getElementById('detalle-ewallet');
+
+    if (!detTransferencia || !detEwallet) return;
+
+    detTransferencia.style.display = 'none';
+    detEwallet.style.display = 'none';
+    
+    if (metodo === 'transferencia') {
+        detTransferencia.style.display = 'block';
+    } else if (metodo === 'ewallet') {
+        detEwallet.style.display = 'block';
+    }
+}
