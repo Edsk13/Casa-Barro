@@ -1318,19 +1318,193 @@ window.verHistorialPedidos = function() {
     Swal.fire({
         title: 'Historial de Pedidos',
         html: `
-            <div style="text-align: left; max-height: 200px; overflow-y: auto;">
-                <div style="border-bottom: 1px solid #eae5db; padding: 10px 0;">
-                    <strong>#125</strong> - Ayer, 10:45 AM <br> <span style="color:#777; font-size:0.9rem;">2x Chilaquiles, 1x Capuchino</span> <strong style="float:right; color:var(--verde-logo);">$285.00</strong>
+            <div style="text-align: left; max-height: 250px; overflow-y: auto; padding-right: 10px;">
+                
+                <!-- Pedido 1 -->
+                <div style="border-bottom: 1px solid #eae5db; padding: 15px 0; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong style="color: #3c4a45;">#CB-125</strong> - Ayer, 10:45 AM <br> 
+                        <span style="color:#777; font-size:0.9rem;">2x Chilaquiles, 1x Capuchino</span> 
+                    </div>
+                    <div style="text-align: right;">
+                        <strong style="color:var(--verde-logo); display:block; margin-bottom: 8px;">$285.00</strong>
+                        <button onclick="verTicketHistorial('#CB-125')" style="background: none; border: 1px solid #3c4a45; color: #3c4a45; padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 0.8rem; font-weight: bold; transition: all 0.3s;" onmouseover="this.style.background='#3c4a45'; this.style.color='#fff';" onmouseout="this.style.background='none'; this.style.color='#3c4a45';">Ver detalle</button>
+                    </div>
                 </div>
-                <div style="border-bottom: 1px solid #eae5db; padding: 10px 0;">
-                    <strong>#108</strong> - 12 Jun 2026 <br> <span style="color:#777; font-size:0.9rem;">1x Waffles Bruce</span> <strong style="float:right; color:var(--verde-logo);">$125.00</strong>
+
+                <!-- Pedido 2 -->
+                <div style="border-bottom: 1px solid #eae5db; padding: 15px 0; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong style="color: #3c4a45;">#CB-108</strong> - 12 Jun 2026 <br> 
+                        <span style="color:#777; font-size:0.9rem;">1x Waffles Bruce</span> 
+                    </div>
+                    <div style="text-align: right;">
+                        <strong style="color:var(--verde-logo); display:block; margin-bottom: 8px;">$125.00</strong>
+                        <button onclick="verTicketHistorial('#CB-108')" style="background: none; border: 1px solid #3c4a45; color: #3c4a45; padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 0.8rem; font-weight: bold; transition: all 0.3s;" onmouseover="this.style.background='#3c4a45'; this.style.color='#fff';" onmouseout="this.style.background='none'; this.style.color='#3c4a45';">Ver detalle</button>
+                    </div>
                 </div>
-                <div style="padding: 10px 0;">
-                    <strong>#094</strong> - 05 Jun 2026 <br> <span style="color:#777; font-size:0.9rem;">2x Croissants, 2x Latte</span> <strong style="float:right; color:var(--verde-logo);">$310.00</strong>
+
+                <!-- Pedido 3 -->
+                <div style="padding: 15px 0; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong style="color: #3c4a45;">#CB-094</strong> - 05 Jun 2026 <br> 
+                        <span style="color:#777; font-size:0.9rem;">2x Croissants, 2x Latte</span> 
+                    </div>
+                    <div style="text-align: right;">
+                        <strong style="color:var(--verde-logo); display:block; margin-bottom: 8px;">$310.00</strong>
+                        <button onclick="verTicketHistorial('#CB-094')" style="background: none; border: 1px solid #3c4a45; color: #3c4a45; padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 0.8rem; font-weight: bold; transition: all 0.3s;" onmouseover="this.style.background='#3c4a45'; this.style.color='#fff';" onmouseout="this.style.background='none'; this.style.color='#3c4a45';">Ver detalle</button>
+                    </div>
+                </div>
+
+            </div>
+        `,
+        confirmButtonColor: '#3c4a45', 
+        confirmButtonText: 'Cerrar',
+        width: '500px'
+    });
+}
+
+// Ver Ticket desde el Historial
+window.verTicketHistorial = function(idPedido) {
+    let fecha, total, htmlProductos;
+
+    if (idPedido === '#CB-125') {
+        fecha = 'Ayer, 10:45 AM'; total = '285.00';
+        htmlProductos = `
+            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; color: #555; border-bottom: 1px dashed #eee; padding-bottom: 6px;">
+                <span style="flex: 1; text-align: left;">2x Chilaquiles (Verdes)</span><span style="font-weight: bold;">$220.00</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; color: #555; border-bottom: 1px dashed #eee; padding-bottom: 6px;">
+                <span style="flex: 1; text-align: left;">1x Capuchino (Vainilla)</span><span style="font-weight: bold;">$65.00</span>
+            </div>`;
+    } else if (idPedido === '#CB-108') {
+        fecha = '12 de junio de 2026, 09:30 AM'; total = '125.00';
+        htmlProductos = `
+            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; color: #555; border-bottom: 1px dashed #eee; padding-bottom: 6px;">
+                <span style="flex: 1; text-align: left;">1x Waffles Bruce</span><span style="font-weight: bold;">$125.00</span>
+            </div>`;
+    } else {
+        fecha = '05 de junio de 2026, 06:15 PM'; total = '310.00';
+        htmlProductos = `
+            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; color: #555; border-bottom: 1px dashed #eee; padding-bottom: 6px;">
+                <span style="flex: 1; text-align: left;">2x Croissants (Jamón)</span><span style="font-weight: bold;">$180.00</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; color: #555; border-bottom: 1px dashed #eee; padding-bottom: 6px;">
+                <span style="flex: 1; text-align: left;">2x Latte (Clásico)</span><span style="font-weight: bold;">$130.00</span>
+            </div>`;
+    }
+
+    Swal.fire({
+        title: 'Detalle del Pedido',
+        html: `
+            <div style="background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #ccc; box-shadow: 2px 2px 10px rgba(0,0,0,0.05); text-align: center; font-family: monospace;">
+                
+                <h3 style="margin: 0; color: #3c4a45; font-size: 1.4rem; font-family: sans-serif;">CASA BARRO</h3>
+                <p style="margin: 5px 0 15px 0; font-size: 0.8rem; color: #777; font-family: sans-serif;">Cafetería & Panadería Artesanal<br>Constitución 101, Aguascalientes</p>
+                
+                <hr style="border: 0; border-top: 2px dashed #ccc; margin: 10px 0;">
+                
+                <div style="text-align: left; font-size: 0.85rem; color: #444; margin-bottom: 15px; line-height: 1.4;">
+                    <p style="margin: 2px 0;"><strong>Folio:</strong> ${idPedido}</p>
+                    <p style="margin: 2px 0;"><strong>Fecha:</strong> ${fecha}</p>
+                    <p style="margin: 2px 0;"><strong>Cliente:</strong> José Eduardo Gutiérrez del Toro</p>
+                </div>
+                
+                <hr style="border: 0; border-top: 2px dashed #ccc; margin: 10px 0;">
+                
+                <div style="margin-bottom: 15px;">
+                    <p style="text-align: left; font-weight: bold; font-size: 0.9rem; margin-bottom: 10px; color: #3c4a45;">Cant. Descripción <span style="float: right;">Importe</span></p>
+                    ${htmlProductos}
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: bold; color: var(--verde-logo); margin-top: 15px; padding-top: 10px; border-top: 2px solid #eae5db;">
+                    <span>TOTAL:</span>
+                    <span>$${total} MXN</span>
                 </div>
             </div>
         `,
-        confirmButtonColor: '#3c4a45', confirmButtonText: 'Cerrar'
+        showCancelButton: true,
+        showDenyButton: true,
+        confirmButtonText: 'Facturar',
+        denyButtonText: 'Ticket PDF',
+        cancelButtonText: 'Regresar',
+        confirmButtonColor: '#3c4a45',
+        denyButtonColor: '#557268',
+        cancelButtonColor: '#8a8a8a',
+        width: '450px',
+        allowOutsideClick: false
+    }).then((result) => {
+        
+        // OPCIÓN 1: Quiere Facturar
+        if (result.isConfirmed) {
+            Swal.fire({
+                title: 'Datos de Facturación',
+                html: `
+                    <p style="font-size: 0.9rem; color: #555; text-align: left; margin-bottom: 15px;">Ingresa tus datos fiscales (CFDI 4.0) para emitir la factura del ticket <strong>${idPedido}</strong>.</p>
+                    <form style="display: flex; flex-direction: column; gap: 10px; text-align: left;">
+                        <div>
+                            <label style="font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">RFC:</label>
+                            <input type="text" class="swal2-input" style="margin: 0; width: 100%; text-transform: uppercase;" placeholder="Ej. ABCD123456XYZ">
+                        </div>
+                        <div>
+                            <label style="font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">Razón Social o Nombre Completo:</label>
+                            <input type="text" class="swal2-input" style="margin: 0; width: 100%;">
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <div style="flex: 1;">
+                                <label style="font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">C.P. Fiscal:</label>
+                                <input type="number" class="swal2-input" style="margin: 0; width: 100%;">
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">Uso de CFDI:</label>
+                                <select class="swal2-select" style="margin: 0; width: 100%; font-size: 0.9rem;">
+                                    <option>G03 - Gastos en general</option>
+                                    <option>G01 - Adquisición de mercancías</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label style="font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">Régimen Fiscal:</label>
+                            <select class="swal2-select" style="margin: 0; width: 100%; font-size: 0.9rem;">
+                                <option>605 - Sueldos y Salarios</option>
+                                <option>612 - P. Físicas con Actividades Emp.</option>
+                                <option>626 - RESICO</option>
+                            </select>
+                        </div>
+                    </form>
+                `,
+                showCancelButton: true, confirmButtonText: 'Generar Factura', cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#3c4a45', cancelButtonColor: '#8a8a8a', width: '500px', allowOutsideClick: false
+            }).then((facturaResult) => {
+                if (facturaResult.isConfirmed) {
+                    Swal.fire({
+                        title: 'Timbrando factura...', text: 'Conectando con el SAT...', icon: 'info',
+                        timer: 2500, timerProgressBar: true, showConfirmButton: false, allowOutsideClick: false
+                    }).then(() => {
+                        Swal.fire({
+                            title: '¡Factura Emitida!', html: '<p>Tu factura ha sido timbrada correctamente.</p>',
+                            icon: 'success', confirmButtonText: 'Volver a mis pedidos', confirmButtonColor: '#3c4a45', allowOutsideClick: false
+                        }).then(() => window.verHistorialPedidos());
+                    });
+                } else {
+                    window.verTicketHistorial(idPedido); // Si cancela la factura, lo regresa a ver el ticket
+                }
+            });
+        } else if (result.isDenied) {
+            Swal.fire({
+                title: 'Descargando...', text: 'Generando comprobante en PDF', icon: 'info',
+                timer: 2000, timerProgressBar: true, showConfirmButton: false, allowOutsideClick: false
+            }).then(() => {
+                Swal.fire({
+                    title: '¡Descarga completa!', text: 'El archivo se guardó en tus descargas.', icon: 'success', 
+                    confirmButtonText: 'Ver mis otros pedidos', confirmButtonColor: '#3c4a45', allowOutsideClick: false
+                }).then(() => {
+                    window.verHistorialPedidos(); 
+                });
+            });
+        } else {
+            window.verHistorialPedidos(); 
+        }
     });
 }
 
@@ -1362,7 +1536,7 @@ window.eliminarItemSimulado = function(boton) {
         text: "Se eliminará permanentemente de tu perfil.",
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonColor: '#ff4c4c',
+        confirmButtonColor: '#3c4a45',
         cancelButtonColor: '#8a8a8a',
         confirmButtonText: 'Sí, eliminar',
         cancelButtonText: 'Cancelar'
@@ -1406,7 +1580,7 @@ window.siguientePaso = function(pasoDestino) {
 window.finalizarPedido = function() {
     let totalStorage = localStorage.getItem('casaBarro_totalFinal') || 0;
     let totalDisplay = parseFloat(totalStorage).toFixed(2);
-
+    
     let numeroPedido = Math.floor(Math.random() * 90000) + 10000;
     let fechaActual = new Date().toLocaleDateString('es-MX', { 
         year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute:'2-digit' 
@@ -1424,7 +1598,6 @@ window.finalizarPedido = function() {
             `;
         });
     }
-
     carrito = [];
     localStorage.removeItem('casaBarro_carrito');
     localStorage.removeItem('casaBarro_cupon');
@@ -1457,39 +1630,93 @@ window.finalizarPedido = function() {
                     <span>TOTAL:</span>
                     <span>$${totalDisplay} MXN</span>
                 </div>
-
-                <p style="margin-top: 15px; font-size: 0.8rem; color: #777;">¡Gracias por tu preferencia!<br>Tu pedido ya pasó a preparación.</p>
             </div>
         `,
         showCancelButton: true,
         allowOutsideClick: false,
-        confirmButtonText: 'Factura PDF',
+        confirmButtonText: 'Factura',
         cancelButtonText: 'Ir a mi perfil',
-        confirmButtonColor: '#3c4a45',
+        confirmButtonColor: '#3c4a45', 
         cancelButtonColor: '#3c4a45',  
         width: '450px'
     }).then((result) => {
-        
         if (result.isConfirmed) {
             Swal.fire({
-                title: 'Descargando...',
-                text: 'Generando tu factura en PDF',
-                icon: 'info',
-                timer: 2000,
-                timerProgressBar: true,
-                showConfirmButton: false,
-                allowOutsideClick: false
-            }).then(() => {
-                Swal.fire({
-                    title: '¡Descarga completa!',
-                    text: 'El archivo Factura_CB-' + numeroPedido + '.pdf se guardó en tus descargas.',
-                    icon: 'success',
-                    confirmButtonText: 'Continuar a mi perfil',
-                    confirmButtonColor: '#3c4a45',
-                    allowOutsideClick: false
-                }).then(() => {
+                title: 'Datos de Facturación',
+                html: `
+                    <p style="font-size: 0.9rem; color: #555; text-align: left; margin-bottom: 15px;">Ingresa tus datos fiscales (CFDI 4.0) para emitir la factura del ticket <strong>#CB-${numeroPedido}</strong>.</p>
+                    
+                    <form style="display: flex; flex-direction: column; gap: 10px; text-align: left;">
+                        <div>
+                            <label style="font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">RFC:</label>
+                            <input type="text" class="swal2-input" style="margin: 0; width: 100%; text-transform: uppercase;" placeholder="Ej. ABCD123456XYZ">
+                        </div>
+                        <div>
+                            <label style="font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">Razón Social o Nombre Completo:</label>
+                            <input type="text" class="swal2-input" style="margin: 0; width: 100%;" placeholder="Tal como aparece en la constancia">
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <div style="flex: 1;">
+                                <label style="font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">C.P. Fiscal:</label>
+                                <input type="number" class="swal2-input" style="margin: 0; width: 100%;" placeholder="Ej. 20000">
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">Uso de CFDI:</label>
+                                <select class="swal2-select" style="margin: 0; width: 100%; font-size: 0.9rem;">
+                                    <option>G03 - Gastos en general</option>
+                                    <option>G01 - Adquisición de mercancías</option>
+                                    <option>P01 - Por definir</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label style="font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">Régimen Fiscal:</label>
+                            <select class="swal2-select" style="margin: 0; width: 100%; font-size: 0.9rem;">
+                                <option>605 - Sueldos y Salarios</option>
+                                <option>612 - Personas Físicas con Actividades Emp.</option>
+                                <option>626 - Régimen Simplificado de Confianza</option>
+                                <option>601 - General de Ley Personas Morales</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">Correo para envío:</label>
+                            <input type="email" class="swal2-input" style="margin: 0; width: 100%;" placeholder="Donde recibirás el PDF y XML">
+                        </div>
+                    </form>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Generar Factura y Descargar',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#3c4a45',
+                cancelButtonColor: '#8a8a8a',
+                width: '500px',
+                allowOutsideClick: false,
+                preConfirm: () => { return true; }
+            }).then((facturaResult) => {
+                if (facturaResult.isConfirmed) {
+                    Swal.fire({
+                        title: 'Timbrando factura...',
+                        text: 'Conectando con el SAT y generando documentos.',
+                        icon: 'info',
+                        timer: 2500,
+                        timerProgressBar: true,
+                        showConfirmButton: false,
+                        allowOutsideClick: false
+                    }).then(() => {
+                        Swal.fire({
+                            title: '¡Factura Emitida!',
+                            html: '<p>Tu factura ha sido timbrada correctamente.</p><p style="font-size: 0.9rem; color: #555;">El archivo <strong>Factura_CB-'+numeroPedido+'.pdf</strong> se descargará en unos instantes y una copia ha sido enviada a tu correo.</p>',
+                            icon: 'success',
+                            confirmButtonText: 'Finalizar e ir a mi perfil',
+                            confirmButtonColor: '#3c4a45',
+                            allowOutsideClick: false
+                        }).then(() => {
+                            window.location.href = 'perfil.html';
+                        });
+                    });
+                } else {
                     window.location.href = 'perfil.html';
-                });
+                }
             });
         } else {
             window.location.href = 'perfil.html';
