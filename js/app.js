@@ -1794,4 +1794,29 @@ window.mostrarDetallePagoML = function(metodo) {
     } else if (metodo === 'ewallet') {
         detEwallet.style.display = 'block';
     }
+} 
+// hola
+// 15. CONEXIÓN BACK-END (NODE.JS + SQLITE)
+window.cargarProductosBD = async function() {
+    try {
+        const respuesta = await fetch('http://localhost:3000/api/productos');
+        const resultado = await respuesta.json();
+        
+        if (resultado.mensaje === "Éxito") {
+            console.log("¡Conexión exitosa! Productos desde BD:", resultado.data);
+            Swal.fire({
+                toast: true, position: 'bottom-end', icon: 'success',
+                title: 'Conectado a la Base de Datos', showConfirmButton: false, timer: 2500
+            });
+        }
+    } catch (error) {
+        console.warn("El servidor backend aún no está encendido o hay un error de conexión.");
+    }
 }
+
+// Ejecutar automáticamente al cargar la página del catálogo
+document.addEventListener('DOMContentLoaded', () => {
+    if(window.location.pathname.includes('catalogo.html')) {
+        cargarProductosBD();
+    }
+})
