@@ -1795,7 +1795,7 @@ window.mostrarDetallePagoML = function(metodo) {
         detEwallet.style.display = 'block';
     }
 } 
-// hola
+
 // 15. CONEXIÓN BACK-END (NODE.JS + SQLITE)
 window.cargarProductosBD = async function() {
     try {
@@ -1820,3 +1820,63 @@ document.addEventListener('DOMContentLoaded', () => {
         cargarProductosBD();
     }
 })
+// 16. MÓDULO CRM - FRONTEND (CLIENTES)
+window.cargarClientesCRM = async function() {
+    try {
+        const respuesta = await fetch('http://localhost:3000/api/clientes');
+        const resultado = await respuesta.json();
+        
+        if (resultado.mensaje === "Éxito") {
+            const tabla = document.getElementById('tabla-clientes-crm');
+            if (!tabla) return;
+            
+            let htmlFilas = '';
+            resultado.data.forEach(cliente => {
+                let colorEtapa = cliente.etapa_crm === 'Activo' ? 'green' : 'orange';
+                
+                htmlFilas += `
+                    <tr style="border-bottom: 1px solid #eae5db;">
+                        <td style="padding: 10px;">${cliente.id}</td>
+                        <td style="padding: 10px;"><strong>${cliente.nombre}</strong><br><small>${cliente.correo}</small></td>
+                        <td style="padding: 10px;">${cliente.empresa || 'N/A'}</td>
+                        <td style="padding: 10px;"><span style="background:${colorEtapa}; color:white; padding:3px 8px; border-radius:12px; font-size:0.8rem;">${cliente.etapa_crm}</span></td>
+                        <td style="padding: 10px;">${cliente.estado}</td>
+                    </tr>
+                `;
+            });
+            tabla.innerHTML = htmlFilas;
+        }
+    } catch (error) {
+        console.error("Error al cargar CRM:", error);
+    }
+}
+
+window.guardarNuevoCliente = async function(event) {
+    event.preventDefault();
+    const nombre = document.getElementById('crm-nombre').value;
+    const correo = document.getElementById('crm-correo').value;
+    const telefono = document.getElementById('crm-telefono').value;
+    const empresa = document.getElementById('crm-empresa').value;
+
+    try {
+        const respuesta = await fetch('http://localhost:3000/api/clientes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre, correo, telefono, empresa })
+        });
+        
+        if (respuesta.ok) {
+            Swal.fire({ toast:true, position:'top-end', icon:'success', title:'Cliente registrado', showConfirmButton:false, timer:2000 });
+            document.getElementById('form-alta-cliente').reset();
+            cargarClientesCRM(); 
+        }
+    } catch (error) {
+        Swal.fire('Error', 'No se pudo guardar el cliente', 'error');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if(document.getElementById('tabla-clientes-crm')) {
+        cargarClientesCRM();
+    }
+});
