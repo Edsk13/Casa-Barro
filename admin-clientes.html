@@ -3,76 +3,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clientes | Casa Barro</title>
+    <title>Clientes CRM | Casa Barro</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body class="admin-body">
     <div class="admin-layout">
+        <!-- Sidebar Dinámico -->
         <div id="admin-sidebar-container"></div>
+        
         <main class="admin-main">
             <header class="admin-header">
                 <div>
-                    <h1>Directorio de Clientes</h1>
-                    <p style="color: #777;">Gestión de usuarios registrados y su historial.</p>
+                    <h1>Directorio de Clientes (CRM)</h1>
+                    <p style="color: #777;">Gestión centralizada de usuarios, historial y relación con clientes.</p>
                 </div>
             </header>
 
-            <div class="admin-toolbar" style="justify-content: space-between;">
-                <input type="text" placeholder="Buscar cliente por nombre o correo..." style="max-width: 400px;">
-                <button class="btn-admin-add" onclick="abrirFormularioCliente()">Agregar Cliente</button>
+            <!-- 1. Formulario: Alta de Cliente (Requisito de la Rúbrica) -->
+            <div style="background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid #eae5db;">
+                <h3 style="color: var(--verde-logo); margin-top: 0; margin-bottom: 15px; font-size: 1.1rem;">Alta de Nuevo Cliente</h3>
+                <form id="form-alta-cliente" onsubmit="guardarNuevoCliente(event)" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <label style="font-size: 0.85rem; font-weight: bold; color: #555;">Nombre Completo *</label>
+                        <input type="text" id="crm-nombre" placeholder="Ej. María Fernanda" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-top: 5px;">
+                    </div>
+                    <div style="flex: 1; min-width: 200px;">
+                        <label style="font-size: 0.85rem; font-weight: bold; color: #555;">Correo Electrónico *</label>
+                        <input type="email" id="crm-correo" placeholder="ejemplo@correo.com" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-top: 5px;">
+                    </div>
+                    <div style="flex: 1; min-width: 150px;">
+                        <label style="font-size: 0.85rem; font-weight: bold; color: #555;">Teléfono</label>
+                        <input type="text" id="crm-telefono" placeholder="10 dígitos" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-top: 5px;">
+                    </div>
+                    <div style="flex: 1; min-width: 150px;">
+                        <label style="font-size: 0.85rem; font-weight: bold; color: #555;">Empresa</label>
+                        <input type="text" id="crm-empresa" placeholder="Opcional" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-top: 5px;">
+                    </div>
+                    <div>
+                        <button type="submit" class="btn-admin-add" style="padding: 9px 20px; height: 36px; border: none; border-radius: 4px; cursor: pointer;">Guardar Cliente</button>
+                    </div>
+                </form>
             </div>
 
+            <!-- 2. Barra de herramientas -->
+            <div class="admin-toolbar" style="justify-content: space-between;">
+                <input type="text" placeholder="Buscar cliente por nombre o correo..." style="max-width: 400px; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+            </div>
+
+            <!-- 3. Tabla: Listado de Clientes -->
             <div class="admin-table-container">
                 <table class="admin-table">
                     <thead>
                         <tr>
-                            <th>Nombre</th>
-                            <th>Correo Electrónico</th>
-                            <th>Fecha de Registro</th>
-                            <th>Total de Pedidos</th>
-                            <th>Acciones</th>
+                            <th>ID</th>
+                            <th>Cliente</th>
+                            <th>Empresa</th>
+                            <th>Etapa CRM</th>
+                            <th>Estado</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>Eduardo G.</strong></td>
-                            <td>eduardo@ejemplo.com</td>
-                            <td>10 Jun, 2025</td>
-                            <td>12</td>
-                            <td class="admin-actions">
-                                <button title="Ver Historial" onclick="verHistorialCliente()">Historial</button>
-                                <button title="Editar" onclick="abrirFormularioCliente(true)">Editar</button>
-                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarAccionAdmin('el cliente')">Eliminar</button>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><strong>Sofía Ramírez</strong></td>
-                            <td>sofia.r@ejemplo.com</td>
-                            <td>Hoy</td>
-                            <td>1</td>
-                            <td class="admin-actions">
-                                <button title="Ver Historial" onclick="verHistorialCliente()">Historial</button>
-                                <button title="Editar" onclick="abrirFormularioCliente(true)">Editar</button>
-                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarAccionAdmin('el cliente')">Eliminar</button>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><strong>Carlos Gómez</strong></td>
-                            <td>carlosg@ejemplo.com</td>
-                            <td>05 Mar, 2026</td>
-                            <td>4</td>
-                            <td class="admin-actions">
-                                <button title="Ver Historial" onclick="verHistorialCliente()">Historial</button>
-                                <button title="Editar" onclick="abrirFormularioCliente(true)">Editar</button>
-                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarAccionAdmin('el cliente')">Eliminar</button>
-                            </td>
-                        </tr>
+                    <!-- El ID "tabla-clientes-crm" es vital para que app.js inyecte los datos aquí -->
+                    <tbody id="tabla-clientes-crm">
+                        <!-- Los clientes guardados en la base de datos aparecerán aquí automáticamente -->
                     </tbody>
                 </table>
             </div>
         </main>
     </div>
+    
     <script src="js/app.js"></script>
 </body>
 </html>
