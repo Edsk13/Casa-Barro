@@ -15,36 +15,21 @@ let propinaPorcentaje = 0;
 let cuponAplicado = JSON.parse(localStorage.getItem('casaBarro_cupon')) || null;
 
 window.mostrarProximamente = function() {
-    Swal.fire({
-        title: '¡Próximamente!',
-        text: 'Esta función estará disponible muy pronto.',
-        icon: 'info',
-        confirmButtonText: 'Entendido',
-        confirmButtonColor: '#3c4a45'
-    });
+    Swal.fire({ title: '¡Próximamente!', text: 'Esta función estará disponible muy pronto.', icon: 'info', confirmButtonText: 'Entendido', confirmButtonColor: '#3c4a45' });
 }
 
-// Aplicar cupón de descuento
 window.aplicarDescuento = function(codigo, porcentaje) {
     cuponAplicado = { codigo: codigo, porcentaje: porcentaje };
     localStorage.setItem('casaBarro_cupon', JSON.stringify(cuponAplicado));
     
     Swal.fire({
-        icon: 'success',
-        title: '¡Descuento Aplicado!',
-        text: `El cupón ${codigo} del ${porcentaje}% se reflejará en tu carrito.`,
-        confirmButtonColor: '#3c4a45',
-        confirmButtonText: 'Ir a mi pedido',
-        showCancelButton: true,
-        cancelButtonText: 'Seguir viendo'
+        icon: 'success', title: '¡Descuento Aplicado!', text: `El cupón ${codigo} del ${porcentaje}% se reflejará en tu carrito.`,
+        confirmButtonColor: '#3c4a45', confirmButtonText: 'Ir a mi pedido', showCancelButton: true, cancelButtonText: 'Seguir viendo'
     }).then((result) => {
-        if (result.isConfirmed) {
-            window.location.href = 'carrito.html';
-        }
+        if (result.isConfirmed) window.location.href = 'carrito.html';
     });
 }
 
-// Modal de Políticas de Compra y Venta
 window.mostrarPoliticas = function() {
     Swal.fire({
         title: 'Políticas de Compra y Venta',
@@ -60,9 +45,7 @@ window.mostrarPoliticas = function() {
                 <p style="margin-bottom:15px;">Si tu pedido llegó incompleto, incorrecto o en mal estado, cuentas con 30 minutos a partir de la entrega para reportarlo.</p>
             </div>
         `,
-        confirmButtonText: 'Aceptar y Cerrar',
-        confirmButtonColor: '#3c4a45',
-        width: '500px'
+        confirmButtonText: 'Aceptar y Cerrar', confirmButtonColor: '#3c4a45', width: '500px'
     });
 }
 
@@ -78,9 +61,7 @@ window.cambiarCantidad = function(cambio) {
     let el = document.getElementById('swal-cantidad');
     let cantidadActual = parseInt(el.innerText);
     let nuevaCantidad = cantidadActual + cambio;
-    if (nuevaCantidad >= 1) {
-        el.innerText = nuevaCantidad;
-    }
+    if (nuevaCantidad >= 1) el.innerText = nuevaCantidad;
 }
 
 window.cambiarCantidadCarrito = function(index, cambio) {
@@ -92,7 +73,6 @@ window.cambiarCantidadCarrito = function(index, cambio) {
     }
 }
 
-// Agregar al Carrito (Lee opción base y extras si existen)
 window.confirmarAgregarAlCarrito = function(nombre, precio) {
     let cantidad = parseInt(document.getElementById('swal-cantidad').innerText);
     let selectorOpciones = document.getElementById('swal-opciones');
@@ -105,97 +85,50 @@ window.confirmarAgregarAlCarrito = function(nombre, precio) {
     if (extraSeleccionado) textoFinal.push(extraSeleccionado);
     let stringOpcion = textoFinal.length > 0 ? textoFinal.join(' + ') : null;
 
-    carrito.push({
-        producto: nombre,
-        precio: precio,
-        cantidad: cantidad,
-        opcion: stringOpcion
-    });
-
+    carrito.push({ producto: nombre, precio: precio, cantidad: cantidad, opcion: stringOpcion });
     localStorage.setItem('casaBarro_carrito', JSON.stringify(carrito));
     actualizarUI(); 
-
-    Swal.fire({
-        icon: 'success', title: '¡Agregado!',
-        text: `Agregaste ${cantidad}x ${nombre} a tu pedido.`,
-        showConfirmButton: false, timer: 1500
-    });
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 1500 });
 }
 
-window.cambiarPropina = function(porcentaje) {
-    propinaPorcentaje = porcentaje;
-    renderizarCarrito();
-}
+window.cambiarPropina = function(porcentaje) { propinaPorcentaje = porcentaje; renderizarCarrito(); }
 
 window.vaciarCarrito = function() {
     Swal.fire({
-        title: '¿Vaciar carrito?',
-        text: "Se eliminarán todos los productos de tu pedido.",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#8a8a8a',
-        confirmButtonText: 'Sí, vaciar',
-        cancelButtonText: 'Cancelar'
+        title: '¿Vaciar carrito?', text: "Se eliminarán todos los productos de tu pedido.", icon: 'warning',
+        showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#8a8a8a', confirmButtonText: 'Sí, vaciar', cancelButtonText: 'Cancelar'
     }).then((result) => {
         if (result.isConfirmed) {
             carrito = [];
             localStorage.removeItem('casaBarro_carrito');
             cuponAplicado = null;
             localStorage.removeItem('casaBarro_cupon');
-            
             actualizarUI();
             renderizarCarrito();
-            
-            Swal.fire({
-                toast: true, position: 'top-end', icon: 'success', 
-                title: 'Carrito vacío', showConfirmButton: false, timer: 1500
-            });
+            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Carrito vacío', showConfirmButton: false, timer: 1500 });
         }
     });
 }
 
-window.removerDescuento = function() {
-    cuponAplicado = null;
-    localStorage.removeItem('casaBarro_cupon');
-    renderizarCarrito();
-}
+window.removerDescuento = function() { cuponAplicado = null; localStorage.removeItem('casaBarro_cupon'); renderizarCarrito(); }
 
 // 3. PINTAR LA PANTALLA DEL CARRITO
 window.validarCuponManual = function() {
-    let input = document.getElementById('input-cupon').value.trim().toUpperCase(); // Convierte a mayúsculas automático
-    
-    if (!input) {
-        Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: 'Escribe un código primero', showConfirmButton: false, timer: 2000 });
-        return;
-    }
+    let input = document.getElementById('input-cupon').value.trim().toUpperCase(); 
+    if (!input) { Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: 'Escribe un código primero', showConfirmButton: false, timer: 2000 }); return; }
 
     let porcentaje = 0;
-    
-    // Diccionario de cupones válidos
     if (input === 'MAÑANAS15') porcentaje = 10;
     else if (input === 'VIERNES20') porcentaje = 20;
     else if (input === 'SOYCLIENTE15') porcentaje = 15;
-    else {
-        Swal.fire({
-            icon: 'error',
-            title: 'Cupón inválido',
-            text: 'El código ingresado no existe o ha expirado.',
-            confirmButtonColor: '#3c4a45'
-        });
-        return;
-    }
+    else { Swal.fire({ icon: 'error', title: 'Cupón inválido', text: 'El código ingresado no existe o ha expirado.', confirmButtonColor: '#3c4a45' }); return; }
     
     cuponAplicado = { codigo: input, porcentaje: porcentaje };
     localStorage.setItem('casaBarro_cupon', JSON.stringify(cuponAplicado));
-    
-    renderizarCarrito(); // Re-dibujar el carrito con el descuento
-    
-    Swal.fire({
-        toast: true, position: 'top-end', icon: 'success', 
-        title: '¡Cupón aplicado!', showConfirmButton: false, timer: 2000
-    });
+    renderizarCarrito(); 
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 2000 });
 }
+
 window.renderizarCarrito = function() {
     const contenedor = document.getElementById('carrito-contenido');
     if (!contenedor) return; 
@@ -211,24 +144,13 @@ window.renderizarCarrito = function() {
         return;
     }
 
-    let htmlItems = '<div class="carrito-grid"><div class="carrito-items">';
-    
-    // Botón de Vaciar Carrito
-    htmlItems += `
-        <div style="text-align: right; margin-bottom: 15px;">
-            <button class="btn-eliminar" onclick="vaciarCarrito()">
-                Vaciar carrito
-            </button>
-        </div>
-    `;
-
+    let htmlItems = '<div class="carrito-grid"><div class="carrito-items"><div style="text-align: right; margin-bottom: 15px;"><button class="btn-eliminar" onclick="vaciarCarrito()">Vaciar carrito</button></div>';
     let subtotal = 0;
 
     carrito.forEach((item, index) => {
         const totalItem = item.precio * item.cantidad;
         subtotal += totalItem;
         const infoOpcion = item.opcion ? `<p style="font-size:0.85rem; color:#777; margin-bottom: 8px;">Opción: ${item.opcion}</p>` : '';
-        
         htmlItems += `
             <div class="item-carrito" style="align-items: center;">
                 <div style="flex-grow: 1;">
@@ -236,13 +158,11 @@ window.renderizarCarrito = function() {
                     ${infoOpcion}
                     <p style="font-size:1rem; color: #557268; font-weight:bold;">$${item.precio.toFixed(2)}</p>
                 </div>
-                
                 <div style="display: flex; align-items: center; gap: 12px; margin: 0 20px;">
-                    <button onclick="cambiarCantidadCarrito(${index}, -1)" style="background: #eae5db; border:none; border-radius:5px; width:30px; height:30px; cursor:pointer; font-weight:bold; color:#3c4a45; font-size: 1.2rem; display:flex; justify-content:center; align-items:center; transition: background 0.2s;">-</button>
+                    <button onclick="cambiarCantidadCarrito(${index}, -1)" style="background: #eae5db; border:none; border-radius:5px; width:30px; height:30px; cursor:pointer; font-weight:bold; color:#3c4a45; font-size: 1.2rem; display:flex; justify-content:center; align-items:center;">-</button>
                     <span style="font-weight:bold; font-size: 1.1rem; min-width: 20px; text-align: center;">${item.cantidad}</span>
-                    <button onclick="cambiarCantidadCarrito(${index}, 1)" style="background: var(--verde-logo); border:none; border-radius:5px; width:30px; height:30px; cursor:pointer; font-weight:bold; color:white; font-size: 1.2rem; display:flex; justify-content:center; align-items:center; transition: opacity 0.2s;">+</button>
+                    <button onclick="cambiarCantidadCarrito(${index}, 1)" style="background: var(--verde-logo); border:none; border-radius:5px; width:30px; height:30px; cursor:pointer; font-weight:bold; color:white; font-size: 1.2rem; display:flex; justify-content:center; align-items:center;">+</button>
                 </div>
-
                 <div style="text-align:right; min-width: 90px;">
                     <p style="font-weight:bold; font-size: 1.2rem; color:#3c4a45; margin-bottom:10px;">$${totalItem.toFixed(2)}</p>
                     <button class="btn-eliminar" onclick="eliminarDelCarrito(${index})">Quitar</button>
@@ -253,7 +173,6 @@ window.renderizarCarrito = function() {
 
     htmlItems += '</div>';
 
-    // === CÁLCULOS MATEMÁTICOS ===
     let montoDescuento = 0;
     let htmlDescuento = '';
 
@@ -286,18 +205,14 @@ window.renderizarCarrito = function() {
 
     localStorage.setItem('casaBarro_totalFinal', totalFinal.toFixed(2));
 
-    // === INTERFAZ DEL TICKET ===
     htmlItems += `
         <div class="resumen-carrito">
             <h3 style="color:var(--verde-logo); margin-bottom:20px; font-size: 1.3rem;">Resumen de Compra</h3>
-            
             <div style="display:flex; justify-content:space-between; margin-bottom:15px; color: #555;">
                 <span>Subtotal:</span>
                 <span>$${subtotal.toFixed(2)}</span>
             </div>
-
             ${htmlDescuento}
-
             <div style="margin-bottom: 15px;">
                 <p style="color: #555; margin-bottom: 8px; font-size: 0.95rem;">¿Deseas agregar propina?</p>
                 <div style="display: flex; gap: 8px;">
@@ -307,23 +222,15 @@ window.renderizarCarrito = function() {
                     <button onclick="cambiarPropina(20)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 20 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 20 ? 'white' : 'var(--verde-logo)'}; cursor: pointer;">20%</button>
                 </div>
             </div>
-            
             <div style="display:flex; justify-content:space-between; margin-bottom:15px; color: #555;">
                 <span>Propina (${propinaPorcentaje}%):</span>
                 <span>$${propinaCalculada.toFixed(2)}</span>
             </div>
-            
             <div style="display:flex; justify-content:space-between; margin-top:20px; padding-top: 15px; border-top: 2px dashed #eae5db; font-weight:bold; font-size:1.4rem; color: var(--verde-logo);">
                 <span>Total:</span>
                 <span>$${totalFinal.toFixed(2)}</span>
             </div>
-            
             <button class="btn-primary" style="width:100%; margin-top: 25px; border-radius: 8px;" onclick="window.location.href='pago.html'">Ir a pagar</button>
-            
-            <p style="text-align: center; font-size: 0.85rem; color: #777; margin-top: 15px; line-height: 1.4;">
-                Al proceder al pago aceptas nuestras <br>
-                <a href="#" onclick="mostrarPoliticas(); return false;" style="color: var(--verde-logo); font-weight: bold; text-decoration: underline;">Políticas de Compra y Venta</a>.
-            </p>
         </div>
     </div>`;
 
@@ -337,7 +244,7 @@ window.eliminarDelCarrito = function(index) {
     renderizarCarrito(); 
 }
 
-// 4. MODAL DE PRODUCTO FRONT-END (C/ 2 DROPDOWNS)
+// 4. MODAL DE PRODUCTO FRONT-END
 window.abrirDetalleMejorado = function(nombre, descripcion, precioStr, imagenUrl, alineacion = 'center', opcionesStr = '', extrasStr = '') {
     let precioNum = parseFloat(precioStr.replace('$', '').replace(' MXN', ''));
     let opcionesHtml = '';
@@ -360,231 +267,64 @@ window.abrirDetalleMejorado = function(nombre, descripcion, precioStr, imagenUrl
         `;
     }
 
-    let relacionadosHtml = `
-        <div style="display:flex; gap:15px; overflow-x:auto; padding: 10px 0; scrollbar-width: thin;">
-            <div onclick="Swal.close(); setTimeout(() => abrirDetalleMejorado('Capuchinos y Lattes', 'Nuestras especialidades calientes.', '$65.00 MXN', 'LatteCaliente.jpeg', 'bottom', 'Capuchino, Latte', 'Clásico, Vainilla'), 300);" style="min-width:110px; text-align:center; cursor:pointer;">
-                <img src="LatteCaliente.jpeg" style="width:100%; height:90px; object-fit:cover; border-radius:10px;">
-                <p style="font-size:0.85rem; margin-top:8px; color:var(--verde-logo); font-weight:bold;">Café Latte</p>
-            </div>
-        </div>
-    `;
-
     Swal.fire({
         title: nombre,
         html: `
             <img src="${imagenUrl}" alt="${nombre}" style="width: 100%; height: 250px; object-fit: cover; object-position: ${alineacion}; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
             <p style="text-align: justify; margin-bottom: 15px; color: #555; line-height: 1.5;">${descripcion}</p>
             <h3 style="color: #3c4a45; font-size: 1.8rem; font-weight: bold; margin-bottom: 10px;">${precioStr}</h3>
-
             ${opcionesHtml}
-
             <div style="display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 25px;">
                 <button onclick="cambiarCantidad(-1)" style="background-color: #eae5db; border:none; border-radius:50%; width:40px; height:40px; font-size:1.5rem; cursor:pointer; color:#3c4a45; font-weight:bold;">-</button>
                 <span id="swal-cantidad" style="font-size:1.4rem; font-weight:bold; min-width: 30px;">1</span>
                 <button onclick="cambiarCantidad(1)" style="background-color: var(--verde-logo); border:none; border-radius:50%; width:40px; height:40px; font-size:1.5rem; cursor:pointer; color:white; font-weight:bold;">+</button>
             </div>
-
             <button onclick="confirmarAgregarAlCarrito('${nombre}', ${precioNum})" class="btn-primary" style="width: 100%; padding: 12px; border-radius: 30px; margin-bottom: 25px;">Agregar al carrito</button>
-
-            <div style="text-align: left; border-top: 2px solid #fcf9f2; padding-top: 15px;">
-                <h4 style="color: #3c4a45; margin-bottom: 10px; font-size: 1rem; text-transform: uppercase;">Sugerencias</h4>
-                ${relacionadosHtml}
-            </div>
         `,
         showConfirmButton: false, showCloseButton: true, width: '480px'
     });
 }
 
-// 5. ALERTAS Y EVENTOS UI (Header, Footer, Autenticación)
-// Función para mostrar el aviso de cookies interactivo
-window.verificarCookies = function() {
-    
-    if (true) { 
-        Swal.fire({
-            title: 'Configuración de Cookies y Privacidad',
-            html: `
-                <div style="text-align: left; font-size: 0.9rem; color: #555; max-height: 400px; overflow-y: auto; padding-right: 10px;">
-                    <p style="margin-bottom: 15px;">En <strong>Casa Barro</strong> valoramos tu privacidad. A continuación, puedes configurar qué tipo de cookies y tecnologías de rastreo permites mientras navegas en nuestro sitio:</p>
-                    
-                    <!-- 1. Esenciales y de Seguridad (Bloqueadas y siempre activas) -->
-                    <div style="margin-bottom: 15px; display: flex; align-items: flex-start; gap: 12px; background: #fcf9f2; padding: 12px; border-radius: 8px; border-left: 4px solid var(--verde-logo);">
-                        <input type="checkbox" id="cookie-seguridad" checked disabled style="margin-top: 4px; accent-color: var(--verde-logo); transform: scale(1.2);">
-                        <div>
-                            <label for="cookie-seguridad" style="font-weight: bold; color: var(--verde-logo);">Esenciales y de Seguridad</label>
-                            <p style="font-size: 0.85rem; margin-top: 4px; line-height: 1.4;">Son obligatorias. Permiten que el carrito de compras guarde tus productos, mantienen activa tu sesión y activan los protocolos anti-fraude al momento de pagar. <em>(No se pueden desactivar)</em>.</p>
-                        </div>
-                    </div>
-
-                    <!-- 2. Ubicación y Preferencias -->
-                    <div style="margin-bottom: 15px; display: flex; align-items: flex-start; gap: 12px; padding: 5px 12px;">
-                        <input type="checkbox" id="cookie-ubicacion" style="margin-top: 4px; accent-color: var(--verde-logo); transform: scale(1.2); cursor: pointer;">
-                        <div>
-                            <label for="cookie-ubicacion" style="font-weight: bold; color: var(--verde-logo); cursor: pointer;">Funcionalidad y Ubicación</label>
-                            <p style="font-size: 0.85rem; margin-top: 4px; line-height: 1.4;">Nos permiten acceder a tu ubicación aproximada (Aguascalientes) para calcular tiempos de entrega, y recordar tus preferencias del sitio (como si prefieres ver los precios con o sin propina incluida).</p>
-                        </div>
-                    </div>
-
-                    <!-- 3. Analíticas y Rendimiento -->
-                    <div style="margin-bottom: 15px; display: flex; align-items: flex-start; gap: 12px; padding: 5px 12px;">
-                        <input type="checkbox" id="cookie-analitica" style="margin-top: 4px; accent-color: var(--verde-logo); transform: scale(1.2); cursor: pointer;">
-                        <div>
-                            <label for="cookie-analitica" style="font-weight: bold; color: var(--verde-logo); cursor: pointer;">Rendimiento y Analíticas</label>
-                            <p style="font-size: 0.85rem; margin-top: 4px; line-height: 1.4;">Recopilan datos anónimos sobre cómo usas el sitio (tiempos de carga, qué platillos del menú se visitan más y mapas de calor) para ayudarnos a detectar errores y optimizar la página.</p>
-                        </div>
-                    </div>
-
-                    <!-- 4. Marketing y Publicidad -->
-                    <div style="margin-bottom: 5px; display: flex; align-items: flex-start; gap: 12px; padding: 5px 12px;">
-                        <input type="checkbox" id="cookie-marketing" style="margin-top: 4px; accent-color: var(--verde-logo); transform: scale(1.2); cursor: pointer;">
-                        <div>
-                            <label for="cookie-marketing" style="font-weight: bold; color: var(--verde-logo); cursor: pointer;">Marketing y Publicidad (Terceros)</label>
-                            <p style="font-size: 0.85rem; margin-top: 4px; line-height: 1.4;">Comparten información de navegación con plataformas como Facebook e Instagram para poder mostrarte anuncios personalizados y cupones de descuento relevantes basados en tus intereses.</p>
-                        </div>
-                    </div>
-                </div>
-            `,
-            width: '650px',
-            showCancelButton: true,
-            confirmButtonText: 'Guardar mis preferencias',
-            cancelButtonText: 'Aceptar todas',
-            confirmButtonColor: '#3c4a45',
-            cancelButtonColor: '#557268',
-            allowOutsideClick: false, 
-            allowEscapeKey: false,
-            
-            // Leemos los 3 checkboxes opcionales
-            preConfirm: () => {
-                const ubicacionActivas = document.getElementById('cookie-ubicacion').checked;
-                const analiticasActivas = document.getElementById('cookie-analitica').checked;
-                const marketingActivas = document.getElementById('cookie-marketing').checked;
-                return { 
-                    ubicacion: ubicacionActivas, 
-                    analiticas: analiticasActivas, 
-                    marketing: marketingActivas 
-                };
-            }
-        }).then((result) => {
-            if (result.isConfirmed) {
-                // El usuario eligió manualmente
-                localStorage.setItem('casaBarro_prefs_ubicacion', result.value.ubicacion);
-                localStorage.setItem('casaBarro_prefs_analiticas', result.value.analiticas);
-                localStorage.setItem('casaBarro_prefs_marketing', result.value.marketing);
-                
-                Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Preferencias guardadas', showConfirmButton: false, timer: 2000 });
-            } else if (result.dismiss === Swal.DismissReason.cancel) {
-                // El usuario le dio al botón de "Aceptar todas"
-                localStorage.setItem('casaBarro_prefs_ubicacion', 'true');
-                localStorage.setItem('casaBarro_prefs_analiticas', 'true');
-                localStorage.setItem('casaBarro_prefs_marketing', 'true');
-                
-                Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Todas las cookies aceptadas', showConfirmButton: false, timer: 2000 });
-            }
-        });
-    }
-}
-
+// 5. ALERTAS Y EVENTOS UI 
 function activarAlertas() {
     const btnLogin = document.getElementById('btn-login');
     if(btnLogin) btnLogin.addEventListener('click', () => window.location.href = 'login.html');
 
+    const formRegistro = document.getElementById('form-registro');
+    if(formRegistro) formRegistro.addEventListener('submit', window.registrarUsuario);
+
+    const formLogin = document.getElementById('form-login');
+    if(formLogin) formLogin.addEventListener('submit', window.iniciarSesion);
+
+    const btnCerrarSesion = document.getElementById('btn-cerrar-sesion');
+    if(btnCerrarSesion) btnCerrarSesion.addEventListener('click', () => {
+        Swal.fire({
+            title: '¿Quieres cerrar sesión?', text: 'Tendrás que volver a ingresar tus datos la próxima vez.', icon: 'warning',
+            showCancelButton: true, confirmButtonColor: '#557268', cancelButtonColor: '#8a8a8a', confirmButtonText: 'Sí, salir', cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                localStorage.removeItem('casaBarro_usuario');
+                Swal.fire({ title: 'Sesión cerrada', text: '¡Esperamos verte pronto en Casa Barro!', icon: 'success', timer: 1500, showConfirmButton: false }).then(() => window.location.href = 'index.html');
+            }
+        });
+    });
+
     const btnHistoria = document.getElementById('btn-historia');
     if(btnHistoria) btnHistoria.addEventListener('click', () => {
-        Swal.fire({
-            title: 'Nuestra Historia ⋆☕︎⋆',
-            html: `
-                <div style="text-align: justify; line-height: 1.6; font-size: 1.05rem;">
-                    <p><strong>Casa Barro</strong> nació del amor por el buen café, la panadería artesanal y los momentos compartidos. Ubicados en el corazón del Barrio La Purísima, restauramos este espacio respetando sus raíces y la calidez del barro para crear un refugio único en Aguascalientes.</p>
-                    <br>
-                    <p>Hoy somos más que un lugar de Brunch: somos una familia que te ofrece un espacio acogedor donde tú, tus amigos y tu mascota siempre serán bienvenidos.</p>
-                </div>
-            `,
-            confirmButtonText: '¡Me encanta!',
-            confirmButtonColor: '#3c4a45'
-        });
+        Swal.fire({ title: 'Nuestra Historia ⋆☕︎⋆', html: `<div style="text-align: justify; line-height: 1.6; font-size: 1.05rem;"><p><strong>Casa Barro</strong> nació del amor por el buen café, la panadería artesanal y los momentos compartidos...</p></div>`, confirmButtonText: '¡Me encanta!', confirmButtonColor: '#3c4a45' });
     });
 
     const btnContacto = document.getElementById('btn-contacto');
     if(btnContacto) btnContacto.addEventListener('click', () => {
         Swal.fire({
-            title: 'Contáctanos',
-            html: `
-                <input type="text" id="form-nombre" class="swal2-input" placeholder="Tu nombre (Opcional)" style="margin-bottom: 10px;">
-                <input type="text" id="form-correo" class="swal2-input" placeholder="Tu correo electrónico (Opcional)" style="margin-bottom: 10px;">
-                <textarea id="form-mensaje" class="swal2-textarea" placeholder="Mensaje..."></textarea>
-            `,
-            confirmButtonText: 'Enviar Mensaje',
-            confirmButtonColor: '#3c4a45',
-            showCancelButton: true,
-
-            preConfirm: () => {
-                let nombre = document.getElementById('form-nombre').value || "";
-                return { nombre: nombre };
-            }
+            title: 'Contáctanos', html: `<input type="text" id="form-nombre" class="swal2-input" placeholder="Tu nombre (Opcional)" style="margin-bottom: 10px;"><input type="text" id="form-correo" class="swal2-input" placeholder="Tu correo electrónico (Opcional)" style="margin-bottom: 10px;"><textarea id="form-mensaje" class="swal2-textarea" placeholder="Mensaje..."></textarea>`, confirmButtonText: 'Enviar Mensaje', confirmButtonColor: '#3c4a45', showCancelButton: true
         }).then((result) => {
-            if (result.isConfirmed) {
-                Swal.fire({ title: '¡Mensaje Enviado!', text: 'Gracias ' + result.value.nombre + ', hemos recibido tu mensaje.', icon: 'success', confirmButtonColor: '#3c4a45' });
-            }
+            if (result.isConfirmed) Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 1500 });
         });
     });
-
-    const formRegistro = document.getElementById('form-registro');
-    if(formRegistro) formRegistro.addEventListener('submit', (e) => {
-        e.preventDefault();
-        Swal.fire({ title: '¡Registro exitoso!', text: 'Tu cuenta ha sido creada correctamente.', icon: 'success', confirmButtonColor: '#3c4a45' }).then(() => window.location.href = 'login.html');
-    });
-
-    const formLogin = document.getElementById('form-login');
-    if(formLogin) formLogin.addEventListener('submit', (e) => {
-        e.preventDefault();
-        Swal.fire({ title: 'Entrando...', text: 'Validando credenciales', icon: 'success', timer: 1000, showConfirmButton: false }).then(() => window.location.href = 'perfil.html');
-    });
-
-    const btnRecuperar = document.getElementById('btn-recuperar');
-    if(btnRecuperar) btnRecuperar.addEventListener('click', (e) => {
-        e.preventDefault();
-        Swal.fire({
-            title: 'Recuperar contraseña',
-            input: 'text', // Tipo texto para evitar validación de @
-            inputPlaceholder: 'Ingresa correo o déjalo vacío',
-            showCancelButton: true,
-            confirmButtonText: 'Enviar enlace',
-            confirmButtonColor: '#3c4a45',
-        }).then((result) => {
-            if (result.isConfirmed) Swal.fire({ title: '¡Enlace enviado!', text: 'Revisa tu bandeja de entrada', icon: 'success', confirmButtonColor: '#3c4a45' });
-        });
-    });
-
-    const btnCerrarSesion = document.getElementById('btn-cerrar-sesion');
-    if(btnCerrarSesion) btnCerrarSesion.addEventListener('click', () => {
-        Swal.fire({
-            title: '¿Quieres cerrar sesión?',
-            text: 'Tendrás que volver a ingresar tus datos la próxima vez.',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#557268',
-            cancelButtonColor: '#8a8a8a',
-            confirmButtonText: 'Sí, salir',
-            cancelButtonText: 'Cancelar'
-        }).then((result) => {
-            if (result.isConfirmed) Swal.fire({ title: 'Sesión cerrada', text: '¡Esperamos verte pronto en Casa Barro!', icon: 'success', timer: 1500, showConfirmButton: false }).then(() => window.location.href = 'index.html');
-        });
-    });
-
-    const btnIg = document.getElementById('btn-ig');
-    if(btnIg) btnIg.addEventListener('click', () => Swal.fire({ title: 'Instagram', text: 'Mensaje enviado con exito.', icon: 'info', confirmButtonColor: '#3c4a45' })); 
-
-    const btnFb = document.getElementById('btn-fb');
-    if(btnFb) btnFb.addEventListener('click', () => Swal.fire({ title: '¡Redirigiendo a Facebook!', text: 'Aquí se abriría la página de Facebook de Casa Barro.', icon: 'info', confirmButtonColor: '#3c4a45' }));
-
-    const btnPhone = document.getElementById('btn-phone');
-    if(btnPhone) btnPhone.addEventListener('click', () => Swal.fire({ title: '¡Iniciando llamada!', text: 'Llamada realizada con exito.', icon: 'success', confirmButtonColor: '#3c4a45' }));
 }
 
-// 6. LÓGICA DEL PANEL DE ADMINISTRADOR (PRODUCTOS)
-window.mostrarSimulacion = function(titulo, mensaje) {
-    Swal.fire({ title: titulo, text: mensaje, icon: 'info', confirmButtonText: 'Entendido', confirmButtonColor: '#3c4a45' });
-}
-
+// 6. LÓGICA DEL PANEL DE ADMINISTRADOR
 window.filtrarProductosAdmin = function() {
     let inputBusqueda = document.getElementById('admin-search');
     let selectCategoria = document.getElementById('admin-filter-cat');
@@ -595,1232 +335,129 @@ window.filtrarProductosAdmin = function() {
     let texto = inputBusqueda.value.toLowerCase();
     let categoria = selectCategoria.value;
     let estado = selectEstado.value;
-    
     let filas = document.querySelectorAll('.admin-row');
     
     filas.forEach(fila => {
         let nombre = fila.getAttribute('data-nombre').toLowerCase();
         let cat = fila.getAttribute('data-categoria');
         let est = fila.getAttribute('data-estado');
-        
         let coincideTexto = nombre.includes(texto);
         let coincideCat = (categoria === 'todos') || (cat === categoria);
         let coincideEst = (estado === 'todos') || (est === estado);
         
-        if (coincideTexto && coincideCat && coincideEst) {
-            fila.style.display = '';
-        } else {
-            fila.style.display = 'none';
-        }
+        fila.style.display = (coincideTexto && coincideCat && coincideEst) ? '' : 'none';
     });
 }
 
 window.abrirFormularioProducto = function(editMode = false) {
     let title = editMode ? 'Editar Producto' : 'Agregar Nuevo Producto';
     let btnText = editMode ? 'Guardar Cambios' : 'Guardar Producto';
-
-    Swal.fire({
-        title: title,
-        html: `
-            <form id="admin-prod-form" style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;">
-                <div>
-                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Nombre del producto:</label>
-                    <input class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Ej. Torta de Cochinita" ${editMode ? 'value="Producto Seleccionado"' : ''}>
-                </div>
-                <div style="display:flex; gap:15px;">
-                    <div style="flex:1;">
-                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Categoría:</label>
-                        <select class="swal2-select" style="margin:5px 0 0 0; width:100%;">
-                            <option value="alimentos" ${editMode ? 'selected' : ''}>Alimentos</option>
-                            <option value="calientes">Bebidas Calientes</option>
-                            <option value="frias">Bebidas Frías</option>
-                            <option value="postres">Postres</option>
-                        </select>
-                    </div>
-                    <div style="flex:1;">
-                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Precio (MXN):</label>
-                        <input type="number" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Ej. 120" ${editMode ? 'value="125"' : ''}>
-                    </div>
-                </div>
-                <div>
-                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Descripción:</label>
-                    <textarea class="swal2-textarea" style="margin:5px 0 0 0; width:100%; height:80px; resize:none;">${editMode ? 'Descripción del producto actual...' : ''}</textarea>
-                </div>
-                <div>
-                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Imagen (URL / Archivo):</label>
-                    <input type="text" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Enlace o nombre de la imagen" ${editMode ? 'value="imagen.jpeg"' : ''}>
-                </div>
-                <div style="display:flex; gap:15px;">
-                    <div style="flex:1;">
-                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Existencia:</label>
-                        <input type="number" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Cant." ${editMode ? 'value="45"' : ''}>
-                    </div>
-                    <div style="flex:1;">
-                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Estado:</label>
-                        <select class="swal2-select" style="margin:5px 0 0 0; width:100%;">
-                            <option value="disponible" ${editMode ? 'selected' : ''}>Disponible (Activo)</option>
-                            <option value="agotado">Agotado (Inactivo)</option>
-                        </select>
-                    </div>
-                </div>
-            </form>
-        `,
-        showCancelButton: true,
-        confirmButtonText: btnText,
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#3c4a45',
-        cancelButtonColor: '#8a8a8a',
-        width: '550px'
-    }).then((result) => {
-        if (result.isConfirmed) Swal.fire({ icon: 'success', title: '¡Guardado!', text: 'Los datos del producto han sido guardados correctamente.', confirmButtonColor: '#3c4a45' });
+    Swal.fire({ title: title, html: `<p>Panel dinámico bloqueado hasta Sprint 2.</p>`, showCancelButton: true, confirmButtonText: btnText, confirmButtonColor: '#3c4a45' }).then((result) => {
+        if (result.isConfirmed) Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 1500 });
     });
 }
 
 window.eliminarProductoAdmin = function(nombreProducto) {
-    Swal.fire({
-        title: `¿Eliminar ${nombreProducto}?`,
-        text: "Esta acción no se puede deshacer y el producto desaparecerá del menú público.",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#8a8a8a',
-        confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar'
-    }).then((result) => {
-        if (result.isConfirmed) Swal.fire({ icon: 'success', title: 'Eliminado', text: 'El producto ha sido borrado exitosamente.', confirmButtonColor: '#3c4a45' });
+    Swal.fire({ title: `¿Eliminar ${nombreProducto}?`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Sí, eliminar' }).then((result) => {
+        if (result.isConfirmed) Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 1500 });
     });
 }
 
-window.verDetalleAdmin = function(nombre, descripcion, precio, imagenUrl) {
-    Swal.fire({
-        title: nombre,
-        html: `
-            <img src="${imagenUrl}" alt="${nombre}" style="width: 100%; height: 220px; object-fit: cover; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-            <p style="text-align: justify; margin-bottom: 15px; color: #555; line-height: 1.5;">${descripcion}</p>
-            <h3 style="color: var(--verde-logo); font-size: 1.6rem; font-weight: bold; margin-bottom: 10px;">${precio}</h3>
-            <hr style="margin: 15px 0; border: 0; border-top: 1px dashed #ccc;">
-            <p style="font-size: 0.85rem; color: #777;"><em>👀 Vista previa de cómo lo ven los clientes.</em></p>
-        `,
-        confirmButtonText: 'Cerrar vista previa',
-        confirmButtonColor: '#3c4a45',
-        width: '450px'
-    });
-}
-
-window.cambiarEstadoRapido = function(btn) {
-    let fila = btn.closest('tr');
-    let badge = fila.querySelector('.badge-status');
-    let estadoActual = fila.getAttribute('data-estado');
-
-    if(estadoActual === 'disponible') {
-        fila.setAttribute('data-estado', 'agotado');
-        badge.className = 'badge-status agotado';
-        badge.innerText = 'Agotado';
-        Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: 'Marcado como Agotado', showConfirmButton: false, timer: 2000 });
-    } else {
-        fila.setAttribute('data-estado', 'disponible');
-        badge.className = 'badge-status disponible';
-        badge.innerText = 'Disponible';
-        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Marcado como Disponible', showConfirmButton: false, timer: 2000 });
-    }
-    filtrarProductosAdmin();
-}
-
-// 7. LÓGICA DE MÓDULOS ADMIN
-window.verDetallePedidoAdmin = function(numeroPedido) {
-    Swal.fire({
-        title: `Detalle del Pedido ${numeroPedido}`,
-        html: `
-            <div style="text-align: left; color: #555; font-size: 0.95rem;">
-                <p><strong>Cliente:</strong> Sofía Ramírez (sofia@ejemplo.com)</p>
-                <p><strong>Fecha:</strong> Hoy, 10:45 AM</p>
-                <p><strong>Método de pago:</strong> Tarjeta (Pagado)</p>
-                <hr style="margin: 15px 0;">
-                <ul style="list-style: none; padding: 0; margin-bottom: 15px;">
-                    <li style="margin-bottom: 8px;">2x Chilaquiles (Verdes, con Pollo) - $220.00</li>
-                    <li style="margin-bottom: 8px;">1x Capuchino (Vainilla) - $65.00</li>
-                </ul>
-                <p style="text-align: right; font-size: 1.2rem; font-weight: bold; color: var(--verde-logo);">Total: $285.00</p>
-            </div>
-        `,
-        confirmButtonText: 'Cerrar',
-        confirmButtonColor: '#3c4a45'
-    });
-}
-
-window.cambiarEstadoPedidoAdmin = function(btn) {
-    let fila = btn.closest('tr');
-    let badge = fila.querySelector('.badge-status');
-    
-    if (badge.classList.contains('pendiente')) {
-        badge.className = 'badge-status preparacion';
-        badge.innerText = 'En Preparación';
-        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Pedido enviado a cocina', showConfirmButton: false, timer: 2000 });
-    } else if (badge.classList.contains('preparacion')) {
-        badge.className = 'badge-status entregado';
-        badge.innerText = 'Entregado';
-        btn.style.display = 'none'; 
-        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Pedido marcado como entregado', showConfirmButton: false, timer: 2000 });
-    }
-}
-
-window.abrirFormularioPromocion = function(editMode = false) {
-    let title = editMode ? 'Editar Promoción' : 'Nueva Promoción';
-    Swal.fire({
-        title: title,
-        html: `
-            <form style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;">
-                <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Nombre de Promoción:</label>
-                <input class="swal2-input" style="margin:0; width:100%;" placeholder="Ej. 10% Descuento" ${editMode ? 'value="Viernes de Enchiladas"' : ''}>
-                <div style="display:flex; gap:15px;">
-                    <div style="flex:1;">
-                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Descuento:</label>
-                        <input class="swal2-input" style="margin:0; width:100%;" placeholder="Ej. 15%" ${editMode ? 'value="20%"' : ''}>
-                    </div>
-                    <div style="flex:1;">
-                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Estado:</label>
-                        <select class="swal2-select" style="margin:0; width:100%;">
-                            <option value="activa">Activa</option>
-                            <option value="inactiva">Inactiva</option>
-                        </select>
-                    </div>
-                </div>
-            </form>
-        `,
-        showCancelButton: true,
-        confirmButtonText: 'Guardar',
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#3c4a45'
-    }).then((result) => {
-        if (result.isConfirmed) Swal.fire('Guardado', 'La promoción se ha guardado correctamente.', 'success');
-    });
-}
-
-window.abrirFormularioCliente = function(editMode = false) {
-    let title = editMode ? 'Editar Cliente' : 'Registrar Nuevo Cliente';
-    let btnText = editMode ? 'Guardar Cambios' : 'Guardar Cliente';
-
-    Swal.fire({
-        title: title,
-        html: `
-            <form style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;">
-                <div>
-                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Nombre Completo:</label>
-                    <input type="text" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Ej. María Fernanda" ${editMode ? 'value="Eduardo G."' : ''}>
-                </div>
-                <div>
-                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Correo Electrónico:</label>
-                    <input type="email" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="ejemplo@correo.com" ${editMode ? 'value="eduardo@ejemplo.com"' : ''}>
-                </div>
-                <div style="display:flex; gap:15px;">
-                    <div style="flex:1;">
-                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Teléfono (Opcional):</label>
-                        <input type="tel" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="10 dígitos">
-                    </div>
-                    <div style="flex:1;">
-                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Fecha Nacimiento:</label>
-                        <input type="date" class="swal2-input" style="margin:5px 0 0 0; width:100%;" ${editMode ? 'value="2005-06-10"' : ''}>
-                    </div>
-                </div>
-                <div>
-                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Notas adicionales:</label>
-                    <textarea class="swal2-textarea" style="margin:5px 0 0 0; width:100%; height:60px; resize:none;" placeholder="Alergias, preferencias, etc."></textarea>
-                </div>
-            </form>
-        `,
-        showCancelButton: true,
-        confirmButtonText: btnText,
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#3c4a45',
-        cancelButtonColor: '#8a8a8a',
-        width: '550px'
-    }).then((result) => {
-        if (result.isConfirmed) Swal.fire({ icon: 'success', title: '¡Éxito!', text: 'La información del cliente se ha guardado correctamente.', confirmButtonColor: '#3c4a45' });
-    });
-}
-
-window.verHistorialCliente = function() {
-    Swal.fire({
-        title: 'Historial de Compras',
-        text: 'Aquí se desplegará la lista de pedidos pasados de este cliente, sus productos favoritos y su total gastado.',
-        icon: 'info',
-        confirmButtonText: 'Cerrar',
-        confirmButtonColor: '#3c4a45'
-    });
-}
-
-window.eliminarAccionAdmin = function(itemType) {
-    Swal.fire({
-        title: '¿Estás seguro?',
-        text: `Se eliminará permanentemente ${itemType}.`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonText: 'Cancelar',
-        confirmButtonText: 'Sí, eliminar'
-    }).then((result) => {
-        if (result.isConfirmed) Swal.fire('Eliminado', 'El registro ha sido borrado.', 'success');
-    });
-}
-
-// 8. INICIALIZADOR AL CARGAR LA PÁGINA
+// 8. INICIALIZADOR GLOBAL (DOM LOAD)
 document.addEventListener('DOMContentLoaded', async () => {
-    
-    // Cargar Navbar y Footer (Tienda pública)
     await cargarComponente('navbar-container', 'components/navbar.html');
     await cargarComponente('footer-container', 'components/footer.html');
     
-    // Cargar Sidebar (Panel Admin)
     const adminSidebarContainer = document.getElementById('admin-sidebar-container');
-    if (adminSidebarContainer) {
-        await cargarComponente('admin-sidebar-container', 'components/admin-sidebar.html');
-        
-        const currentPath = window.location.pathname.split('/').pop();
-        const adminLinks = document.querySelectorAll('#admin-nav-links a');
-        
-        adminLinks.forEach(link => {
-            if (link.getAttribute('data-page') === currentPath) {
-                link.classList.add('active');
-            } else {
-                link.classList.remove('active');
-            }
-        });
-    }
+    if (adminSidebarContainer) await cargarComponente('admin-sidebar-container', 'components/admin-sidebar.html');
 
-    // Funciones globales
-    //verificarCookies();
     activarAlertas();
     actualizarUI();
     renderizarCarrito();
 
-    // Redirección carrito
     const btnCarritoNav = document.getElementById('btn-carrito-nav');
-    if(btnCarritoNav) {
-        btnCarritoNav.addEventListener('click', () => {
-            window.location.href = 'carrito.html'; 
-        });
-    }
-
-    // Filtros del catálogo público
-    const buscador = document.getElementById('buscador-productos');
-    const filtroCategoria = document.getElementById('filtro-categoria');
-
-    if (buscador && filtroCategoria) {
-        function filtrarCatalogo() {
-            const textoBusqueda = buscador.value.toLowerCase();
-            const categoriaSeleccionada = filtroCategoria.value;
-            
-            const secciones = document.querySelectorAll('.seccion-categoria');
-            
-            secciones.forEach(seccion => {
-                const categoriaSeccion = seccion.getAttribute('data-categoria');
-                const productos = seccion.querySelectorAll('.tarjeta-producto');
-                let productosVisibles = 0;
-
-                productos.forEach(producto => {
-                    const nombre = producto.getAttribute('data-nombre');
-                    const coincideTexto = nombre.includes(textoBusqueda);
-                    const coincideCategoria = (categoriaSeleccionada === 'todos') || (categoriaSeccion === categoriaSeleccionada);
-
-                    if (coincideTexto && coincideCategoria) {
-                        producto.style.display = 'block'; 
-                        productosVisibles++;
-                    } else {
-                        producto.style.display = 'none'; 
-                    }
-                });
-
-                if (productosVisibles > 0) {
-                    seccion.style.display = 'block';
-                } else {
-                    seccion.style.display = 'none';
-                }
-            });
-        }
-
-        buscador.addEventListener('input', filtrarCatalogo);
-        filtroCategoria.addEventListener('change', filtrarCatalogo);
-    }
-
-    
-    // 1. Quitamos el atributo 'required' de todos los inputs, textareas y selects
-    document.querySelectorAll('input, textarea, select').forEach(campo => {
-        campo.removeAttribute('required');
-    });
-    
-    // 2. Le decimos a los formularios que ignoren las validaciones nativas del navegador
-    document.querySelectorAll('form').forEach(formulario => {
-        formulario.setAttribute('novalidate', 'true');
-    });
+    if(btnCarritoNav) btnCarritoNav.addEventListener('click', () => window.location.href = 'carrito.html');
 });
 
-// 9. LÓGICA DE COMUNIDAD 
-window.publicarComentario = function(event) {
-    event.preventDefault(); // Evita que la página se recargue
-
-    const inputNombre = document.getElementById('comentario-nombre');
-    const inputTexto = document.getElementById('comentario-texto');
-    const listaComentarios = document.getElementById('lista-comentarios');
-
-    if (!inputNombre || !inputTexto || !listaComentarios) return;
-    let nombre = inputNombre.value.trim();
-    let texto = inputTexto.value.trim();
-
-    if (nombre === '') nombre = 'Anónimo';
-    if (texto === '') texto = 'Me encantó la experiencia, ¡excelente servicio!';
-
-    // Obtener la inicial del nombre (ahora seguro porque siempre hay un nombre)
-    const inicial = nombre.charAt(0).toUpperCase();
-
-    // Crear el nuevo recuadro de comentario
-    const nuevoComentario = document.createElement('div');
-    nuevoComentario.className = 'comentario-item';
+// 11. VALIDACIÓN Y MERCADO C2C
+window.intentarPublicar = function(tipo) {
+    const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
     
-    // Animación inicial oculta
-    nuevoComentario.style.opacity = '0';
-    nuevoComentario.style.transform = 'translateY(-10px)';
-    nuevoComentario.style.transition = 'all 0.4s ease';
+    if (!usuarioActual) {
+        Swal.fire({ title: 'Atención', text: 'Debes iniciar sesión para publicar en el mercado', icon: 'warning', confirmButtonColor: '#3c4a45' });
+        return;
+    }
 
-    // HTML del nuevo comentario
-    nuevoComentario.innerHTML = `
-        <div class="comentario-avatar" style="background-color: #557268;">${inicial}</div>
-        <div class="comentario-contenido" style="width: 100%;">
-            <strong>${nombre}</strong> <span class="comentario-fecha">Hace un momento</span>
-            <p>${texto}</p>
-            <div style="margin-top: 10px; border-top: 1px dashed #eae5db; padding-top: 8px;">
-                <button onclick="reaccionarComentario(this)" style="background: none; border: none; cursor: pointer; color: #777; font-size: 0.95rem; display: flex; align-items: center; gap: 5px; font-weight: bold; transition: all 0.2s;">
-                    <span class="icono-reaccion">♡</span> <span class="contador-reaccion">0</span> Me gusta
-                </button>
-            </div>
-        </div>
-    `;
+    if (!usuarioActual.empresa) {
+        Swal.fire({
+            title: 'Información Incompleta', text: 'Para garantizar la seguridad de la comunidad, necesitas registrar el nombre de tu empresa o emprendimiento en tu perfil antes de publicar.', icon: 'info',
+            showCancelButton: true, confirmButtonText: 'Ir a mi Perfil', cancelButtonText: 'Cancelar', confirmButtonColor: '#3c4a45'
+        }).then((result) => { if (result.isConfirmed) window.location.href = 'perfil.html'; });
+        return;
+    }
 
-    // Lo agregamos hasta arriba
-    listaComentarios.insertBefore(nuevoComentario, listaComentarios.firstChild);
-
-    // Limpiamos los campos
-    inputNombre.value = '';
-    inputTexto.value = '';
-
-    // Ejecutamos la animación
-    setTimeout(() => {
-        nuevoComentario.style.opacity = '1';
-        nuevoComentario.style.transform = 'translateY(0)';
-    }, 50);
-
-    // Alerta de éxito directa
-    Swal.fire({
-        toast: true,
-        position: 'top-end',
-        icon: 'success',
-        title: '¡Comentario publicado!',
-        showConfirmButton: false,
-        timer: 2000
-    });
+    if (tipo === 'subasta') abrirFormularioSubasta();
+    else abrirFormularioArticulo();
 }
 
-// 10. MODELO PUBLICACION
-window.publicarProductoC2C = function(event) {
-    event.preventDefault();
-
-    Swal.fire({
-        icon: 'success',
-        title: '¡Publicado!',
-        text: 'Tu producto ya está visible para la comunidad.',
-        confirmButtonColor: '#3c4a45'
-    }).then(() => {
-        window.location.href = 'perfil.html';
-    });
-}
-
-// 11. MERCADO C2C: SISTEMA DE SUBASTAS
 window.abrirFormularioArticulo = function() {
     Swal.fire({
         title: 'Publicar Artículo',
         html: `
             <form id="form-nuevo-articulo" style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;">
-                <div>
-                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Nombre del producto:</label>
-                    <input type="text" id="articulo-nombre" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Opcional en fase de pruebas">
-                </div>
-                <div>
-                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Precio (MXN):</label>
-                    <input type="number" id="articulo-precio" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Opcional">
-                </div>
-                <div>
-                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Descripción y detalles:</label>
-                    <textarea id="articulo-desc" class="swal2-textarea" style="margin:5px 0 0 0; width:100%; height:80px; resize:none;"></textarea>
-                </div>
-                <div>
-                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Foto del producto:</label>
-                    <input type="file" accept="image/*" class="swal2-file" style="margin:5px 0 0 0; width:100%; font-size: 0.9rem;">
-                </div>
+                <input type="text" id="articulo-nombre" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Nombre del producto">
+                <input type="number" id="articulo-precio" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Precio MXN">
             </form>
         `,
-        showCancelButton: true, confirmButtonText: 'Publicar', cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#3c4a45', cancelButtonColor: '#8a8a8a',
-        
-        preConfirm: () => { return true; } // Sin validaciones
+        showCancelButton: true, confirmButtonText: 'Publicar', confirmButtonColor: '#3c4a45'
     }).then((result) => {
-        if (result.isConfirmed) {
-            Swal.fire({ icon: 'success', title: '¡Publicado!', text: 'Tu artículo ya está visible.', confirmButtonColor: '#3c4a45' });
-        }
+        if (result.isConfirmed) Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 1500 });
     });
 }
 
-window.abrirSubastaSimulada = function() {
-    let ofertaActual = 400; 
-
-    Swal.fire({
-        title: 'Subasta en Vivo',
-        html: `
-            <div style="text-align: left; color: #555; font-family: inherit;">
-                
-                <!-- Cabecera del producto -->
-                <div style="display: flex; gap: 15px; margin-bottom: 20px; align-items: center;">
-                    <img src="moka.webp" style="width: 80px; height: 80px; object-fit: cover; border-radius: 10px; border: 1px solid #eae5db;">
-                    <div>
-                        <h4 style="color: var(--verde-logo); margin: 0 0 5px 0; font-size: 1.1rem;">Cafetera Moka Italiana</h4>
-                        <p style="margin: 0; font-size: 0.9rem;">Termina en: <strong id="timer-subasta" style="color: #b7410e; font-size: 1.2rem; display: inline-block; min-width: 70px;">15:00</strong></p>
-                    </div>
-                </div>
-
-                <!-- Precio actual -->
-                <div style="background: #fcf9f2; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 20px; border: 1px dashed #ccc;">
-                    <p style="margin: 0; font-size: 0.9rem; color: #777;">Oferta más alta:</p>
-                    <h2 id="precio-actual-subasta" style="color: var(--verde-logo); margin: 5px 0 0 0; font-size: 2rem;">$${ofertaActual}.00 MXN</h2>
-                </div>
-
-                <!-- Campo para hacer oferta -->
-                <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-                    <input type="number" id="input-oferta" placeholder="Monto mayor a $${ofertaActual}" style="flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-family: inherit; font-size: 1rem; outline: none; transition: border-color 0.3s;">
-                    <button onclick="realizarOferta()" style="background-color: var(--verde-logo); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: background 0.3s;">Ofertar</button>
-                </div>
-
-                <!-- Lista de Ofertas -->
-                <h4 style="color: var(--verde-logo); margin-bottom: 10px; border-bottom: 2px solid #eae5db; padding-bottom: 5px; font-size: 1rem;">Historial de Ofertas</h4>
-                <div id="lista-ofertas" style="max-height: 150px; overflow-y: auto; font-size: 0.95rem; padding-right: 10px;">
-                    <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px dashed #eae5db;">
-                        <span><strong>Ana S.</strong></span>
-                        <span style="color: var(--verde-logo); font-weight: bold;">$400.00</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px dashed #eae5db;">
-                        <span><strong>Miguel A.</strong></span>
-                        <span style="color: var(--verde-logo); font-weight: bold;">$380.00</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; padding: 10px 0;">
-                        <span><strong>Diana T.</strong></span>
-                        <span style="color: var(--verde-logo); font-weight: bold;">$350.00</span>
-                    </div>
-                </div>
-            </div>
-        `,
-        showConfirmButton: false,
-        showCloseButton: true,
-        allowOutsideClick: false, // Evita que se cierre por accidente mientras escriben
-        width: '500px',
-        
-        // Esta función arranca en cuanto la ventana se abre
-        didOpen: () => {
-            // Lógica del Temporizador Visual (Simulación de 15 minutos)
-            let tiempoRestante = 15 * 60; 
-            const display = document.getElementById('timer-subasta');
-            
-            // Guardamos el intervalo en window para poder limpiarlo al cerrar la alerta
-            window.intervaloSubasta = setInterval(() => {
-                let minutos = parseInt(tiempoRestante / 60, 10);
-                let segundos = parseInt(tiempoRestante % 60, 10);
-
-                minutos = minutos < 10 ? "0" + minutos : minutos;
-                segundos = segundos < 10 ? "0" + segundos : segundos;
-
-                if(display) display.textContent = minutos + ":" + segundos;
-
-                if (--tiempoRestante < 0) {
-                    clearInterval(window.intervaloSubasta);
-                    if(display) display.textContent = "TERMINADO";
-                }
-            }, 1000);
-        },
-        willClose: () => {
-            // Apagamos el reloj si cierran la ventana para ahorrar memoria
-            clearInterval(window.intervaloSubasta); 
-        }
-    });
-
-    // Función anidada para procesar el clic en el botón "Ofertar"
-    window.realizarOferta = function() {
-        const input = document.getElementById('input-oferta');
-        let valorOferta = parseFloat(input.value);
-        if (isNaN(valorOferta) || valorOferta <= ofertaActual) {
-            valorOferta = ofertaActual + 50;
-        }
-
-        const precioDisplay = document.getElementById('precio-actual-subasta');
-        const lista = document.getElementById('lista-ofertas');
-        
-        ofertaActual = valorOferta;
-        precioDisplay.innerText = `$${ofertaActual.toFixed(2)} MXN`;
-        input.value = '';
-        input.placeholder = `Siguiente puja...`;
-
-        const nuevaOferta = document.createElement('div');
-        nuevaOferta.style.cssText = 'display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px dashed #eae5db; background-color: #d4edda; transition: background-color 1s ease;';
-        nuevaOferta.innerHTML = `<span><strong>Tú</strong></span><span style="color: var(--verde-logo); font-weight: bold;">$${ofertaActual.toFixed(2)}</span>`;
-        lista.insertBefore(nuevaOferta, lista.firstChild);
-        setTimeout(() => nuevaOferta.style.backgroundColor = 'transparent', 1000);
-        
-        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Oferta registrada', showConfirmButton: false, timer: 2000 });
-    }
-}
-
-// Función para abrir el formulario de creación de subasta
 window.abrirFormularioSubasta = function() {
     Swal.fire({
         title: 'Crear Subasta',
         html: `
             <form id="form-nueva-subasta" style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;">
-                <div>
-                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Nombre del artículo:</label>
-                    <input type="text" id="subasta-nombre" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Ej. Molino Manual Antiguo">
-                </div>
-                
-                <div style="display:flex; gap:15px;">
-                    <div style="flex:1;">
-                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Precio inicial (MXN):</label>
-                        <input type="number" id="subasta-precio" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Ej. 300">
-                    </div>
-                    <div style="flex:1;">
-                        <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Duración:</label>
-                        <select id="subasta-duracion" class="swal2-select" style="margin:5px 0 0 0; width:100%; font-size: 0.95rem;">
-                            <option value="15">15 Minutos (Rápida)</option>
-                            <option value="60">1 Hora</option>
-                            <option value="1440">24 Horas</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <div>
-                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Descripción y detalles:</label>
-                    <textarea id="subasta-desc" class="swal2-textarea" style="margin:5px 0 0 0; width:100%; height:80px; resize:none;" placeholder="Menciona el estado del artículo, si tiene detalles estéticos, etc."></textarea>
-                </div>
-                
-                <div>
-                    <label style="font-weight:bold; color:var(--verde-logo); font-size:0.9rem;">Foto del producto:</label>
-                    <input type="file" accept="image/*" class="swal2-file" style="margin:5px 0 0 0; width:100%; font-size: 0.9rem;">
-                </div>
+                <input type="text" id="subasta-nombre" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Nombre del artículo">
+                <input type="number" id="subasta-precio" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Precio inicial">
             </form>
         `,
-        showCancelButton: true,
-        confirmButtonText: 'Iniciar Subasta',
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#3c4a45',
-        cancelButtonColor: '#8a8a8a',
-        width: '550px',
-        
+        showCancelButton: true, confirmButtonText: 'Iniciar Subasta', confirmButtonColor: '#3c4a45'
     }).then((result) => {
-        if (result.isConfirmed) {
-            Swal.fire({
-                icon: 'success',
-                title: '¡Subasta en vivo!',
-                text: 'Tu artículo ya está disponible en el mercado y el reloj ha comenzado.',
-                confirmButtonColor: '#3c4a45'
-            });
-        }
-    });
-}
-
-// 12. EDICIÓN SIMULADA EN PERFIL
-window.editarComentario = function() {
-    Swal.fire({
-        title: 'Editar Comentario',
-        input: 'textarea',
-        inputValue: 'Están deliciosos, me encantó la combinación...', // Texto precargado
-        showCancelButton: true,
-        confirmButtonColor: '#3c4a45',
-        cancelButtonColor: '#8a8a8a',
-        confirmButtonText: 'Guardar',
-        cancelButtonText: 'Cancelar'
-    }).then((result) => {
-        if(result.isConfirmed) {
-            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Comentario actualizado', showConfirmButton: false, timer: 2000});
-        }
-    });
-}
-
-window.editarPublicacion = function() {
-    Swal.fire({
-        title: 'Editar Publicación',
-        html: `
-            <div style="text-align: left;">
-                <label style="font-size: 0.9rem; color: var(--verde-logo); font-weight: bold;">Nombre:</label>
-                <input type="text" class="swal2-input" style="width: 100%; margin: 5px 0 15px 0;" value="Prensa Francesa (Usada)">
-                
-                <label style="font-size: 0.9rem; color: var(--verde-logo); font-weight: bold;">Precio:</label>
-                <input type="number" class="swal2-input" style="width: 100%; margin: 5px 0 0 0;" value="250">
-            </div>
-        `,
-        showCancelButton: true,
-        confirmButtonColor: '#3c4a45',
-        cancelButtonColor: '#8a8a8a',
-        confirmButtonText: 'Guardar cambios',
-        cancelButtonText: 'Cancelar'
-    }).then((result) => {
-        if(result.isConfirmed) {
-            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Publicación actualizada', showConfirmButton: false, timer: 2000});
-        }
-    });
-}
-
-// 13. SIMULACIONES EXTRAS
-window.contactarVendedor = function(nombreVendedor) {
-    Swal.fire({
-        title: `Contactar a ${nombreVendedor}`,
-        html: `
-            <p style="font-size:0.9rem; color:#555; margin-bottom:10px;">Envíale una pregunta o negocia el precio:</p>
-            <textarea class="swal2-textarea" placeholder="Hola, ¿todavía lo tienes disponible?..." style="margin:0; width:100%; height:100px; resize:none;"></textarea>
-        `,
-        showCancelButton: true,
-        confirmButtonColor: '#3c4a45',
-        cancelButtonColor: '#8a8a8a',
-        confirmButtonText: 'Enviar mensaje',
-        cancelButtonText: 'Cancelar'
-    }).then((result) => {
-        if (result.isConfirmed) Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Mensaje enviado', showConfirmButton: false, timer: 2000 });
-    });
-}
-
-// Editar Datos Personales
-window.editarDatosPerfil = function() {
-    Swal.fire({
-        title: 'Editar Perfil',
-        html: `
-            <div style="text-align: left;">
-                <label style="font-size: 0.9rem; color: var(--verde-logo); font-weight: bold;">Nombre:</label>
-                <input type="text" class="swal2-input" style="width: 100%; margin: 5px 0 10px 0;" value="Eduardo G.">
-                
-                <label style="font-size: 0.9rem; color: var(--verde-logo); font-weight: bold;">Correo:</label>
-                <input type="email" class="swal2-input" style="width: 100%; margin: 5px 0 10px 0;" value="eduardo@ejemplo.com">
-
-                <label style="font-size: 0.9rem; color: var(--verde-logo); font-weight: bold;">Teléfono:</label>
-                <input type="tel" class="swal2-input" style="width: 100%; margin: 5px 0 0 0;" value="+52 449 123 4567">
-            </div>
-        `,
-        showCancelButton: true, confirmButtonColor: '#3c4a45', cancelButtonColor: '#8a8a8a',
-        confirmButtonText: 'Guardar cambios', cancelButtonText: 'Cancelar'
-    }).then((result) => {
-        if(result.isConfirmed) Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 2000});
-    });
-}
-
-// Ver Historial Completo
-window.verHistorialPedidos = function() {
-    Swal.fire({
-        title: 'Historial de Pedidos',
-        html: `
-            <div style="text-align: left; max-height: 250px; overflow-y: auto; padding-right: 10px;">
-                
-                <!-- Pedido 1 -->
-                <div style="border-bottom: 1px solid #eae5db; padding: 15px 0; display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <strong style="color: #3c4a45;">#CB-125</strong> - Ayer, 10:45 AM <br> 
-                        <span style="color:#777; font-size:0.9rem;">2x Chilaquiles, 1x Capuchino</span> 
-                    </div>
-                    <div style="text-align: right;">
-                        <strong style="color:var(--verde-logo); display:block; margin-bottom: 8px;">$285.00</strong>
-                        <button onclick="verTicketHistorial('#CB-125')" style="background: none; border: 1px solid #3c4a45; color: #3c4a45; padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 0.8rem; font-weight: bold; transition: all 0.3s;" onmouseover="this.style.background='#3c4a45'; this.style.color='#fff';" onmouseout="this.style.background='none'; this.style.color='#3c4a45';">Ver detalle</button>
-                    </div>
-                </div>
-
-                <!-- Pedido 2 -->
-                <div style="border-bottom: 1px solid #eae5db; padding: 15px 0; display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <strong style="color: #3c4a45;">#CB-108</strong> - 12 Jun 2026 <br> 
-                        <span style="color:#777; font-size:0.9rem;">1x Waffles Bruce</span> 
-                    </div>
-                    <div style="text-align: right;">
-                        <strong style="color:var(--verde-logo); display:block; margin-bottom: 8px;">$125.00</strong>
-                        <button onclick="verTicketHistorial('#CB-108')" style="background: none; border: 1px solid #3c4a45; color: #3c4a45; padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 0.8rem; font-weight: bold; transition: all 0.3s;" onmouseover="this.style.background='#3c4a45'; this.style.color='#fff';" onmouseout="this.style.background='none'; this.style.color='#3c4a45';">Ver detalle</button>
-                    </div>
-                </div>
-
-                <!-- Pedido 3 -->
-                <div style="padding: 15px 0; display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <strong style="color: #3c4a45;">#CB-094</strong> - 05 Jun 2026 <br> 
-                        <span style="color:#777; font-size:0.9rem;">2x Croissants, 2x Latte</span> 
-                    </div>
-                    <div style="text-align: right;">
-                        <strong style="color:var(--verde-logo); display:block; margin-bottom: 8px;">$310.00</strong>
-                        <button onclick="verTicketHistorial('#CB-094')" style="background: none; border: 1px solid #3c4a45; color: #3c4a45; padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 0.8rem; font-weight: bold; transition: all 0.3s;" onmouseover="this.style.background='#3c4a45'; this.style.color='#fff';" onmouseout="this.style.background='none'; this.style.color='#3c4a45';">Ver detalle</button>
-                    </div>
-                </div>
-
-            </div>
-        `,
-        confirmButtonColor: '#3c4a45', 
-        confirmButtonText: 'Cerrar',
-        width: '500px'
-    });
-}
-
-// Ver Ticket desde el Historial
-window.verTicketHistorial = function(idPedido) {
-    let fecha, total, htmlProductos;
-
-    if (idPedido === '#CB-125') {
-        fecha = 'Ayer, 10:45 AM'; total = '285.00';
-        htmlProductos = `
-            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; color: #555; border-bottom: 1px dashed #eee; padding-bottom: 6px;">
-                <span style="flex: 1; text-align: left;">2x Chilaquiles (Verdes)</span><span style="font-weight: bold;">$220.00</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; color: #555; border-bottom: 1px dashed #eee; padding-bottom: 6px;">
-                <span style="flex: 1; text-align: left;">1x Capuchino (Vainilla)</span><span style="font-weight: bold;">$65.00</span>
-            </div>`;
-    } else if (idPedido === '#CB-108') {
-        fecha = '12 de junio de 2026, 09:30 AM'; total = '125.00';
-        htmlProductos = `
-            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; color: #555; border-bottom: 1px dashed #eee; padding-bottom: 6px;">
-                <span style="flex: 1; text-align: left;">1x Waffles Bruce</span><span style="font-weight: bold;">$125.00</span>
-            </div>`;
-    } else {
-        fecha = '05 de junio de 2026, 06:15 PM'; total = '310.00';
-        htmlProductos = `
-            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; color: #555; border-bottom: 1px dashed #eee; padding-bottom: 6px;">
-                <span style="flex: 1; text-align: left;">2x Croissants (Jamón)</span><span style="font-weight: bold;">$180.00</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; color: #555; border-bottom: 1px dashed #eee; padding-bottom: 6px;">
-                <span style="flex: 1; text-align: left;">2x Latte (Clásico)</span><span style="font-weight: bold;">$130.00</span>
-            </div>`;
-    }
-
-    Swal.fire({
-        title: 'Detalle del Pedido',
-        html: `
-            <div style="background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #ccc; box-shadow: 2px 2px 10px rgba(0,0,0,0.05); text-align: center; font-family: monospace;">
-                
-                <h3 style="margin: 0; color: #3c4a45; font-size: 1.4rem; font-family: sans-serif;">CASA BARRO</h3>
-                <p style="margin: 5px 0 15px 0; font-size: 0.8rem; color: #777; font-family: sans-serif;">Cafetería & Panadería Artesanal<br>Constitución 101, Aguascalientes</p>
-                
-                <hr style="border: 0; border-top: 2px dashed #ccc; margin: 10px 0;">
-                
-                <div style="text-align: left; font-size: 0.85rem; color: #444; margin-bottom: 15px; line-height: 1.4;">
-                    <p style="margin: 2px 0;"><strong>Folio:</strong> ${idPedido}</p>
-                    <p style="margin: 2px 0;"><strong>Fecha:</strong> ${fecha}</p>
-                    <p style="margin: 2px 0;"><strong>Cliente:</strong> José Eduardo Gutiérrez del Toro</p>
-                </div>
-                
-                <hr style="border: 0; border-top: 2px dashed #ccc; margin: 10px 0;">
-                
-                <div style="margin-bottom: 15px;">
-                    <p style="text-align: left; font-weight: bold; font-size: 0.9rem; margin-bottom: 10px; color: #3c4a45;">Cant. Descripción <span style="float: right;">Importe</span></p>
-                    ${htmlProductos}
-                </div>
-                
-                <div style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: bold; color: var(--verde-logo); margin-top: 15px; padding-top: 10px; border-top: 2px solid #eae5db;">
-                    <span>TOTAL:</span>
-                    <span>$${total} MXN</span>
-                </div>
-            </div>
-        `,
-        showCancelButton: true,
-        showDenyButton: true,
-        confirmButtonText: 'Facturar',
-        denyButtonText: 'Ticket PDF',
-        cancelButtonText: 'Regresar',
-        confirmButtonColor: '#3c4a45',
-        denyButtonColor: '#557268',
-        cancelButtonColor: '#8a8a8a',
-        width: '450px',
-        allowOutsideClick: false
-    }).then((result) => {
-        
-        // OPCIÓN 1: Quiere Facturar
-        if (result.isConfirmed) {
-            Swal.fire({
-                title: 'Datos de Facturación',
-                html: `
-                    <p style="font-size: 0.9rem; color: #555; text-align: left; margin-bottom: 15px;">Ingresa tus datos fiscales (CFDI 4.0) para emitir la factura del ticket <strong>${idPedido}</strong>.</p>
-                    <form style="display: flex; flex-direction: column; gap: 10px; text-align: left;">
-                        <div>
-                            <label style="font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">RFC:</label>
-                            <input type="text" class="swal2-input" style="margin: 0; width: 100%; text-transform: uppercase;" placeholder="Ej. ABCD123456XYZ">
-                        </div>
-                        <div>
-                            <label style="font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">Razón Social o Nombre Completo:</label>
-                            <input type="text" class="swal2-input" style="margin: 0; width: 100%;">
-                        </div>
-                        <div style="display: flex; gap: 10px;">
-                            <div style="flex: 1;">
-                                <label style="font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">C.P. Fiscal:</label>
-                                <input type="number" class="swal2-input" style="margin: 0; width: 100%;">
-                            </div>
-                            <div style="flex: 1;">
-                                <label style="font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">Uso de CFDI:</label>
-                                <select class="swal2-select" style="margin: 0; width: 100%; font-size: 0.9rem;">
-                                    <option>G03 - Gastos en general</option>
-                                    <option>G01 - Adquisición de mercancías</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div>
-                            <label style="font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">Régimen Fiscal:</label>
-                            <select class="swal2-select" style="margin: 0; width: 100%; font-size: 0.9rem;">
-                                <option>605 - Sueldos y Salarios</option>
-                                <option>612 - P. Físicas con Actividades Emp.</option>
-                                <option>626 - RESICO</option>
-                            </select>
-                        </div>
-                    </form>
-                `,
-                showCancelButton: true, confirmButtonText: 'Generar Factura', cancelButtonText: 'Cancelar',
-                confirmButtonColor: '#3c4a45', cancelButtonColor: '#8a8a8a', width: '500px', allowOutsideClick: false
-            }).then((facturaResult) => {
-                if (facturaResult.isConfirmed) {
-                    Swal.fire({
-                        title: 'Timbrando factura...', text: 'Conectando con el SAT...', icon: 'info',
-                        timer: 2500, timerProgressBar: true, showConfirmButton: false, allowOutsideClick: false
-                    }).then(() => {
-                        Swal.fire({
-                            title: '¡Factura Emitida!', html: '<p>Tu factura ha sido timbrada correctamente.</p>',
-                            icon: 'success', confirmButtonText: 'Volver a mis pedidos', confirmButtonColor: '#3c4a45', allowOutsideClick: false
-                        }).then(() => window.verHistorialPedidos());
-                    });
-                } else {
-                    window.verTicketHistorial(idPedido); // Si cancela la factura, lo regresa a ver el ticket
-                }
-            });
-        } else if (result.isDenied) {
-            Swal.fire({
-                title: 'Descargando...', text: 'Generando comprobante en PDF', icon: 'info',
-                timer: 2000, timerProgressBar: true, showConfirmButton: false, allowOutsideClick: false
-            }).then(() => {
-                Swal.fire({
-                    title: '¡Descarga completa!', text: 'El archivo se guardó en tus descargas.', icon: 'success', 
-                    confirmButtonText: 'Ver mis otros pedidos', confirmButtonColor: '#3c4a45', allowOutsideClick: false
-                }).then(() => {
-                    window.verHistorialPedidos(); 
-                });
-            });
-        } else {
-            window.verHistorialPedidos(); 
-        }
-    });
-}
-
-// Agregar Método de Pago
-window.agregarMetodoPago = function() {
-    Swal.fire({
-        title: 'Agregar Tarjeta',
-        html: `
-            <div style="text-align: left;">
-                <input type="text" class="swal2-input" style="width: 100%; margin: 5px 0 10px 0;" placeholder="Número de Tarjeta (16 dígitos)">
-                <div style="display: flex; gap: 10px;">
-                    <input type="text" class="swal2-input" style="flex: 1; margin: 0;" placeholder="MM/AA">
-                    <input type="text" class="swal2-input" style="flex: 1; margin: 0;" placeholder="CVV">
-                </div>
-                <input type="text" class="swal2-input" style="width: 100%; margin: 10px 0 0 0;" placeholder="Nombre del Titular">
-            </div>
-        `,
-        showCancelButton: true, confirmButtonColor: '#557268', cancelButtonColor: '#8a8a8a',
-        confirmButtonText: 'Guardar Tarjeta', cancelButtonText: 'Cancelar'
-    }).then((result) => {
-        if(result.isConfirmed) Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Tarjeta vinculada con éxito', showConfirmButton: false, timer: 2000});
-    });
-}
-
-// Eliminar un elemento con animación visual
-window.eliminarItemSimulado = function(boton) {
-    Swal.fire({
-        title: '¿Estás seguro?',
-        text: "Se eliminará permanentemente de tu perfil.",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#3c4a45',
-        cancelButtonColor: '#8a8a8a',
-        confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar'
-    }).then((result) => {
-        if(result.isConfirmed) {
-            if(boton) {
-                let contenedor = boton.closest('.item-dinamico');
-                if(contenedor) {
-                    contenedor.style.transition = 'all 0.3s ease';
-                    contenedor.style.opacity = '0';
-                    contenedor.style.transform = 'scale(0.9)';
-                    setTimeout(() => contenedor.remove(), 300);
-                }
-            }
-            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Eliminado correctamente', showConfirmButton: false, timer: 2000});
-        }
+        if (result.isConfirmed) Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 1500 });
     });
 }
 
 // 14. CHECKOUT
-window.siguientePaso = function(pasoDestino) {
-    for(let i = 1; i <= 3; i++) {
-        let el = document.getElementById('paso-' + i);
-        if(el) {
-            if(i === pasoDestino) {
-                // Paso activo
-                el.style.opacity = '1';
-                el.style.pointerEvents = 'auto';
-                el.style.boxShadow = '0 4px 15px rgba(85, 114, 104, 0.15)';
-                el.style.border = '1px solid var(--verde-logo)';
-            } else {
-                el.style.opacity = '0.4';
-                el.style.pointerEvents = 'none';
-                el.style.boxShadow = 'none';
-                el.style.border = '1px solid #eae5db';
-            }
-        }
-    }
-}
-
 window.finalizarPedido = function() {
-    let totalStorage = localStorage.getItem('casaBarro_totalFinal') || 0;
-    let totalDisplay = parseFloat(totalStorage).toFixed(2);
-    
     let numeroPedido = Math.floor(Math.random() * 90000) + 10000;
-    let fechaActual = new Date().toLocaleDateString('es-MX', { 
-        year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute:'2-digit' 
-    });
-
-    let htmlProductos = '';
-    if(carrito && carrito.length > 0) {
-        carrito.forEach(item => {
-            let totalItem = (item.precio * item.cantidad).toFixed(2);
-            htmlProductos += `
-                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; color: #555; border-bottom: 1px dashed #eee; padding-bottom: 6px;">
-                    <span style="flex: 1; text-align: left;">${item.cantidad}x ${item.producto}</span>
-                    <span style="font-weight: bold;">$${totalItem}</span>
-                </div>
-            `;
-        });
-    }
     carrito = [];
     localStorage.removeItem('casaBarro_carrito');
     localStorage.removeItem('casaBarro_cupon');
     localStorage.removeItem('casaBarro_totalFinal');
 
     Swal.fire({
-        title: '¡Pago Aprobado!',
-        html: `
-            <div style="background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #ccc; box-shadow: 2px 2px 10px rgba(0,0,0,0.05); text-align: center; font-family: monospace;">
-                
-                <h3 style="margin: 0; color: #3c4a45; font-size: 1.4rem; font-family: sans-serif;">CASA BARRO</h3>
-                <p style="margin: 5px 0 15px 0; font-size: 0.8rem; color: #777; font-family: sans-serif;">Cafetería & Panadería Artesanal<br>Constitución 101, Aguascalientes</p>
-                
-                <hr style="border: 0; border-top: 2px dashed #ccc; margin: 10px 0;">
-                
-                <div style="text-align: left; font-size: 0.85rem; color: #444; margin-bottom: 15px; line-height: 1.4;">
-                    <p style="margin: 2px 0;"><strong>Folio:</strong> #CB-${numeroPedido}</p>
-                    <p style="margin: 2px 0;"><strong>Fecha:</strong> ${fechaActual}</p>
-                    <p style="margin: 2px 0;"><strong>Cliente:</strong> José Eduardo Gutiérrez del Toro</p>
-                </div>
-                
-                <hr style="border: 0; border-top: 2px dashed #ccc; margin: 10px 0;">
-                
-                <div style="margin-bottom: 15px;">
-                    <p style="text-align: left; font-weight: bold; font-size: 0.9rem; margin-bottom: 10px; color: #3c4a45;">Cant. Descripción <span style="float: right;">Importe</span></p>
-                    ${htmlProductos}
-                </div>
-                
-                <div style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: bold; color: var(--verde-logo); margin-top: 15px; padding-top: 10px; border-top: 2px solid #eae5db;">
-                    <span>TOTAL:</span>
-                    <span>$${totalDisplay} MXN</span>
-                </div>
-            </div>
-        `,
-        showCancelButton: true,
-        allowOutsideClick: false,
-        confirmButtonText: 'Factura',
-        cancelButtonText: 'Ir a mi perfil',
-        confirmButtonColor: '#3c4a45', 
-        cancelButtonColor: '#3c4a45',  
-        width: '450px'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            Swal.fire({
-                title: 'Datos de Facturación',
-                html: `
-                    <p style="font-size: 0.9rem; color: #555; text-align: left; margin-bottom: 15px;">Ingresa tus datos fiscales (CFDI 4.0) para emitir la factura del ticket <strong>#CB-${numeroPedido}</strong>.</p>
-                    
-                    <form style="display: flex; flex-direction: column; gap: 10px; text-align: left;">
-                        <div>
-                            <label style="font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">RFC:</label>
-                            <input type="text" class="swal2-input" style="margin: 0; width: 100%; text-transform: uppercase;" placeholder="Ej. ABCD123456XYZ">
-                        </div>
-                        <div>
-                            <label style="font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">Razón Social o Nombre Completo:</label>
-                            <input type="text" class="swal2-input" style="margin: 0; width: 100%;" placeholder="Tal como aparece en la constancia">
-                        </div>
-                        <div style="display: flex; gap: 10px;">
-                            <div style="flex: 1;">
-                                <label style="font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">C.P. Fiscal:</label>
-                                <input type="number" class="swal2-input" style="margin: 0; width: 100%;" placeholder="Ej. 20000">
-                            </div>
-                            <div style="flex: 1;">
-                                <label style="font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">Uso de CFDI:</label>
-                                <select class="swal2-select" style="margin: 0; width: 100%; font-size: 0.9rem;">
-                                    <option>G03 - Gastos en general</option>
-                                    <option>G01 - Adquisición de mercancías</option>
-                                    <option>P01 - Por definir</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div>
-                            <label style="font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">Régimen Fiscal:</label>
-                            <select class="swal2-select" style="margin: 0; width: 100%; font-size: 0.9rem;">
-                                <option>605 - Sueldos y Salarios</option>
-                                <option>612 - Personas Físicas con Actividades Emp.</option>
-                                <option>626 - Régimen Simplificado de Confianza</option>
-                                <option>601 - General de Ley Personas Morales</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label style="font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">Correo para envío:</label>
-                            <input type="email" class="swal2-input" style="margin: 0; width: 100%;" placeholder="Donde recibirás el PDF y XML">
-                        </div>
-                    </form>
-                `,
-                showCancelButton: true,
-                confirmButtonText: 'Generar Factura y Descargar',
-                cancelButtonText: 'Cancelar',
-                confirmButtonColor: '#3c4a45',
-                cancelButtonColor: '#8a8a8a',
-                width: '500px',
-                allowOutsideClick: false,
-                preConfirm: () => { return true; }
-            }).then((facturaResult) => {
-                if (facturaResult.isConfirmed) {
-                    Swal.fire({
-                        title: 'Timbrando factura...',
-                        text: 'Conectando con el SAT y generando documentos.',
-                        icon: 'info',
-                        timer: 2500,
-                        timerProgressBar: true,
-                        showConfirmButton: false,
-                        allowOutsideClick: false
-                    }).then(() => {
-                        Swal.fire({
-                            title: '¡Factura Emitida!',
-                            html: '<p>Tu factura ha sido timbrada correctamente.</p><p style="font-size: 0.9rem; color: #555;">El archivo <strong>Factura_CB-'+numeroPedido+'.pdf</strong> se descargará en unos instantes y una copia ha sido enviada a tu correo.</p>',
-                            icon: 'success',
-                            confirmButtonText: 'Finalizar e ir a mi perfil',
-                            confirmButtonColor: '#3c4a45',
-                            allowOutsideClick: false
-                        }).then(() => {
-                            window.location.href = 'perfil.html';
-                        });
-                    });
-                } else {
-                    window.location.href = 'perfil.html';
-                }
-            });
-        } else {
-            window.location.href = 'perfil.html';
-        }
-    });
+        title: '¡Pago Aprobado!', text: `Folio: #CB-${numeroPedido}`, confirmButtonText: 'Factura',
+        showCancelButton: true, cancelButtonText: 'Ir a mi perfil', confirmButtonColor: '#3c4a45'
+    }).then(() => window.location.href = 'perfil.html');
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    const listaItems = document.getElementById('checkout-lista-items');
-    const totalPagar = document.getElementById('checkout-total');
-    
-    if(listaItems && totalPagar) {
-        let html = '';
-        if(carrito.length === 0) {  
-            window.location.href = 'catalogo.html';
-            return;
-        }
-
-        carrito.forEach(item => {
-            const precioIndividual = item.precio * item.cantidad;
-            html += `
-                <div style="display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 0.95rem; color: #555;">
-                    <span style="flex: 1; padding-right: 10px;"><strong>${item.cantidad}x</strong> ${item.producto}</span>
-                    <strong style="color: #3c4a45;">$${precioIndividual.toFixed(2)}</strong>
-                </div>
-            `;
-        });
-        
-        listaItems.innerHTML = html;
-        let totalStorage = localStorage.getItem('casaBarro_totalFinal') || 0;
-        totalPagar.innerText = `$${parseFloat(totalStorage).toFixed(2)} MXN`;
-    }
-});
-
-// FUNCIONES DE CHECKOUT
-// Mostrar/Ocultar formularios para agregar algo nuevo
-window.mostrarFormNuevo = function(tipo) {
-    if (tipo === 'direccion') {
-        const form = document.getElementById('form-nueva-direccion');
-        form.style.display = form.style.display === 'none' ? 'block' : 'none';
-    } else if (tipo === 'tarjeta') {
-        const form = document.getElementById('form-nueva-tarjeta');
-        form.style.display = form.style.display === 'none' ? 'block' : 'none';
-    }
-}
-
-// Simular que el usuario guardó una tarjeta o dirección
-window.simularGuardado = function(tipo) {
-    let mensaje = tipo === 'direccion' ? 'Dirección agregada' : 'Tarjeta vinculada';
-    
-    Swal.fire({
-        toast: true, position: 'top-end', icon: 'success', 
-        title: mensaje, showConfirmButton: false, timer: 2000
-    });
-
-    if (tipo === 'direccion') {
-        document.getElementById('form-nueva-direccion').style.display = 'none';
-    } else {
-        document.getElementById('form-nueva-tarjeta').style.display = 'none';
-    }
-}
-
-// Mostrar los datos extra (Saldo o Banco) solo si escogen Transferencia o E-Wallet
-window.mostrarDetallePagoML = function(metodo) {
-    const detTransferencia = document.getElementById('detalle-transferencia');
-    const detEwallet = document.getElementById('detalle-ewallet');
-
-    if (!detTransferencia || !detEwallet) return;
-
-    detTransferencia.style.display = 'none';
-    detEwallet.style.display = 'none';
-    
-    if (metodo === 'transferencia') {
-        detTransferencia.style.display = 'block';
-    } else if (metodo === 'ewallet') {
-        detEwallet.style.display = 'block';
-    }
-} 
-
-// 15. CONEXIÓN BACK-END (NODE.JS + SQLITE)
+// 15. CONEXIÓN BACK-END (PRODUCTOS)
 window.cargarProductosBD = async function() {
     try {
         const respuesta = await fetch('http://localhost:3000/api/productos');
         const resultado = await respuesta.json();
-        
-        if (resultado.mensaje === "Éxito") {
-            console.log("¡Conexión exitosa! Productos desde BD:", resultado.data);
-            Swal.fire({
-                toast: true, position: 'bottom-end', icon: 'success',
-                title: 'Conectado a la Base de Datos', showConfirmButton: false, timer: 2500
-            });
-        }
-    } catch (error) {
-        console.warn("El servidor backend aún no está encendido o hay un error de conexión.");
-    }
+        if (resultado.mensaje === "Éxito") console.log("¡Conexión exitosa!");
+    } catch (error) { console.warn("El servidor backend no está encendido."); }
 }
 
-// Ejecutar automáticamente al cargar la página del catálogo
 document.addEventListener('DOMContentLoaded', () => {
-    if(window.location.pathname.includes('catalogo.html')) {
-        cargarProductosBD();
-    }
-})
-// 16. MÓDULO CRM - FRONTEND (CLIENTES)
+    if(window.location.pathname.includes('catalogo.html')) cargarProductosBD();
+});
+
+// 16. MÓDULO CRM (CLIENTES) - Búsqueda, Carga y Edición
 window.cargarClientesCRM = async function() {
     try {
         const respuesta = await fetch('http://localhost:3000/api/clientes');
@@ -1832,23 +469,45 @@ window.cargarClientesCRM = async function() {
             
             let htmlFilas = '';
             resultado.data.forEach(cliente => {
-                let colorEtapa = cliente.etapa_crm === 'Activo' ? 'green' : 'orange';
+                let colorEtapa = cliente.etapa_crm === 'Activo' || cliente.etapa_crm === 'Frecuente' ? '#557268' : '#b7410e';
                 
+                const clienteData = JSON.stringify(cliente).replace(/'/g, "\\'").replace(/"/g, "&quot;");
+
                 htmlFilas += `
-                    <tr style="border-bottom: 1px solid #eae5db;">
+                    <tr class="crm-row" data-nombre="${cliente.nombre.toLowerCase()}" data-correo="${cliente.correo.toLowerCase()}" style="border-bottom: 1px solid #eae5db;">
                         <td style="padding: 10px;">${cliente.id}</td>
                         <td style="padding: 10px;"><strong>${cliente.nombre}</strong><br><small>${cliente.correo}</small></td>
                         <td style="padding: 10px;">${cliente.empresa || 'N/A'}</td>
                         <td style="padding: 10px;"><span style="background:${colorEtapa}; color:white; padding:3px 8px; border-radius:12px; font-size:0.8rem;">${cliente.etapa_crm}</span></td>
                         <td style="padding: 10px;">${cliente.estado}</td>
+                        <td class="admin-actions" style="padding: 10px;">
+                            <button onclick='editarClienteCRM(${clienteData})'>Editar</button>
+                        </td>
                     </tr>
                 `;
             });
             tabla.innerHTML = htmlFilas;
         }
-    } catch (error) {
-        console.error("Error al cargar CRM:", error);
-    }
+    } catch (error) { console.error("Error al cargar CRM:", error); }
+}
+
+window.filtrarClientesCRM = function() {
+    let input = document.getElementById('crm-search');
+    if(!input) return;
+    
+    let texto = input.value.toLowerCase();
+    let filas = document.querySelectorAll('.crm-row');
+    
+    filas.forEach(fila => {
+        let nombre = fila.getAttribute('data-nombre');
+        let correo = fila.getAttribute('data-correo');
+        
+        if (nombre.includes(texto) || correo.includes(texto)) {
+            fila.style.display = '';
+        } else {
+            fila.style.display = 'none';
+        }
+    });
 }
 
 window.guardarNuevoCliente = async function(event) {
@@ -1857,26 +516,156 @@ window.guardarNuevoCliente = async function(event) {
     const correo = document.getElementById('crm-correo').value;
     const telefono = document.getElementById('crm-telefono').value;
     const empresa = document.getElementById('crm-empresa').value;
+    const password = document.getElementById('crm-password').value;
+    const rol = document.getElementById('crm-rol').value;
 
     try {
         const respuesta = await fetch('http://localhost:3000/api/clientes', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre, correo, telefono, empresa })
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre, correo, telefono, empresa, password, rol })
         });
         
+        const resultado = await respuesta.json();
+
         if (respuesta.ok) {
-            Swal.fire({ toast:true, position:'top-end', icon:'success', title:'Cliente registrado', showConfirmButton:false, timer:2000 });
+            Swal.fire({ toast:true, position:'top-end', icon:'success', title:'Datos actualizados', showConfirmButton:false, timer:2000 });
             document.getElementById('form-alta-cliente').reset();
             cargarClientesCRM(); 
+        } else {
+            Swal.fire({ toast:true, position:'top-end', icon:'error', title: resultado.error || 'Error al guardar', showConfirmButton:false, timer:3000 });
         }
     } catch (error) {
-        Swal.fire('Error', 'No se pudo guardar el cliente', 'error');
+        Swal.fire({ toast:true, position:'top-end', icon:'error', title:'Sin conexión al servidor', showConfirmButton:false, timer:3000 });
     }
 }
 
+window.editarClienteCRM = function(cliente) {
+    Swal.fire({
+        title: 'Editar Cliente / Etapa',
+        html: `
+            <form id="form-editar-cliente" style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;">
+                <label style="font-size:0.85rem; font-weight:bold; color:var(--verde-logo);">Nombre:</label>
+                <input type="text" id="edit-nombre" class="swal2-input" style="margin:0;" value="${cliente.nombre}">
+                
+                <label style="font-size:0.85rem; font-weight:bold; color:var(--verde-logo);">Correo:</label>
+                <input type="email" id="edit-correo" class="swal2-input" style="margin:0;" value="${cliente.correo}">
+                
+                <div style="display:flex; gap:15px;">
+                    <div style="flex:1;">
+                        <label style="font-size:0.85rem; font-weight:bold; color:var(--verde-logo);">Teléfono:</label>
+                        <input type="text" id="edit-telefono" class="swal2-input" style="margin:0; width:100%;" value="${cliente.telefono || ''}">
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-size:0.85rem; font-weight:bold; color:var(--verde-logo);">Empresa:</label>
+                        <input type="text" id="edit-empresa" class="swal2-input" style="margin:0; width:100%;" value="${cliente.empresa || ''}">
+                    </div>
+                </div>
+                
+                <div style="display:flex; gap:15px;">
+                    <div style="flex:1;">
+                        <label style="font-size:0.85rem; font-weight:bold; color:var(--verde-logo);">Etapa CRM:</label>
+                        <select id="edit-etapa" class="swal2-select" style="margin:0; width:100%;">
+                            <option value="Prospecto" ${cliente.etapa_crm === 'Prospecto' ? 'selected' : ''}>Prospecto</option>
+                            <option value="Activo" ${cliente.etapa_crm === 'Activo' ? 'selected' : ''}>Activo</option>
+                            <option value="Frecuente" ${cliente.etapa_crm === 'Frecuente' ? 'selected' : ''}>Frecuente</option>
+                            <option value="Inactivo" ${cliente.etapa_crm === 'Inactivo' ? 'selected' : ''}>Inactivo</option>
+                        </select>
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-size:0.85rem; font-weight:bold; color:var(--verde-logo);">Estado:</label>
+                        <select id="edit-estado" class="swal2-select" style="margin:0; width:100%;">
+                            <option value="activo" ${cliente.estado === 'activo' ? 'selected' : ''}>Activo</option>
+                            <option value="inactivo" ${cliente.estado === 'inactivo' ? 'selected' : ''}>Inactivo</option>
+                        </select>
+                    </div>
+                </div>
+            </form>
+        `,
+        showCancelButton: true, confirmButtonText: 'Actualizar', cancelButtonText: 'Cancelar', confirmButtonColor: '#3c4a45', width: '550px',
+        preConfirm: () => {
+            return {
+                nombre: document.getElementById('edit-nombre').value,
+                correo: document.getElementById('edit-correo').value,
+                telefono: document.getElementById('edit-telefono').value,
+                empresa: document.getElementById('edit-empresa').value,
+                etapa_crm: document.getElementById('edit-etapa').value,
+                estado: document.getElementById('edit-estado').value
+            }
+        }
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            try {
+                const res = await fetch(`http://localhost:3000/api/clientes/${cliente.id}`, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(result.value)
+                });
+                
+                if (res.ok) {
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 2000 });
+                    cargarClientesCRM();
+                } else {
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Error al actualizar', showConfirmButton: false, timer: 3000 });
+                }
+            } catch (error) {
+                Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Sin conexión al servidor', showConfirmButton: false, timer: 3000 });
+            }
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    if(document.getElementById('tabla-clientes-crm')) {
-        cargarClientesCRM();
-    }
+    if(document.getElementById('tabla-clientes-crm')) cargarClientesCRM();
 });
+
+// 17. AUTENTICACIÓN (LOGIN Y REGISTRO)
+window.iniciarSesion = async function(event) {
+    event.preventDefault();
+    const correoInput = document.getElementById('login-correo');
+    const passwordInput = document.getElementById('login-password');
+    if(!correoInput || !passwordInput) return;
+
+    try {
+        const respuesta = await fetch('http://localhost:3000/api/login', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ correo: correoInput.value, password: passwordInput.value })
+        });
+        
+        const resultado = await respuesta.json();
+
+        if (respuesta.ok && resultado.mensaje === "Éxito") {
+            localStorage.setItem('casaBarro_usuario', JSON.stringify(resultado.usuario));
+            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 1500 }).then(() => {
+                window.location.href = resultado.usuario.rol === 'admin' ? 'admin.html' : 'perfil.html';
+            });
+        } else {
+            Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: resultado.error || 'Credenciales inválidas', showConfirmButton: false, timer: 2500 });
+        }
+    } catch (error) {
+        Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Sin conexión al servidor', showConfirmButton: false, timer: 2500 });
+    }
+}
+
+window.registrarUsuario = async function(event) {
+    event.preventDefault();
+    const inputs = event.target.querySelectorAll('input');
+    const nombre = inputs[0] ? inputs[0].value : '';
+    const correo = inputs[1] ? inputs[1].value : '';
+    const password = inputs[2] ? inputs[2].value : '';
+    const empresa = document.getElementById('reg-empresa') ? document.getElementById('reg-empresa').value : null;
+
+    try {
+        const respuesta = await fetch('http://localhost:3000/api/registro', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre, correo, password, rol: 'cliente', empresa })
+        });
+        
+        const resultado = await respuesta.json();
+
+        if (respuesta.ok) {
+            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 2000 }).then(() => window.location.href = 'login.html');
+        } else {
+            Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: resultado.error || 'Error al registrar', showConfirmButton: false, timer: 3000 });
+        }
+    } catch(e) {
+        Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Sin conexión al servidor', showConfirmButton: false, timer: 3000 });
+    }
+}
