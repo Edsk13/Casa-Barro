@@ -3,35 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registro | Casa Barro</title>
-    
+    <title>Crear Cuenta | Casa Barro</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body>
 
-    <!-- Inyección del menú -->
     <div id="navbar-container"></div>
 
     <main class="auth-container">
         <div class="auth-card">
             <h2>Crear Cuenta</h2>
-            <p>Regístrate para guardar tus favoritos y realizar pedidos.</p>
+            <p>Únete a la comunidad Casa Barro.</p>
             
             <form class="auth-form" id="form-registro">
-                <input type="text" id="reg-nombre" placeholder="Nombre completo" required>
-                <input type="email" id="reg-correo" placeholder="Correo electrónico" required>
-                <input type="password" id="reg-pass" placeholder="Contraseña" required>
+                <input type="text" placeholder="Nombre completo" required>
+                <input type="email" placeholder="Correo electrónico" required>
+                <input type="password" placeholder="Contraseña" required>
+                <input type="text" id="reg-empresa" placeholder="Empresa (Requerido para publicar en subastas)">
+
                 <button type="submit" class="auth-btn">Registrarme</button>
             </form>
             
             <div class="auth-links">
-                ¿Ya tienes una cuenta? <a href="login.html">Inicia sesión</a>
+                <p style="margin-top: 15px;">¿Ya tienes una cuenta? <a href="login.html">Inicia sesión</a></p>
             </div>
         </div>
     </main>
 
-    <!-- Inyección del pie de página -->
     <div id="footer-container"></div>
 
     <script src="js/app.js"></script>
