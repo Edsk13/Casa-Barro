@@ -10,56 +10,18 @@
 <body class="admin-body">
     <div class="admin-layout">
         <div id="admin-sidebar-container"></div>
-        
         <main class="admin-main crm-main-bg">
-            
             <header class="admin-header">
                 <div>
                     <h1>Directorio de Clientes</h1>
-                    <p style="color: #777;">Gestión centralizada de usuarios e historial CRM</p>
+                    <p style="color: #777;">Gestión exclusiva de clientes y prospectos</p>
                 </div>
                 <div class="admin-user">
-                    <span>Holi♡</span>
+                    <span id="admin-user-name">Cargando...</span>
                 </div>
             </header>
 
-            <div class="crm-card" style="margin-top: 10px;">
-                <h3 style="color: var(--verde-logo); margin-top: 0; margin-bottom: 15px; font-size: 1.2rem; border-bottom: 2px solid #fcf9f2; padding-bottom: 10px;">Alta de Nuevo Cliente / Admin</h3>
-                <form id="form-alta-cliente" onsubmit="guardarNuevoCliente(event)" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
-                    <div style="flex: 1; min-width: 200px;">
-                        <label style="font-size: 0.85rem; font-weight: bold; color: #555;">Nombre Completo *</label>
-                        <input type="text" id="crm-nombre" placeholder="Ej. María Fernanda" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 8px; margin-top: 5px;">
-                    </div>
-                    <div style="flex: 1; min-width: 200px;">
-                        <label style="font-size: 0.85rem; font-weight: bold; color: #555;">Correo Electrónico *</label>
-                        <input type="email" id="crm-correo" placeholder="ejemplo@correo.com" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 8px; margin-top: 5px;">
-                    </div>
-                    <div style="flex: 1; min-width: 150px;">
-                        <label style="font-size: 0.85rem; font-weight: bold; color: #555;">Teléfono</label>
-                        <input type="text" id="crm-telefono" placeholder="10 dígitos" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 8px; margin-top: 5px;">
-                    </div>
-                    <div style="flex: 1; min-width: 150px;">
-                        <label style="font-size: 0.85rem; font-weight: bold; color: #555;">Empresa</label>
-                        <input type="text" id="crm-empresa" placeholder="Opcional" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 8px; margin-top: 5px;">
-                    </div>
-                    <div style="flex: 1; min-width: 150px;">
-                        <label style="font-size: 0.85rem; font-weight: bold; color: #555;">Contraseña de acceso *</label>
-                        <input type="password" id="crm-password" placeholder="Para que inicie sesión" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 8px; margin-top: 5px;">
-                    </div>
-                    <div style="flex: 1; min-width: 150px;">
-                        <label style="font-size: 0.85rem; font-weight: bold; color: #555;">Rol en el sistema *</label>
-                        <select id="crm-rol" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 8px; margin-top: 5px;">
-                            <option value="cliente">Cliente Normal</option>
-                            <option value="admin">Administrador Maestro</option>
-                        </select>
-                    </div>
-                    <div>
-                        <button type="submit" class="btn-primary" style="padding: 9px 20px; height: 40px; border-radius: 8px; font-size: 0.95rem;">Guardar</button>
-                    </div>
-                </form>
-            </div>
-
-            <div class="admin-toolbar" style="justify-content: space-between;">
+            <div class="admin-toolbar" style="justify-content: space-between; margin-top: 20px;">
                 <input type="text" id="crm-search" onkeyup="filtrarClientesCRM()" placeholder="Buscar cliente por nombre o correo..." style="max-width: 400px; padding: 10px 15px; border-radius: 8px; border: 1px solid #ccc;">
             </div>
 
@@ -71,12 +33,10 @@
                             <th>Cliente</th>
                             <th>Empresa</th>
                             <th>Etapa CRM</th>
-                            <th>Estado</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
                     <tbody id="tabla-clientes-crm">
-                        <!-- Renderizado por app.js -->
                     </tbody>
                 </table>
             </div>
