@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detalle de Cliente | Casa Barro</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="admin-body">
+    <div class="admin-layout">
+        <div id="admin-sidebar-container"></div>
+        <main class="admin-main crm-main-bg">
+            <header class="admin-header">
+                <div>
+                    <h1>Perfil del Cliente</h1>
+                    <a href="admin-clientes.html" style="color: #777; text-decoration: underline; font-weight: bold;">< Volver al Directorio</a>
+                </div>
+                <div class="admin-user">
+                    <span id="admin-user-name">Cargando...</span>
+                </div>
+            </header>
+
+            <div class="admin-grid-2" style="margin-top: 20px;">
+                <div class="crm-card" style="height: fit-content;">
+                    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+                        <div id="det-avatar" style="width: 50px; height: 50px; background: var(--verde-logo); color: white; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 1.2rem; font-weight: bold;">-</div>
+                        <div>
+                            <h2 id="det-nombre" style="color: var(--verde-logo); margin: 0;">Cargando...</h2>
+                            <span id="det-etapa" class="badge badge-prospecto" style="margin-top: 5px;">-</span>
+                        </div>
+                    </div>
+                    <ul style="list-style: none; padding: 0; color: #555; line-height: 2.2;">
+                        <li><strong>Correo:</strong> <span id="det-correo">-</span></li>
+                        <li><strong>Teléfono:</strong> <span id="det-tel">-</span></li>
+                        <li><strong>Empresa:</strong> <span id="det-emp">-</span></li>
+                    </ul>
+                </div>
+
+                <div class="crm-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 20px;">
+                        <h3 style="color: var(--verde-logo); margin: 0;">Actividad y Contacto</h3>
+                    </div>
+                    <ul class="activity-list" id="lista-historial">
+                        <li><p style="color:#777;">Cargando historial...</p></li>
+                    </ul>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const params = new URLSearchParams(window.location.search);
+            const id = params.get('id');
+            if(!id) return;
+
+            const resClientes = await fetch('http://localhost:3000/api/clientes');
+            const dataClientes = await resClientes.json();
+            const cliente = dataClientes.data.find(c => c.id == id);
+
+            if(cliente) {
+                document.getElementById('det-nombre').innerText = cliente.nombre;
+                document.getElementById('det-avatar').innerText = cliente.nombre.charAt(0).toUpperCase();
+                document.getElementById('det-correo').innerText = cliente.correo;
+                document.getElementById('det-tel').innerText = cliente.telefono || 'N/A';
+                document.getElementById('det-emp').innerText = cliente.empresa || 'N/A';
+                document.getElementById('det-etapa').innerText = cliente.etapa_crm;
+                document.getElementById('det-etapa').className = cliente.etapa_crm === 'Activo' || cliente.etapa_crm === 'Frecuente' ? 'badge badge-activo' : 'badge badge-prospecto';
+            }
+
+            const resHist = await fetch(`http://localhost:3000/api/clientes/${id}/interacciones`);
+            const dataHist = await resHist.json();
+            
+            let htmlHistorial = '';
+            if(dataHist.data.length === 0) {
+                htmlHistorial = '<li><p style="color:#777; text-align:center;">Aún no hay contactos registrados.</p></li>';
+            } else {
+                dataHist.data.forEach(int => {
+                    let icono = int.tipo === 'Llamada' ? '📞' : int.tipo === 'Mensaje' ? '💬' : '✉️';
+                    htmlHistorial += `
+                        <li>
+                            <span class="activity-time">${new Date(int.fecha).toLocaleString()}</span>
+                            <p style="margin-bottom: 5px;"><strong style="color:var(--verde-logo);">${icono} ${int.tipo}</strong></p>
+                            <p style="font-size: 0.95rem; color:#555;">${int.descripcion}</p>
+                        </li>
+                    `;
+                });
+            }
+            document.getElementById('lista-historial').innerHTML = htmlHistorial;
+        });
+    </script>
+</body>
+</html>
