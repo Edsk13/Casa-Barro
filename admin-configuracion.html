@@ -36,6 +36,11 @@
                     </div>
 
                     <div>
+                        <label style="font-size: 0.85rem; font-weight: bold; color: #555; display:block; margin-bottom:5px;">Teléfono de Contacto</label>
+                        <input type="text" id="conf-telefono" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-family: inherit;" placeholder="Ej. 4491234567">
+                    </div>
+
+                    <div>
                         <label style="font-size: 0.85rem; font-weight: bold; color: #555; display:block; margin-bottom:5px;">Contraseña de Acceso</label>
                         <input type="text" id="conf-pass" required style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-family: inherit;">
                         <small style="color:#888;">Puedes escribir una nueva para cambiarla, o dejar la actual.</small>
@@ -54,6 +59,7 @@
                 document.getElementById('conf-nombre').value = user.nombre;
                 document.getElementById('conf-correo').value = user.correo;
                 document.getElementById('conf-pass').value = user.password || ''; 
+                document.getElementById('conf-telefono').value = user.telefono || ''; 
             }
         });
     </script>

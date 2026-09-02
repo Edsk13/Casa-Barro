@@ -16,45 +16,16 @@ const db = new sqlite3.Database(dbPath, (err) => {
     } else {
         console.log('Conectado a SQLite.');
         
-        db.run(`CREATE TABLE IF NOT EXISTS productos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT,
-            precio REAL,
-            estado TEXT DEFAULT 'disponible'
-        )`);
+        db.run(`CREATE TABLE IF NOT EXISTS productos (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, precio REAL, estado TEXT DEFAULT 'disponible')`);
+        db.run(`CREATE TABLE IF NOT EXISTS clientes (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, correo TEXT UNIQUE NOT NULL, telefono TEXT, empresa TEXT, fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP, estado TEXT DEFAULT 'activo', etapa_crm TEXT DEFAULT 'Prospecto')`);
+        db.run(`CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, correo TEXT UNIQUE NOT NULL, password TEXT NOT NULL, rol TEXT DEFAULT 'cliente', empresa TEXT, telefono TEXT, fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP)`);
+        db.run(`CREATE TABLE IF NOT EXISTS interacciones (id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER, tipo TEXT, descripcion TEXT, fecha DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (cliente_id) REFERENCES clientes(id))`, () => {
 
-        db.run(`CREATE TABLE IF NOT EXISTS clientes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT NOT NULL,
-            correo TEXT UNIQUE NOT NULL,
-            telefono TEXT,
-            empresa TEXT,
-            fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP,
-            estado TEXT DEFAULT 'activo',
-            etapa_crm TEXT DEFAULT 'Prospecto'
-        )`);
-
-        db.run(`CREATE TABLE IF NOT EXISTS usuarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT NOT NULL,
-            correo TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            rol TEXT DEFAULT 'cliente',
-            empresa TEXT,
-            fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`);
-
-        db.run(`CREATE TABLE IF NOT EXISTS interacciones (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            cliente_id INTEGER,
-            tipo TEXT,
-            descripcion TEXT,
-            fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (cliente_id) REFERENCES clientes(id)
-        )`);
+        });
     }
 });
 
+// Autenticación pública
 app.post('/api/registro', (req, res) => {
     const { nombre, correo, password, rol, empresa } = req.body;
     if (!nombre || !correo || !password) return res.status(400).json({ error: "Datos incompletos" });
@@ -63,7 +34,6 @@ app.post('/api/registro', (req, res) => {
     db.run(`INSERT INTO usuarios (nombre, correo, password, rol, empresa) VALUES (?, ?, ?, ?, ?)`, 
     [nombre, correo, password, rolUsuario, empresa], function(err) {
         if (err) return res.status(400).json({ error: "El correo ya está registrado." });
-        
         db.run(`INSERT INTO clientes (nombre, correo, empresa) VALUES (?, ?, ?)`, 
         [nombre, correo, empresa], function(errCrm) {
             res.status(201).json({ mensaje: "Usuario registrado", id: this.lastID });
@@ -75,38 +45,73 @@ app.post('/api/login', (req, res) => {
     const { correo, password } = req.body;
     if (!correo || !password) return res.status(400).json({ error: "Datos incompletos" });
 
-    db.get("SELECT id, nombre, correo, rol, empresa, password FROM usuarios WHERE correo = ? AND password = ?", [correo, password], (err, row) => {
+    db.get("SELECT id, nombre, correo, rol, empresa, password, telefono FROM usuarios WHERE correo = ? AND password = ?", [correo, password], (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
         if (!row) return res.status(401).json({ error: "Credenciales incorrectas" });
         res.json({ mensaje: "Éxito", usuario: row });
     });
 });
 
+// Gestión de Personal (Admins y Vendedores)
 app.post('/api/personal', (req, res) => {
-    const { nombre, correo, password, rol } = req.body;
+    const { nombre, correo, password, rol, telefono } = req.body;
     if (!nombre || !correo || !password || !rol) return res.status(400).json({ error: "Datos incompletos" });
 
-    db.run(`INSERT INTO usuarios (nombre, correo, password, rol) VALUES (?, ?, ?, ?)`, 
-    [nombre, correo, password, rol], function(err) {
+    db.run(`INSERT INTO usuarios (nombre, correo, password, rol, telefono) VALUES (?, ?, ?, ?, ?)`, 
+    [nombre, correo, password, rol, telefono], function(err) {
         if (err) return res.status(400).json({ error: "El correo ya está registrado." });
         res.status(201).json({ mensaje: "Empleado registrado exitosamente" });
     });
 });
 
 app.get('/api/personal', (req, res) => {
-    db.all("SELECT id, nombre, correo, rol FROM usuarios WHERE rol IN ('admin', 'vendedor')", [], (err, rows) => {
+    db.all("SELECT id, nombre, correo, rol, telefono FROM usuarios WHERE rol IN ('admin', 'vendedor')", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ mensaje: "Éxito", data: rows });
     });
 });
 
+// Actualizar datos de personal o perfil propio
 app.put('/api/usuarios/:id', (req, res) => {
-    const { nombre, correo, password } = req.body;
+    const { nombre, correo, password, telefono, rol } = req.body;
     const { id } = req.params;
-    db.run(`UPDATE usuarios SET nombre = ?, correo = ?, password = ? WHERE id = ?`, 
-    [nombre, correo, password, id], function(err) {
+    
+    let sql = `UPDATE usuarios SET nombre = ?, correo = ?, password = ?, telefono = ? WHERE id = ?`;
+    let params = [nombre, correo, password, telefono, id];
+
+    if (rol) {
+        sql = `UPDATE usuarios SET nombre = ?, correo = ?, password = ?, telefono = ?, rol = ? WHERE id = ?`;
+        params = [nombre, correo, password, telefono, rol, id];
+    }
+
+    db.run(sql, params, function(err) {
         if (err) return res.status(500).json({ error: err.message });
-        res.json({ mensaje: "Usuario actualizado" });
+        res.json({ mensaje: "Usuario actualizado exitosamente" });
+    });
+});
+
+// ELIMINAR EMPLEADO / USUARIO
+app.delete('/api/usuarios/:id', (req, res) => {
+    const { id } = req.params;
+    db.run(`DELETE FROM usuarios WHERE id = ?`, [id], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ mensaje: "Empleado eliminado correctamente" });
+    });
+});
+
+// MÓDULO CRM (CLIENTES)
+app.post('/api/clientes', (req, res) => {
+    const { nombre, correo, telefono, empresa, password } = req.body;
+    if (!nombre || !correo || !password) return res.status(400).json({ error: "Nombre, correo y contraseña son obligatorios" });
+
+    db.run(`INSERT INTO clientes (nombre, correo, telefono, empresa) VALUES (?, ?, ?, ?)`, 
+    [nombre, correo, telefono, empresa], function(err) {
+        if (err) return res.status(400).json({ error: "El correo ya existe en el CRM" });
+        
+        db.run(`INSERT INTO usuarios (nombre, correo, password, rol, empresa, telefono) VALUES (?, ?, ?, 'cliente', ?, ?)`, 
+        [nombre, correo, password, empresa, telefono], function(errUser) {
+            res.status(201).json({ mensaje: "Cliente creado exitosamente" });
+        });
     });
 });
 
@@ -117,6 +122,15 @@ app.put('/api/clientes/:id', (req, res) => {
     [nombre, correo, telefono, empresa, etapa_crm, estado, id], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ mensaje: "Actualizado" });
+    });
+});
+
+// ELIMINAR CLIENTE DEL CRM
+app.delete('/api/clientes/:id', (req, res) => {
+    const { id } = req.params;
+    db.run(`DELETE FROM clientes WHERE id = ?`, [id], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ mensaje: "Cliente eliminado correctamente" });
     });
 });
 

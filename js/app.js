@@ -4,9 +4,7 @@ async function cargarComponente(id, ruta) {
         const respuesta = await fetch(ruta);
         const html = await respuesta.text();
         document.getElementById(id).innerHTML = html;
-    } catch (error) {
-        console.error("Error al cargar " + ruta, error);
-    }
+    } catch (error) { console.error("Error al cargar " + ruta, error); }
 }
 
 // 2. SISTEMA DE CARRITO PERSISTENTE Y DESCUENTOS
@@ -14,278 +12,89 @@ let carrito = JSON.parse(localStorage.getItem('casaBarro_carrito')) || [];
 let propinaPorcentaje = 0;
 let cuponAplicado = JSON.parse(localStorage.getItem('casaBarro_cupon')) || null;
 
-window.mostrarProximamente = function() {
-    Swal.fire({ title: '¡Próximamente!', text: 'Esta función estará disponible muy pronto.', icon: 'info', confirmButtonText: 'Entendido', confirmButtonColor: '#3c4a45' });
-}
-
-window.aplicarDescuento = function(codigo, porcentaje) {
-    cuponAplicado = { codigo: codigo, porcentaje: porcentaje };
-    localStorage.setItem('casaBarro_cupon', JSON.stringify(cuponAplicado));
-    
-    Swal.fire({
-        icon: 'success', title: '¡Descuento Aplicado!', text: `El cupón ${codigo} del ${porcentaje}% se reflejará en tu carrito.`,
-        confirmButtonColor: '#3c4a45', confirmButtonText: 'Ir a mi pedido', showCancelButton: true, cancelButtonText: 'Seguir viendo'
-    }).then((result) => {
-        if (result.isConfirmed) window.location.href = 'carrito.html';
-    });
-}
-
-window.mostrarPoliticas = function() {
-    Swal.fire({
-        title: 'Políticas de Compra y Venta',
-        html: `
-            <div style="text-align: left; font-size: 0.95rem; line-height: 1.6; color: #555; max-height: 350px; overflow-y: auto; padding-right: 10px;">
-                <h4 style="color:var(--verde-logo); margin-bottom:5px;">1. Pedidos y Preparación</h4>
-                <p style="margin-bottom:15px;">Todos los platillos se preparan al momento. El tiempo estimado de entrega puede variar entre 25 a 45 minutos dependiendo de la demanda en la sucursal.</p>
-                <h4 style="color:var(--verde-logo); margin-bottom:5px;">2. Cancelaciones</h4>
-                <p style="margin-bottom:15px;">Una vez que el pedido pasa al estado de "En preparación" en la cocina, no se aceptarán cancelaciones ni devoluciones monetarias.</p>
-                <h4 style="color:var(--verde-logo); margin-bottom:5px;">3. Alérgenos e Ingredientes</h4>
-                <p style="margin-bottom:15px;">Es responsabilidad del cliente notificar cualquier alergia o intolerancia en las notas del pedido.</p>
-                <h4 style="color:var(--verde-logo); margin-bottom:5px;">4. Reembolsos o Reposiciones</h4>
-                <p style="margin-bottom:15px;">Si tu pedido llegó incompleto, incorrecto o en mal estado, cuentas con 30 minutos a partir de la entrega para reportarlo.</p>
-            </div>
-        `,
-        confirmButtonText: 'Aceptar y Cerrar', confirmButtonColor: '#3c4a45', width: '500px'
-    });
-}
-
-window.actualizarUI = function() {
-    const cartCountElement = document.getElementById('cart-count');
-    if (cartCountElement) {
-        const totalItems = carrito.reduce((total, item) => total + item.cantidad, 0);
-        cartCountElement.innerText = totalItems;
-    }
-}
-
-window.cambiarCantidad = function(cambio) {
-    let el = document.getElementById('swal-cantidad');
-    let cantidadActual = parseInt(el.innerText);
-    let nuevaCantidad = cantidadActual + cambio;
-    if (nuevaCantidad >= 1) el.innerText = nuevaCantidad;
-}
-
-window.cambiarCantidadCarrito = function(index, cambio) {
-    if (carrito[index].cantidad + cambio >= 1) {
-        carrito[index].cantidad += cambio;
-        localStorage.setItem('casaBarro_carrito', JSON.stringify(carrito));
-        actualizarUI();
-        renderizarCarrito();
-    }
-}
+window.mostrarProximamente = function() { Swal.fire({ title: '¡Próximamente!', text: 'Esta función estará disponible muy pronto.', icon: 'info', confirmButtonText: 'Entendido', confirmButtonColor: '#3c4a45' }); }
+window.aplicarDescuento = function(codigo, porcentaje) { cuponAplicado = { codigo, porcentaje }; localStorage.setItem('casaBarro_cupon', JSON.stringify(cuponAplicado)); Swal.fire({ icon: 'success', title: '¡Aplicado!', text: `Cupón ${codigo} reflejado.`, confirmButtonColor: '#3c4a45' }).then(() => window.location.href = 'carrito.html'); }
+window.mostrarPoliticas = function() { Swal.fire({ title: 'Políticas', html: `<p style="text-align:justify;">Cancelaciones no permitidas una vez en preparación...</p>`, confirmButtonColor: '#3c4a45' }); }
+window.actualizarUI = function() { const cartCountElement = document.getElementById('cart-count'); if (cartCountElement) cartCountElement.innerText = carrito.reduce((t, i) => t + i.cantidad, 0); }
+window.cambiarCantidad = function(cambio) { let el = document.getElementById('swal-cantidad'); let nueva = parseInt(el.innerText) + cambio; if (nueva >= 1) el.innerText = nueva; }
+window.cambiarCantidadCarrito = function(index, cambio) { if (carrito[index].cantidad + cambio >= 1) { carrito[index].cantidad += cambio; localStorage.setItem('casaBarro_carrito', JSON.stringify(carrito)); actualizarUI(); renderizarCarrito(); } }
 
 window.confirmarAgregarAlCarrito = function(nombre, precio) {
     let cantidad = parseInt(document.getElementById('swal-cantidad').innerText);
-    let selectorOpciones = document.getElementById('swal-opciones');
-    let opcionSeleccionada = selectorOpciones ? selectorOpciones.value : null;
-    let selectorExtras = document.getElementById('swal-extras');
-    let extraSeleccionado = selectorExtras ? selectorExtras.value : null;
-
-    let textoFinal = [];
-    if (opcionSeleccionada) textoFinal.push(opcionSeleccionada);
-    if (extraSeleccionado) textoFinal.push(extraSeleccionado);
-    let stringOpcion = textoFinal.length > 0 ? textoFinal.join(' + ') : null;
-
-    carrito.push({ producto: nombre, precio: precio, cantidad: cantidad, opcion: stringOpcion });
+    let opt = document.getElementById('swal-opciones') ? document.getElementById('swal-opciones').value : null;
+    let ext = document.getElementById('swal-extras') ? document.getElementById('swal-extras').value : null;
+    let stringOpcion = [opt, ext].filter(Boolean).join(' + ') || null;
+    carrito.push({ producto: nombre, precio, cantidad, opcion: stringOpcion });
     localStorage.setItem('casaBarro_carrito', JSON.stringify(carrito));
     actualizarUI(); 
-    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 1500 });
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Agregado al carrito', showConfirmButton: false, timer: 1500 });
 }
 
 window.cambiarPropina = function(porcentaje) { propinaPorcentaje = porcentaje; renderizarCarrito(); }
 
 window.vaciarCarrito = function() {
-    Swal.fire({
-        title: '¿Vaciar carrito?', text: "Se eliminarán todos los productos de tu pedido.", icon: 'warning',
-        showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#8a8a8a', confirmButtonText: 'Sí, vaciar', cancelButtonText: 'Cancelar'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            carrito = [];
-            localStorage.removeItem('casaBarro_carrito');
-            cuponAplicado = null;
-            localStorage.removeItem('casaBarro_cupon');
-            actualizarUI();
-            renderizarCarrito();
-            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Carrito vacío', showConfirmButton: false, timer: 1500 });
-        }
+    Swal.fire({ title: '¿Vaciar carrito?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Sí' }).then((res) => {
+        if (res.isConfirmed) { carrito = []; localStorage.removeItem('casaBarro_carrito'); cuponAplicado = null; localStorage.removeItem('casaBarro_cupon'); actualizarUI(); renderizarCarrito(); }
     });
 }
 
 window.removerDescuento = function() { cuponAplicado = null; localStorage.removeItem('casaBarro_cupon'); renderizarCarrito(); }
 
-// 3. PINTAR LA PANTALLA DEL CARRITO
 window.validarCuponManual = function() {
     let input = document.getElementById('input-cupon').value.trim().toUpperCase(); 
-    if (!input) { Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: 'Escribe un código primero', showConfirmButton: false, timer: 2000 }); return; }
-
-    let porcentaje = 0;
-    if (input === 'MAÑANAS15') porcentaje = 10;
-    else if (input === 'VIERNES20') porcentaje = 20;
-    else if (input === 'SOYCLIENTE15') porcentaje = 15;
-    else { Swal.fire({ icon: 'error', title: 'Cupón inválido', text: 'El código ingresado no existe o ha expirado.', confirmButtonColor: '#3c4a45' }); return; }
-    
-    cuponAplicado = { codigo: input, porcentaje: porcentaje };
-    localStorage.setItem('casaBarro_cupon', JSON.stringify(cuponAplicado));
-    renderizarCarrito(); 
-    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 2000 });
+    if (!input) return Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: 'Escribe un código', showConfirmButton: false, timer: 2000 });
+    let pct = input === 'MAÑANAS15' ? 10 : input === 'VIERNES20' ? 20 : input === 'SOYCLIENTE15' ? 15 : 0;
+    if (pct === 0) return Swal.fire({ icon: 'error', title: 'Cupón inválido', confirmButtonColor: '#3c4a45' });
+    cuponAplicado = { codigo: input, porcentaje: pct };
+    localStorage.setItem('casaBarro_cupon', JSON.stringify(cuponAplicado)); renderizarCarrito(); 
 }
 
 window.renderizarCarrito = function() {
     const contenedor = document.getElementById('carrito-contenido');
     if (!contenedor) return; 
-
     if (carrito.length === 0) {
-        contenedor.innerHTML = `
-            <div class="carrito-vacio">
-                <h2 style="color: var(--verde-logo); margin-bottom: 10px;">Tu pedido está vacío</h2>
-                <p style="color: #555; margin-bottom: 25px;">¡Anímate a probar nuestras delicias!</p>
-                <a href="catalogo.html" class="btn-primary" style="display: inline-block; text-decoration: none;">Ver Menú</a>
-            </div>
-        `;
+        contenedor.innerHTML = `<div class="carrito-vacio"><h2 style="color:var(--verde-logo);">Tu pedido está vacío</h2><a href="catalogo.html" class="btn-primary" style="display:inline-block; text-decoration:none; margin-top:15px;">Ver Menú</a></div>`;
         return;
     }
-
     let htmlItems = '<div class="carrito-grid"><div class="carrito-items"><div style="text-align: right; margin-bottom: 15px;"><button class="btn-eliminar" onclick="vaciarCarrito()">Vaciar carrito</button></div>';
     let subtotal = 0;
-
     carrito.forEach((item, index) => {
-        const totalItem = item.precio * item.cantidad;
-        subtotal += totalItem;
+        const totalItem = item.precio * item.cantidad; subtotal += totalItem;
         const infoOpcion = item.opcion ? `<p style="font-size:0.85rem; color:#777; margin-bottom: 8px;">Opción: ${item.opcion}</p>` : '';
         htmlItems += `
             <div class="item-carrito" style="align-items: center;">
-                <div style="flex-grow: 1;">
-                    <h4 style="color:var(--verde-logo); font-size: 1.1rem; margin-bottom: 5px;">${item.producto}</h4>
-                    ${infoOpcion}
-                    <p style="font-size:1rem; color: #557268; font-weight:bold;">$${item.precio.toFixed(2)}</p>
-                </div>
-                <div style="display: flex; align-items: center; gap: 12px; margin: 0 20px;">
-                    <button onclick="cambiarCantidadCarrito(${index}, -1)" style="background: #eae5db; border:none; border-radius:5px; width:30px; height:30px; cursor:pointer; font-weight:bold; color:#3c4a45; font-size: 1.2rem; display:flex; justify-content:center; align-items:center;">-</button>
-                    <span style="font-weight:bold; font-size: 1.1rem; min-width: 20px; text-align: center;">${item.cantidad}</span>
-                    <button onclick="cambiarCantidadCarrito(${index}, 1)" style="background: var(--verde-logo); border:none; border-radius:5px; width:30px; height:30px; cursor:pointer; font-weight:bold; color:white; font-size: 1.2rem; display:flex; justify-content:center; align-items:center;">+</button>
-                </div>
-                <div style="text-align:right; min-width: 90px;">
-                    <p style="font-weight:bold; font-size: 1.2rem; color:#3c4a45; margin-bottom:10px;">$${totalItem.toFixed(2)}</p>
-                    <button class="btn-eliminar" onclick="eliminarDelCarrito(${index})">Quitar</button>
-                </div>
-            </div>
-        `;
+                <div style="flex-grow: 1;"><h4 style="color:var(--verde-logo); font-size: 1.1rem; margin-bottom: 5px;">${item.producto}</h4>${infoOpcion}<p style="font-size:1rem; color: #557268; font-weight:bold;">$${item.precio.toFixed(2)}</p></div>
+                <div style="display: flex; align-items: center; gap: 12px; margin: 0 20px;"><button onclick="cambiarCantidadCarrito(${index}, -1)" style="background: #eae5db; border:none; border-radius:5px; width:30px; height:30px; cursor:pointer; font-weight:bold; color:#3c4a45; font-size: 1.2rem;">-</button><span style="font-weight:bold; font-size: 1.1rem; min-width: 20px; text-align: center;">${item.cantidad}</span><button onclick="cambiarCantidadCarrito(${index}, 1)" style="background: var(--verde-logo); border:none; border-radius:5px; width:30px; height:30px; cursor:pointer; font-weight:bold; color:white; font-size: 1.2rem;">+</button></div>
+                <div style="text-align:right; min-width: 90px;"><p style="font-weight:bold; font-size: 1.2rem; color:#3c4a45; margin-bottom:10px;">$${totalItem.toFixed(2)}</p><button class="btn-eliminar" onclick="eliminarDelCarrito(${index})">Quitar</button></div>
+            </div>`;
     });
-
     htmlItems += '</div>';
 
-    let montoDescuento = 0;
-    let htmlDescuento = '';
-
-    if (cuponAplicado) {
-        montoDescuento = subtotal * (cuponAplicado.porcentaje / 100);
-        htmlDescuento = `
-            <div style="display:flex; justify-content:space-between; margin-bottom:15px; color: #b7410e; font-weight: bold;">
-                <span>Descuento (${cuponAplicado.codigo} - ${cuponAplicado.porcentaje}%):</span>
-                <span>-$${montoDescuento.toFixed(2)}</span>
-            </div>
-            <div style="text-align: right; margin-bottom: 15px;">
-                <button onclick="removerDescuento()" style="background:none; border:none; color:#777; font-size:0.8rem; text-decoration:underline; cursor:pointer;">Quitar cupón</button>
-            </div>
-        `;
-    } else {
-        htmlDescuento = `
-            <div style="margin-bottom: 20px;">
-                <p style="color: #555; margin-bottom: 8px; font-size: 0.95rem;">¿Tienes un código de descuento?</p>
-                <div style="display: flex; gap: 10px;">
-                    <input type="text" id="input-cupon" placeholder="Ej. VIERNES20" style="flex:1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 0.95rem; outline: none; font-family: inherit; text-transform: uppercase;">
-                    <button onclick="validarCuponManual()" class="btn-primary" style="padding: 8px 15px; border-radius: 8px; font-size: 0.95rem;">Aplicar</button>
-                </div>
-            </div>
-        `;
-    }
-
+    let montoDescuento = cuponAplicado ? subtotal * (cuponAplicado.porcentaje / 100) : 0;
+    let htmlDescuento = cuponAplicado ? `<div style="display:flex; justify-content:space-between; margin-bottom:15px; color: #b7410e; font-weight: bold;"><span>Descuento (${cuponAplicado.codigo} - ${cuponAplicado.porcentaje}%):</span><span>-$${montoDescuento.toFixed(2)}</span></div><div style="text-align: right; margin-bottom: 15px;"><button onclick="removerDescuento()" style="background:none; border:none; color:#777; font-size:0.8rem; text-decoration:underline; cursor:pointer;">Quitar cupón</button></div>` : `<div style="margin-bottom: 20px;"><p style="color: #555; margin-bottom: 8px; font-size: 0.95rem;">¿Tienes un código de descuento?</p><div style="display: flex; gap: 10px;"><input type="text" id="input-cupon" placeholder="Ej. VIERNES20" style="flex:1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 0.95rem; outline: none; font-family: inherit; text-transform: uppercase;"><button onclick="validarCuponManual()" class="btn-primary" style="padding: 8px 15px; border-radius: 8px; font-size: 0.95rem;">Aplicar</button></div></div>`;
     let subtotalConDescuento = subtotal - montoDescuento;
     let propinaCalculada = subtotalConDescuento * (propinaPorcentaje / 100);
     let totalFinal = subtotalConDescuento + propinaCalculada;
 
     localStorage.setItem('casaBarro_totalFinal', totalFinal.toFixed(2));
-
-    htmlItems += `
-        <div class="resumen-carrito">
-            <h3 style="color:var(--verde-logo); margin-bottom:20px; font-size: 1.3rem;">Resumen de Compra</h3>
-            <div style="display:flex; justify-content:space-between; margin-bottom:15px; color: #555;">
-                <span>Subtotal:</span>
-                <span>$${subtotal.toFixed(2)}</span>
-            </div>
-            ${htmlDescuento}
-            <div style="margin-bottom: 15px;">
-                <p style="color: #555; margin-bottom: 8px; font-size: 0.95rem;">¿Deseas agregar propina?</p>
-                <div style="display: flex; gap: 8px;">
-                    <button onclick="cambiarPropina(0)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 0 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 0 ? 'white' : 'var(--verde-logo)'}; cursor: pointer;">0%</button>
-                    <button onclick="cambiarPropina(10)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 10 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 10 ? 'white' : 'var(--verde-logo)'}; cursor: pointer;">10%</button>
-                    <button onclick="cambiarPropina(15)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 15 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 15 ? 'white' : 'var(--verde-logo)'}; cursor: pointer;">15%</button>
-                    <button onclick="cambiarPropina(20)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 20 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 20 ? 'white' : 'var(--verde-logo)'}; cursor: pointer;">20%</button>
-                </div>
-            </div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:15px; color: #555;">
-                <span>Propina (${propinaPorcentaje}%):</span>
-                <span>$${propinaCalculada.toFixed(2)}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; margin-top:20px; padding-top: 15px; border-top: 2px dashed #eae5db; font-weight:bold; font-size:1.4rem; color: var(--verde-logo);">
-                <span>Total:</span>
-                <span>$${totalFinal.toFixed(2)}</span>
-            </div>
-            <button class="btn-primary" style="width:100%; margin-top: 25px; border-radius: 8px;" onclick="window.location.href='pago.html'">Ir a pagar</button>
-        </div>
-    </div>`;
-
+    htmlItems += `<div class="resumen-carrito"><h3 style="color:var(--verde-logo); margin-bottom:20px; font-size: 1.3rem;">Resumen de Compra</h3><div style="display:flex; justify-content:space-between; margin-bottom:15px; color: #555;"><span>Subtotal:</span><span>$${subtotal.toFixed(2)}</span></div>${htmlDescuento}<div style="margin-bottom: 15px;"><p style="color: #555; margin-bottom: 8px; font-size: 0.95rem;">¿Deseas agregar propina?</p><div style="display: flex; gap: 8px;"><button onclick="cambiarPropina(0)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 0 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 0 ? 'white' : 'var(--verde-logo)'}; cursor: pointer;">0%</button><button onclick="cambiarPropina(10)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 10 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 10 ? 'white' : 'var(--verde-logo)'}; cursor: pointer;">10%</button><button onclick="cambiarPropina(15)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 15 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 15 ? 'white' : 'var(--verde-logo)'}; cursor: pointer;">15%</button><button onclick="cambiarPropina(20)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 20 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 20 ? 'white' : 'var(--verde-logo)'}; cursor: pointer;">20%</button></div></div><div style="display:flex; justify-content:space-between; margin-bottom:15px; color: #555;"><span>Propina (${propinaPorcentaje}%):</span><span>$${propinaCalculada.toFixed(2)}</span></div><div style="display:flex; justify-content:space-between; margin-top:20px; padding-top: 15px; border-top: 2px dashed #eae5db; font-weight:bold; font-size:1.4rem; color: var(--verde-logo);"><span>Total:</span><span>$${totalFinal.toFixed(2)}</span></div><button class="btn-primary" style="width:100%; margin-top: 25px; border-radius: 8px;" onclick="window.location.href='pago.html'">Ir a pagar</button></div></div>`;
     contenedor.innerHTML = htmlItems;
 }
 
-window.eliminarDelCarrito = function(index) {
-    carrito.splice(index, 1); 
-    localStorage.setItem('casaBarro_carrito', JSON.stringify(carrito)); 
-    actualizarUI(); 
-    renderizarCarrito(); 
-}
+window.eliminarDelCarrito = function(index) { carrito.splice(index, 1); localStorage.setItem('casaBarro_carrito', JSON.stringify(carrito)); actualizarUI(); renderizarCarrito(); }
 
-// 4. MODAL DE PRODUCTO FRONT-END
 window.abrirDetalleMejorado = function(nombre, descripcion, precioStr, imagenUrl, alineacion = 'center', opcionesStr = '', extrasStr = '') {
     let precioNum = parseFloat(precioStr.replace('$', '').replace(' MXN', ''));
     let opcionesHtml = '';
-    
-    if (opcionesStr) {
-        let opcionesArray = opcionesStr.split(',');
-        opcionesHtml += `
-            <select id="swal-opciones" class="swal2-select" style="display:flex; width:100%; margin: 10px 0 ${extrasStr ? '10px' : '20px'} 0; font-size: 1rem;">
-                ${opcionesArray.map((op, index) => `<option value="${op.trim()}" ${index === 0 ? 'selected' : ''}>${op.trim()}</option>`).join('')}
-            </select>
-        `;
-    }
-
-    if (extrasStr) {
-        let extrasArray = extrasStr.split(',');
-        opcionesHtml += `
-            <select id="swal-extras" class="swal2-select" style="display:flex; width:100%; margin: 0 0 20px 0; font-size: 1rem;">
-                ${extrasArray.map((ex, index) => `<option value="${ex.trim()}" ${index === 0 ? 'selected' : ''}>${ex.trim()}</option>`).join('')}
-            </select>
-        `;
-    }
+    if (opcionesStr) opcionesHtml += `<select id="swal-opciones" class="swal2-select" style="display:flex; width:100%; margin: 10px 0 ${extrasStr ? '10px' : '20px'} 0; font-size: 1rem;">${opcionesStr.split(',').map((op, i) => `<option value="${op.trim()}" ${i === 0 ? 'selected' : ''}>${op.trim()}</option>`).join('')}</select>`;
+    if (extrasStr) opcionesHtml += `<select id="swal-extras" class="swal2-select" style="display:flex; width:100%; margin: 0 0 20px 0; font-size: 1rem;">${extrasStr.split(',').map((ex, i) => `<option value="${ex.trim()}" ${i === 0 ? 'selected' : ''}>${ex.trim()}</option>`).join('')}</select>`;
 
     Swal.fire({
-        title: nombre,
-        html: `
-            <img src="${imagenUrl}" alt="${nombre}" style="width: 100%; height: 250px; object-fit: cover; object-position: ${alineacion}; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-            <p style="text-align: justify; margin-bottom: 15px; color: #555; line-height: 1.5;">${descripcion}</p>
-            <h3 style="color: #3c4a45; font-size: 1.8rem; font-weight: bold; margin-bottom: 10px;">${precioStr}</h3>
-            ${opcionesHtml}
-            <div style="display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 25px;">
-                <button onclick="cambiarCantidad(-1)" style="background-color: #eae5db; border:none; border-radius:50%; width:40px; height:40px; font-size:1.5rem; cursor:pointer; color:#3c4a45; font-weight:bold;">-</button>
-                <span id="swal-cantidad" style="font-size:1.4rem; font-weight:bold; min-width: 30px;">1</span>
-                <button onclick="cambiarCantidad(1)" style="background-color: var(--verde-logo); border:none; border-radius:50%; width:40px; height:40px; font-size:1.5rem; cursor:pointer; color:white; font-weight:bold;">+</button>
-            </div>
-            <button onclick="confirmarAgregarAlCarrito('${nombre}', ${precioNum})" class="btn-primary" style="width: 100%; padding: 12px; border-radius: 30px; margin-bottom: 25px;">Agregar al carrito</button>
-        `,
+        title: nombre, html: `<img src="${imagenUrl}" alt="${nombre}" style="width: 100%; height: 250px; object-fit: cover; object-position: ${alineacion}; border-radius: 12px; margin-bottom: 15px;"><p style="text-align: justify; margin-bottom: 15px; color: #555;">${descripcion}</p><h3 style="color: #3c4a45; font-size: 1.8rem; margin-bottom: 10px;">${precioStr}</h3>${opcionesHtml}<div style="display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 25px;"><button onclick="cambiarCantidad(-1)" style="background-color: #eae5db; border:none; border-radius:50%; width:40px; height:40px; font-size:1.5rem; cursor:pointer; color:#3c4a45;">-</button><span id="swal-cantidad" style="font-size:1.4rem; font-weight:bold; min-width: 30px;">1</span><button onclick="cambiarCantidad(1)" style="background-color: var(--verde-logo); border:none; border-radius:50%; width:40px; height:40px; font-size:1.5rem; cursor:pointer; color:white;">+</button></div><button onclick="confirmarAgregarAlCarrito('${nombre}', ${precioNum})" class="btn-primary" style="width: 100%; padding: 12px; border-radius: 30px; margin-bottom: 25px;">Agregar al carrito</button>`,
         showConfirmButton: false, showCloseButton: true, width: '480px'
     });
 }
 
-// 5. ALERTAS Y EVENTOS UI 
 function activarAlertas() {
     const btnLogin = document.getElementById('btn-login');
     if(btnLogin) btnLogin.addEventListener('click', () => window.location.href = 'login.html');
@@ -362,27 +171,32 @@ window.eliminarProductoAdmin = function(nombreProducto) {
     });
 }
 
-// 8. INICIALIZADOR GLOBAL (DOM LOAD) 
+// INICIALIZADOR DE SEGURIDAD Y VISTAS
 document.addEventListener('DOMContentLoaded', async () => {
     await cargarComponente('navbar-container', 'components/navbar.html');
     await cargarComponente('footer-container', 'components/footer.html');
     
     const adminSidebarContainer = document.getElementById('admin-sidebar-container');
-    if (adminSidebarContainer) await cargarComponente('admin-sidebar-container', 'components/admin-sidebar.html');
+    if (adminSidebarContainer) {
+        await cargarComponente('admin-sidebar-container', 'components/admin-sidebar.html');
 
-    const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
-    const spanUsuario = document.getElementById('admin-user-name');
-    
-    if (spanUsuario) {
-        if (!usuarioActual || (usuarioActual.rol !== 'admin' && usuarioActual.rol !== 'vendedor')) {
-            window.location.href = 'login.html';
-        } else {
-            spanUsuario.innerText = `Hola, ${usuarioActual.nombre.split(' ')[0]} ♡`;
+        const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
+        const spanUsuario = document.getElementById('admin-user-name');
+        
+        if (spanUsuario) {
+            if (!usuarioActual || (usuarioActual.rol !== 'admin' && usuarioActual.rol !== 'vendedor')) {
+                window.location.href = 'login.html';
+            } else {
+                spanUsuario.innerText = `Hola, ${usuarioActual.nombre.split(' ')[0]} ♡`;
 
-            if (usuarioActual.rol === 'vendedor' && window.location.pathname.includes('admin-personal.html')) {
-                Swal.fire({
-                    icon: 'error', title: 'Acceso Denegado', text: 'Solo los Administradores Maestros pueden gestionar al personal.', confirmButtonColor: '#3c4a45'
-                }).then(() => { window.location.href = 'admin.html'; });
+                if (usuarioActual.rol === 'vendedor') {
+                    const btnPersonal = document.getElementById('link-personal');
+                    if (btnPersonal) btnPersonal.style.display = 'none';
+
+                    if (window.location.pathname.includes('admin-personal.html')) {
+                        Swal.fire({ icon: 'error', title: 'Acceso Denegado', text: 'Solo Administradores Maestros.', confirmButtonColor: '#3c4a45' }).then(() => { window.location.href = 'admin.html'; });
+                    }
+                }
             }
         }
     }
@@ -398,6 +212,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if(document.getElementById('tabla-personal')) cargarPersonal();
     if(window.location.pathname.includes('catalogo.html')) cargarProductosBD();
 });
+
+window.cerrarSesionAdmin = function(e) {
+    if(e) e.preventDefault();
+    localStorage.removeItem('casaBarro_usuario');
+    window.location.href = 'index.html';
+}
 
 window.intentarPublicar = function(tipo) {
     const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
@@ -437,7 +257,7 @@ window.finalizarPedido = function() {
     Swal.fire({ title: '¡Pago Aprobado!', text: `Folio: #CB-${numeroPedido}`, confirmButtonText: 'Factura', showCancelButton: true, cancelButtonText: 'Ir a mi perfil', confirmButtonColor: '#3c4a45' }).then(() => window.location.href = 'perfil.html');
 }
 
-// 16. MÓDULO CRM
+// MÓDULO CRM (CLIENTES)
 window.cargarClientesCRM = async function() {
     try {
         const respuesta = await fetch('http://localhost:3000/api/clientes');
@@ -453,7 +273,7 @@ window.cargarClientesCRM = async function() {
                 const clienteData = JSON.stringify(cliente).replace(/'/g, "\\'").replace(/"/g, "&quot;");
 
                 htmlFilas += `
-                    <tr class="crm-row" data-nombre="${cliente.nombre.toLowerCase()}" style="border-bottom: 1px solid #eae5db;">
+                    <tr class="crm-row" data-nombre="${cliente.nombre.toLowerCase()}" data-correo="${cliente.correo.toLowerCase()}" style="border-bottom: 1px solid #eae5db;">
                         <td style="padding: 10px;">${cliente.id}</td>
                         <td style="padding: 10px;"><strong>${cliente.nombre}</strong><br><small>${cliente.correo}</small></td>
                         <td style="padding: 10px;">${cliente.empresa || '<span style="color:#aaa;">Sin registro</span>'}</td>
@@ -472,6 +292,7 @@ window.cargarClientesCRM = async function() {
                             </div>
                             <button style="background:#557268;" onclick="window.location.href='admin-detalle.html?id=${cliente.id}'">Detalle</button>
                             <button onclick='editarClienteCRM(${clienteData})'>Editar</button>
+                            <button style="background:#b7410e;" onclick="eliminarClienteCRM(${cliente.id}, '${cliente.nombre}')">Eliminar</button>
                         </td>
                     </tr>
                 `;
@@ -488,7 +309,8 @@ window.filtrarClientesCRM = function() {
     let filas = document.querySelectorAll('.crm-row');
     filas.forEach(fila => {
         let nombre = fila.getAttribute('data-nombre');
-        if (nombre.includes(texto)) fila.style.display = ''; else fila.style.display = 'none';
+        let correo = fila.getAttribute('data-correo');
+        if (nombre.includes(texto) || correo.includes(texto)) fila.style.display = ''; else fila.style.display = 'none';
     });
 }
 
@@ -499,21 +321,12 @@ window.editarClienteCRM = function(cliente) {
             <form id="form-editar-cliente" style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;">
                 <label style="font-size:0.85rem; font-weight:bold; color:var(--verde-logo);">Nombre:</label>
                 <input type="text" id="edit-nombre" class="swal2-input" style="margin:0;" value="${cliente.nombre}">
-                
                 <label style="font-size:0.85rem; font-weight:bold; color:var(--verde-logo);">Correo:</label>
                 <input type="email" id="edit-correo" class="swal2-input" style="margin:0;" value="${cliente.correo}">
-                
                 <div style="display:flex; gap:15px;">
-                    <div style="flex:1;">
-                        <label style="font-size:0.85rem; font-weight:bold; color:var(--verde-logo);">Teléfono:</label>
-                        <input type="text" id="edit-telefono" class="swal2-input" style="margin:0; width:100%;" value="${cliente.telefono || ''}">
-                    </div>
-                    <div style="flex:1;">
-                        <label style="font-size:0.85rem; font-weight:bold; color:var(--verde-logo);">Empresa:</label>
-                        <input type="text" id="edit-empresa" class="swal2-input" style="margin:0; width:100%;" value="${cliente.empresa || ''}">
-                    </div>
+                    <div style="flex:1;"><label style="font-size:0.85rem; font-weight:bold; color:var(--verde-logo);">Teléfono:</label><input type="text" id="edit-telefono" class="swal2-input" style="margin:0; width:100%;" value="${cliente.telefono || ''}"></div>
+                    <div style="flex:1;"><label style="font-size:0.85rem; font-weight:bold; color:var(--verde-logo);">Empresa:</label><input type="text" id="edit-empresa" class="swal2-input" style="margin:0; width:100%;" value="${cliente.empresa || ''}"></div>
                 </div>
-                
                 <div style="display:flex; gap:15px;">
                     <div style="flex:1;">
                         <label style="font-size:0.85rem; font-weight:bold; color:var(--verde-logo);">Etapa CRM:</label>
@@ -537,12 +350,7 @@ window.editarClienteCRM = function(cliente) {
         showCancelButton: true, confirmButtonText: 'Actualizar', cancelButtonText: 'Cancelar', confirmButtonColor: '#3c4a45', width: '550px',
         preConfirm: () => {
             return {
-                nombre: document.getElementById('edit-nombre').value,
-                correo: document.getElementById('edit-correo').value,
-                telefono: document.getElementById('edit-telefono').value,
-                empresa: document.getElementById('edit-empresa').value,
-                etapa_crm: document.getElementById('edit-etapa').value,
-                estado: document.getElementById('edit-estado').value
+                nombre: document.getElementById('edit-nombre').value, correo: document.getElementById('edit-correo').value, telefono: document.getElementById('edit-telefono').value, empresa: document.getElementById('edit-empresa').value, etapa_crm: document.getElementById('edit-etapa').value, estado: document.getElementById('edit-estado').value
             }
         }
     }).then(async (result) => {
@@ -555,29 +363,74 @@ window.editarClienteCRM = function(cliente) {
     });
 }
 
+window.eliminarClienteCRM = function(id, nombre) {
+    Swal.fire({
+        title: `¿Eliminar a ${nombre}?`,
+        text: "Esta acción no se puede deshacer.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#b7410e',
+        cancelButtonColor: '#8a8a8a',
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            try {
+                const res = await fetch(`http://localhost:3000/api/clientes/${id}`, { method: 'DELETE' });
+                if (res.ok) {
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Cliente eliminado', showConfirmButton: false, timer: 2000 });
+                    cargarClientesCRM();
+                }
+            } catch (e) {
+                Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Error de conexión', showConfirmButton: false, timer: 3000 });
+            }
+        }
+    });
+}
+
 window.registrarContactoFijo = function(clienteId, clienteNombre, tipo) {
     Swal.fire({
         title: `Interacción por ${tipo}`,
         text: `Registrar en historial de ${clienteNombre}`,
         html: `<textarea id="desc-contacto-fijo" class="swal2-textarea" placeholder="¿Cuáles fueron los acuerdos o temas clave?..." style="width:100%; height:80px;"></textarea>`,
         showCancelButton: true, confirmButtonText: 'Guardar', cancelButtonText: 'Cancelar', confirmButtonColor: '#3c4a45',
-        preConfirm: () => {
-            return {
-                cliente_id: clienteId,
-                tipo: tipo,
-                descripcion: document.getElementById('desc-contacto-fijo').value
-            }
-        }
+        preConfirm: () => { return { cliente_id: clienteId, tipo: tipo, descripcion: document.getElementById('desc-contacto-fijo').value } }
     }).then(async (result) => {
         if (result.isConfirmed) {
-            await fetch('http://localhost:3000/api/interacciones', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(result.value)
-            });
+            await fetch('http://localhost:3000/api/interacciones', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(result.value) });
             Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Guardado en historial', showConfirmButton: false, timer: 2000 });
         }
     });
 }
 
+window.guardarNuevoCliente = async function(event) {
+    event.preventDefault();
+    const data = {
+        nombre: document.getElementById('crm-nombre').value,
+        correo: document.getElementById('crm-correo').value,
+        telefono: document.getElementById('crm-telefono').value,
+        empresa: document.getElementById('crm-empresa').value,
+        password: document.getElementById('crm-password').value
+    };
+
+    try {
+        const res = await fetch('http://localhost:3000/api/clientes', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+        });
+        if (res.ok) {
+            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Cliente agregado', showConfirmButton: false, timer: 2000 });
+            document.getElementById('form-alta-cliente').reset();
+            cargarClientesCRM(); 
+        } else {
+            const error = await res.json();
+            Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: error.error || 'Error al guardar', showConfirmButton: false, timer: 3000 });
+        }
+    } catch (e) {
+        Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Sin conexión', showConfirmButton: false, timer: 3000 });
+    }
+}
+
+// GESTIÓN DE PERSONAL (ADMIN Y VENDEDOR) CON BÚSQUEDA, DETALLE, EDICIÓN Y ELIMINACIÓN
 window.cargarPersonal = async function() {
     try {
         const respuesta = await fetch('http://localhost:3000/api/personal');
@@ -588,17 +441,106 @@ window.cargarPersonal = async function() {
         let htmlFilas = '';
         resultado.data.forEach(emp => {
             let badgeColor = emp.rol === 'admin' ? '#b7410e' : '#557268';
-            htmlFilas += `<tr style="border-bottom: 1px solid #eae5db;"><td style="padding: 10px;">${emp.id}</td><td style="padding: 10px;"><strong>${emp.nombre}</strong><br><small>${emp.correo}</small></td><td style="padding: 10px;"><span style="background:${badgeColor}; color:white; padding:3px 8px; border-radius:12px; font-size:0.8rem; text-transform:uppercase;">${emp.rol}</span></td></tr>`;
+            const empData = JSON.stringify(emp).replace(/'/g, "\\'").replace(/"/g, "&quot;");
+
+            htmlFilas += `
+                <tr class="personal-row" data-nombre="${emp.nombre.toLowerCase()}" data-correo="${emp.correo.toLowerCase()}" style="border-bottom: 1px solid #eae5db;">
+                    <td style="padding: 10px;">${emp.id}</td>
+                    <td style="padding: 10px;"><strong>${emp.nombre}</strong><br><small>${emp.correo}</small></td>
+                    <td style="padding: 10px;"><span style="background:${badgeColor}; color:white; padding:3px 8px; border-radius:12px; font-size:0.8rem; text-transform:uppercase;">${emp.rol}</span></td>
+                    <td class="admin-actions" style="padding: 10px; display:flex; gap:5px; align-items:center;">
+                        <button style="background:#557268;" onclick="window.location.href='admin-detalle-personal.html?id=${emp.id}'">Detalle</button>
+                        <button onclick='editarPersonal(${empData})'>Editar</button>
+                        <button style="background:#b7410e;" onclick="eliminarPersonal(${emp.id}, '${emp.nombre}')">Eliminar</button>
+                    </td>
+                </tr>`;
         });
         tabla.innerHTML = htmlFilas;
     } catch (e) { console.error(e); }
 }
 
+window.filtrarPersonal = function() {
+    let input = document.getElementById('personal-search');
+    if(!input) return;
+    let texto = input.value.toLowerCase();
+    let filas = document.querySelectorAll('.personal-row');
+    filas.forEach(fila => {
+        let nombre = fila.getAttribute('data-nombre');
+        let correo = fila.getAttribute('data-correo');
+        if (nombre.includes(texto) || correo.includes(texto)) fila.style.display = ''; else fila.style.display = 'none';
+    });
+}
+
 window.guardarPersonal = async function(event) {
     event.preventDefault();
-    const data = { nombre: document.getElementById('emp-nombre').value, correo: document.getElementById('emp-correo').value, password: document.getElementById('emp-pass').value, rol: document.getElementById('emp-rol').value };
+    const data = { nombre: document.getElementById('emp-nombre').value, correo: document.getElementById('emp-correo').value, password: document.getElementById('emp-pass').value, rol: document.getElementById('emp-rol').value, telefono: document.getElementById('emp-telefono').value };
     const res = await fetch('http://localhost:3000/api/personal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     if (res.ok) { Swal.fire({ toast:true, position:'top-end', icon:'success', title:'Empleado Registrado', showConfirmButton:false, timer:2000 }); document.getElementById('form-alta-personal').reset(); cargarPersonal(); }
+}
+
+window.editarPersonal = function(emp) {
+    Swal.fire({
+        title: 'Editar Empleado',
+        html: `
+            <form id="form-editar-emp" style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;">
+                <label style="font-size:0.85rem; font-weight:bold; color:var(--verde-logo);">Nombre:</label>
+                <input type="text" id="edit-emp-nombre" class="swal2-input" style="margin:0;" value="${emp.nombre}">
+                <label style="font-size:0.85rem; font-weight:bold; color:var(--verde-logo);">Correo:</label>
+                <input type="email" id="edit-emp-correo" class="swal2-input" style="margin:0;" value="${emp.correo}">
+                <label style="font-size:0.85rem; font-weight:bold; color:var(--verde-logo);">Teléfono:</label>
+                <input type="text" id="edit-emp-tel" class="swal2-input" style="margin:0;" value="${emp.telefono || ''}">
+                <label style="font-size:0.85rem; font-weight:bold; color:var(--verde-logo);">Contraseña:</label>
+                <input type="text" id="edit-emp-pass" class="swal2-input" style="margin:0;" placeholder="Nueva contraseña">
+                <label style="font-size:0.85rem; font-weight:bold; color:var(--verde-logo);">Rol:</label>
+                <select id="edit-emp-rol" class="swal2-select" style="margin:0; width:100%;">
+                    <option value="vendedor" ${emp.rol === 'vendedor' ? 'selected' : ''}>Vendedor</option>
+                    <option value="admin" ${emp.rol === 'admin' ? 'selected' : ''}>Administrador Maestro</option>
+                </select>
+            </form>
+        `,
+        showCancelButton: true, confirmButtonText: 'Actualizar', cancelButtonText: 'Cancelar', confirmButtonColor: '#3c4a45', width: '500px',
+        preConfirm: () => {
+            return {
+                nombre: document.getElementById('edit-emp-nombre').value,
+                correo: document.getElementById('edit-emp-correo').value,
+                telefono: document.getElementById('edit-emp-tel').value,
+                password: document.getElementById('edit-emp-pass').value,
+                rol: document.getElementById('edit-emp-rol').value
+            }
+        }
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            try {
+                const res = await fetch(`http://localhost:3000/api/usuarios/${emp.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(result.value) });
+                if (res.ok) { Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Empleado actualizado', showConfirmButton: false, timer: 2000 }); cargarPersonal(); }
+            } catch (e) { Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Error de conexión', showConfirmButton: false, timer: 3000 }); }
+        }
+    });
+}
+
+window.eliminarPersonal = function(id, nombre) {
+    Swal.fire({
+        title: `¿Eliminar al empleado ${nombre}?`,
+        text: "Perderá el acceso al panel administrativo.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#b7410e',
+        cancelButtonColor: '#8a8a8a',
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            try {
+                const res = await fetch(`http://localhost:3000/api/usuarios/${id}`, { method: 'DELETE' });
+                if (res.ok) {
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Empleado eliminado', showConfirmButton: false, timer: 2000 });
+                    cargarPersonal();
+                }
+            } catch (e) {
+                Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Error de conexión', showConfirmButton: false, timer: 3000 });
+            }
+        }
+    });
 }
 
 window.iniciarSesion = async function(event) {
@@ -635,27 +577,15 @@ window.guardarConfiguracion = async function(event) {
     const userLogueado = JSON.parse(localStorage.getItem('casaBarro_usuario'));
     if (!userLogueado) return;
 
-    const nuevaData = {
-        nombre: document.getElementById('conf-nombre').value,
-        correo: document.getElementById('conf-correo').value,
-        password: document.getElementById('conf-pass').value
-    };
+    const nuevaData = { nombre: document.getElementById('conf-nombre').value, correo: document.getElementById('conf-correo').value, password: document.getElementById('conf-pass').value, telefono: document.getElementById('conf-telefono').value };
 
     try {
-        const res = await fetch(`http://localhost:3000/api/usuarios/${userLogueado.id}`, {
-            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(nuevaData)
-        });
-        
+        const res = await fetch(`http://localhost:3000/api/usuarios/${userLogueado.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(nuevaData) });
         if (res.ok) {
-            userLogueado.nombre = nuevaData.nombre;
-            userLogueado.correo = nuevaData.correo;
-            userLogueado.password = nuevaData.password;
+            userLogueado.nombre = nuevaData.nombre; userLogueado.correo = nuevaData.correo; userLogueado.password = nuevaData.password; userLogueado.telefono = nuevaData.telefono;
             localStorage.setItem('casaBarro_usuario', JSON.stringify(userLogueado));
-            
             document.getElementById('admin-user-name').innerText = `Hola, ${nuevaData.nombre.split(' ')[0]} ♡`;
             Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 2000 });
         }
-    } catch(e) {
-        Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Sin conexión', showConfirmButton: false, timer: 3000 });
-    }
+    } catch(e) { Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Sin conexión', showConfirmButton: false, timer: 3000 }); }
 }

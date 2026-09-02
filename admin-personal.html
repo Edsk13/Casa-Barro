@@ -37,6 +37,10 @@
                         <input type="password" id="emp-pass" required style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
                     </div>
                     <div style="flex: 1; min-width: 150px;">
+                        <label style="font-size: 0.85rem; font-weight: bold; color: #555;">Teléfono</label>
+                        <input type="text" id="emp-telefono" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
+                    </div>
+                    <div style="flex: 1; min-width: 150px;">
                         <label style="font-size: 0.85rem; font-weight: bold; color: #555;">Rol de empleado *</label>
                         <select id="emp-rol" required style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
                             <option value="vendedor">Vendedor</option>
@@ -49,6 +53,10 @@
                 </form>
             </div>
 
+            <div class="admin-toolbar" style="justify-content: space-between; margin-top: 20px;">
+                <input type="text" id="personal-search" onkeyup="filtrarPersonal()" placeholder="Buscar empleado por nombre o correo..." style="max-width: 400px; padding: 10px 15px; border-radius: 8px; border: 1px solid #ccc;">
+            </div>
+
             <div class="admin-table-container">
                 <table class="admin-table">
                     <thead>
@@ -56,6 +64,7 @@
                             <th>ID</th>
                             <th>Nombre del Empleado</th>
                             <th>Rol / Puesto</th>
+                            <th>Acciones</th>
                         </tr>
                     </thead>
                     <tbody id="tabla-personal">
