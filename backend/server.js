@@ -43,97 +43,123 @@ const db = new sqlite3.Database(dbPath, (err) => {
             empresa TEXT,
             fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP
         )`);
+
+        db.run(`CREATE TABLE IF NOT EXISTS interacciones (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cliente_id INTEGER,
+            tipo TEXT,
+            descripcion TEXT,
+            fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (cliente_id) REFERENCES clientes(id)
+        )`);
     }
 });
 
-// Autenticación (Registro y sincronización con CRM)
 app.post('/api/registro', (req, res) => {
     const { nombre, correo, password, rol, empresa } = req.body;
-
-    if (!nombre || !correo || !password) {
-        return res.status(400).json({ error: "Nombre, correo y contraseña requeridos" });
-    }
+    if (!nombre || !correo || !password) return res.status(400).json({ error: "Datos incompletos" });
 
     const rolUsuario = rol || 'cliente';
-
     db.run(`INSERT INTO usuarios (nombre, correo, password, rol, empresa) VALUES (?, ?, ?, ?, ?)`, 
     [nombre, correo, password, rolUsuario, empresa], function(err) {
         if (err) return res.status(400).json({ error: "El correo ya está registrado." });
         
         db.run(`INSERT INTO clientes (nombre, correo, empresa) VALUES (?, ?, ?)`, 
         [nombre, correo, empresa], function(errCrm) {
-            res.status(201).json({ mensaje: "Usuario registrado y añadido al CRM", id: this.lastID });
+            res.status(201).json({ mensaje: "Usuario registrado", id: this.lastID });
         });
     });
 });
 
-// Autenticación (Login)
 app.post('/api/login', (req, res) => {
     const { correo, password } = req.body;
+    if (!correo || !password) return res.status(400).json({ error: "Datos incompletos" });
 
-    if (!correo || !password) {
-        return res.status(400).json({ error: "Correo y contraseña requeridos" });
-    }
-
-    db.get("SELECT id, nombre, correo, rol, empresa FROM usuarios WHERE correo = ? AND password = ?", [correo, password], (err, row) => {
+    db.get("SELECT id, nombre, correo, rol, empresa, password FROM usuarios WHERE correo = ? AND password = ?", [correo, password], (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
         if (!row) return res.status(401).json({ error: "Credenciales incorrectas" });
-        
         res.json({ mensaje: "Éxito", usuario: row });
     });
 });
 
-// Módulo CRM (Crear cliente/admin y sincronizar con Auth)
-app.post('/api/clientes', (req, res) => {
-    const { nombre, correo, telefono, empresa, password, rol } = req.body;
-    
-    if (!nombre || !correo || !password) {
-        return res.status(400).json({ error: "Nombre, correo y contraseña son obligatorios" });
-    }
+app.post('/api/personal', (req, res) => {
+    const { nombre, correo, password, rol } = req.body;
+    if (!nombre || !correo || !password || !rol) return res.status(400).json({ error: "Datos incompletos" });
 
-    db.run(`INSERT INTO clientes (nombre, correo, telefono, empresa) VALUES (?, ?, ?, ?)`, 
-    [nombre, correo, telefono, empresa], function(err) {
-        if (err) return res.status(400).json({ error: "El correo ya existe en el CRM" });
-        
-        db.run(`INSERT INTO usuarios (nombre, correo, password, rol, empresa) VALUES (?, ?, ?, ?, ?)`, 
-        [nombre, correo, password, rol, empresa], function(errUser) {
-            res.status(201).json({ mensaje: "Cuenta creada con éxito" });
-        });
+    db.run(`INSERT INTO usuarios (nombre, correo, password, rol) VALUES (?, ?, ?, ?)`, 
+    [nombre, correo, password, rol], function(err) {
+        if (err) return res.status(400).json({ error: "El correo ya está registrado." });
+        res.status(201).json({ mensaje: "Empleado registrado exitosamente" });
     });
 });
 
-// Módulo CRM (Actualizar cliente/etapa desde el panel)
-app.put('/api/clientes/:id', (req, res) => {
-    const { nombre, correo, telefono, empresa, etapa_crm, estado } = req.body;
-    const { id } = req.params;
-
-    const sql = `UPDATE clientes SET nombre = ?, correo = ?, telefono = ?, empresa = ?, etapa_crm = ?, estado = ? WHERE id = ?`;
-    
-    db.run(sql, [nombre, correo, telefono, empresa, etapa_crm, estado, id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ mensaje: "Cliente actualizado exitosamente" });
-    });
-});
-
-// Módulo CRM (Leer clientes)
-app.get('/api/clientes', (req, res) => {
-    db.all("SELECT * FROM clientes", [], (err, rows) => {
+app.get('/api/personal', (req, res) => {
+    db.all("SELECT id, nombre, correo, rol FROM usuarios WHERE rol IN ('admin', 'vendedor')", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ mensaje: "Éxito", data: rows });
     });
 });
 
-// Dashboard CRM (Métricas)
-app.get('/api/metricas-crm', (req, res) => {
-    db.get("SELECT COUNT(*) as total FROM clientes", [], (err, rowTotal) => {
+app.put('/api/usuarios/:id', (req, res) => {
+    const { nombre, correo, password } = req.body;
+    const { id } = req.params;
+    db.run(`UPDATE usuarios SET nombre = ?, correo = ?, password = ? WHERE id = ?`, 
+    [nombre, correo, password, id], function(err) {
         if (err) return res.status(500).json({ error: err.message });
-        
-        db.get("SELECT COUNT(*) as activos FROM clientes WHERE etapa_crm IN ('Activo', 'Frecuente')", [], (err, rowActivos) => {
-            db.get("SELECT COUNT(*) as inactivos FROM clientes WHERE etapa_crm IN ('Prospecto', 'Inactivo')", [], (err, rowInactivos) => {
-                db.all("SELECT nombre, etapa_crm FROM clientes WHERE etapa_crm IN ('Prospecto', 'Inactivo') LIMIT 4", [], (err, rowsRiesgo) => {
+        res.json({ mensaje: "Usuario actualizado" });
+    });
+});
+
+app.put('/api/clientes/:id', (req, res) => {
+    const { nombre, correo, telefono, empresa, etapa_crm, estado } = req.body;
+    const { id } = req.params;
+    db.run(`UPDATE clientes SET nombre = ?, correo = ?, telefono = ?, empresa = ?, etapa_crm = ?, estado = ? WHERE id = ?`, 
+    [nombre, correo, telefono, empresa, etapa_crm, estado, id], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ mensaje: "Actualizado" });
+    });
+});
+
+app.get('/api/clientes', (req, res) => {
+    const sql = `
+        SELECT c.* 
+        FROM clientes c 
+        LEFT JOIN usuarios u ON c.correo = u.correo 
+        WHERE u.rol = 'cliente' OR u.rol IS NULL
+    `;
+    db.all(sql, [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ mensaje: "Éxito", data: rows });
+    });
+});
+
+app.post('/api/interacciones', (req, res) => {
+    const { cliente_id, tipo, descripcion } = req.body;
+    db.run(`INSERT INTO interacciones (cliente_id, tipo, descripcion) VALUES (?, ?, ?)`, 
+    [cliente_id, tipo, descripcion], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.status(201).json({ mensaje: "Contacto registrado" });
+    });
+});
+
+app.get('/api/clientes/:id/interacciones', (req, res) => {
+    const { id } = req.params;
+    db.all("SELECT * FROM interacciones WHERE cliente_id = ? ORDER BY fecha DESC", [id], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ mensaje: "Éxito", data: rows });
+    });
+});
+
+app.get('/api/metricas-crm', (req, res) => {
+    const baseJoin = `FROM clientes c LEFT JOIN usuarios u ON c.correo = u.correo WHERE (u.rol = 'cliente' OR u.rol IS NULL)`;
+    
+    db.get(`SELECT COUNT(c.id) as total ${baseJoin}`, [], (err, rowTotal) => {
+        db.get(`SELECT COUNT(c.id) as activos ${baseJoin} AND c.etapa_crm IN ('Activo', 'Frecuente')`, [], (err, rowActivos) => {
+            db.get(`SELECT COUNT(c.id) as inactivos ${baseJoin} AND c.etapa_crm IN ('Prospecto', 'Inactivo')`, [], (err, rowInactivos) => {
+                db.all(`SELECT c.nombre, c.etapa_crm ${baseJoin} AND c.etapa_crm IN ('Prospecto', 'Inactivo') LIMIT 4`, [], (err, rowsRiesgo) => {
                     res.json({ 
                         mensaje: "Éxito", 
-                        total: rowTotal.total,
+                        total: rowTotal ? rowTotal.total : 0,
                         activos: rowActivos ? rowActivos.activos : 0,
                         inactivos: rowInactivos ? rowInactivos.inactivos : 0,
                         listaRiesgo: rowsRiesgo || []
@@ -144,7 +170,6 @@ app.get('/api/metricas-crm', (req, res) => {
     });
 });
 
-// Leer productos
 app.get('/api/productos', (req, res) => {
     db.all("SELECT * FROM productos WHERE estado = 'disponible'", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });

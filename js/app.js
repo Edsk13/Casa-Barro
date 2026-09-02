@@ -324,7 +324,6 @@ function activarAlertas() {
     });
 }
 
-// 6. LÓGICA DEL PANEL DE ADMINISTRADOR
 window.filtrarProductosAdmin = function() {
     let inputBusqueda = document.getElementById('admin-search');
     let selectCategoria = document.getElementById('admin-filter-cat');
@@ -363,7 +362,7 @@ window.eliminarProductoAdmin = function(nombreProducto) {
     });
 }
 
-// 8. INICIALIZADOR GLOBAL (DOM LOAD)
+// 8. INICIALIZADOR GLOBAL (DOM LOAD) 
 document.addEventListener('DOMContentLoaded', async () => {
     await cargarComponente('navbar-container', 'components/navbar.html');
     await cargarComponente('footer-container', 'components/footer.html');
@@ -371,93 +370,74 @@ document.addEventListener('DOMContentLoaded', async () => {
     const adminSidebarContainer = document.getElementById('admin-sidebar-container');
     if (adminSidebarContainer) await cargarComponente('admin-sidebar-container', 'components/admin-sidebar.html');
 
+    const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
+    const spanUsuario = document.getElementById('admin-user-name');
+    
+    if (spanUsuario) {
+        if (!usuarioActual || (usuarioActual.rol !== 'admin' && usuarioActual.rol !== 'vendedor')) {
+            window.location.href = 'login.html';
+        } else {
+            spanUsuario.innerText = `Hola, ${usuarioActual.nombre.split(' ')[0]} ♡`;
+
+            if (usuarioActual.rol === 'vendedor' && window.location.pathname.includes('admin-personal.html')) {
+                Swal.fire({
+                    icon: 'error', title: 'Acceso Denegado', text: 'Solo los Administradores Maestros pueden gestionar al personal.', confirmButtonColor: '#3c4a45'
+                }).then(() => { window.location.href = 'admin.html'; });
+            }
+        }
+    }
+
     activarAlertas();
     actualizarUI();
     renderizarCarrito();
 
     const btnCarritoNav = document.getElementById('btn-carrito-nav');
     if(btnCarritoNav) btnCarritoNav.addEventListener('click', () => window.location.href = 'carrito.html');
+
+    if(document.getElementById('tabla-clientes-crm')) cargarClientesCRM();
+    if(document.getElementById('tabla-personal')) cargarPersonal();
+    if(window.location.pathname.includes('catalogo.html')) cargarProductosBD();
 });
 
-// 11. VALIDACIÓN Y MERCADO C2C
 window.intentarPublicar = function(tipo) {
     const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
-    
     if (!usuarioActual) {
-        Swal.fire({ title: 'Atención', text: 'Debes iniciar sesión para publicar en el mercado', icon: 'warning', confirmButtonColor: '#3c4a45' });
-        return;
+        Swal.fire({ title: 'Atención', text: 'Debes iniciar sesión para publicar en el mercado', icon: 'warning', confirmButtonColor: '#3c4a45' }); return;
     }
-
     if (!usuarioActual.empresa) {
         Swal.fire({
-            title: 'Información Incompleta', text: 'Para garantizar la seguridad de la comunidad, necesitas registrar el nombre de tu empresa o emprendimiento en tu perfil antes de publicar.', icon: 'info',
-            showCancelButton: true, confirmButtonText: 'Ir a mi Perfil', cancelButtonText: 'Cancelar', confirmButtonColor: '#3c4a45'
-        }).then((result) => { if (result.isConfirmed) window.location.href = 'perfil.html'; });
-        return;
+            title: 'Información Incompleta', text: 'Para garantizar la seguridad de la comunidad, necesitas registrar el nombre de tu empresa en tu perfil antes de publicar.', icon: 'info', showCancelButton: true, confirmButtonText: 'Ir a mi Perfil', cancelButtonText: 'Cancelar', confirmButtonColor: '#3c4a45'
+        }).then((result) => { if (result.isConfirmed) window.location.href = 'perfil.html'; }); return;
     }
-
-    if (tipo === 'subasta') abrirFormularioSubasta();
-    else abrirFormularioArticulo();
+    if (tipo === 'subasta') abrirFormularioSubasta(); else abrirFormularioArticulo();
 }
 
 window.abrirFormularioArticulo = function() {
     Swal.fire({
         title: 'Publicar Artículo',
-        html: `
-            <form id="form-nuevo-articulo" style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;">
-                <input type="text" id="articulo-nombre" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Nombre del producto">
-                <input type="number" id="articulo-precio" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Precio MXN">
-            </form>
-        `,
+        html: `<form style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;"><input type="text" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Nombre del producto"><input type="number" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Precio MXN"></form>`,
         showCancelButton: true, confirmButtonText: 'Publicar', confirmButtonColor: '#3c4a45'
-    }).then((result) => {
-        if (result.isConfirmed) Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 1500 });
-    });
+    }).then((result) => { if (result.isConfirmed) Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 1500 }); });
 }
 
 window.abrirFormularioSubasta = function() {
     Swal.fire({
         title: 'Crear Subasta',
-        html: `
-            <form id="form-nueva-subasta" style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;">
-                <input type="text" id="subasta-nombre" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Nombre del artículo">
-                <input type="number" id="subasta-precio" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Precio inicial">
-            </form>
-        `,
+        html: `<form style="display:flex; flex-direction:column; gap:12px; text-align:left; margin-top: 15px;"><input type="text" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Nombre del artículo"><input type="number" class="swal2-input" style="margin:5px 0 0 0; width:100%;" placeholder="Precio inicial"></form>`,
         showCancelButton: true, confirmButtonText: 'Iniciar Subasta', confirmButtonColor: '#3c4a45'
-    }).then((result) => {
-        if (result.isConfirmed) Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 1500 });
-    });
+    }).then((result) => { if (result.isConfirmed) Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 1500 }); });
 }
 
-// 14. CHECKOUT
 window.finalizarPedido = function() {
     let numeroPedido = Math.floor(Math.random() * 90000) + 10000;
     carrito = [];
     localStorage.removeItem('casaBarro_carrito');
     localStorage.removeItem('casaBarro_cupon');
     localStorage.removeItem('casaBarro_totalFinal');
-
-    Swal.fire({
-        title: '¡Pago Aprobado!', text: `Folio: #CB-${numeroPedido}`, confirmButtonText: 'Factura',
-        showCancelButton: true, cancelButtonText: 'Ir a mi perfil', confirmButtonColor: '#3c4a45'
-    }).then(() => window.location.href = 'perfil.html');
+    Swal.fire({ title: '¡Pago Aprobado!', text: `Folio: #CB-${numeroPedido}`, confirmButtonText: 'Factura', showCancelButton: true, cancelButtonText: 'Ir a mi perfil', confirmButtonColor: '#3c4a45' }).then(() => window.location.href = 'perfil.html');
 }
 
-// 15. CONEXIÓN BACK-END (PRODUCTOS)
-window.cargarProductosBD = async function() {
-    try {
-        const respuesta = await fetch('http://localhost:3000/api/productos');
-        const resultado = await respuesta.json();
-        if (resultado.mensaje === "Éxito") console.log("¡Conexión exitosa!");
-    } catch (error) { console.warn("El servidor backend no está encendido."); }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    if(window.location.pathname.includes('catalogo.html')) cargarProductosBD();
-});
-
-// 16. MÓDULO CRM (CLIENTES) - Búsqueda, Carga y Edición
+// 16. MÓDULO CRM
 window.cargarClientesCRM = async function() {
     try {
         const respuesta = await fetch('http://localhost:3000/api/clientes');
@@ -470,17 +450,27 @@ window.cargarClientesCRM = async function() {
             let htmlFilas = '';
             resultado.data.forEach(cliente => {
                 let colorEtapa = cliente.etapa_crm === 'Activo' || cliente.etapa_crm === 'Frecuente' ? '#557268' : '#b7410e';
-                
                 const clienteData = JSON.stringify(cliente).replace(/'/g, "\\'").replace(/"/g, "&quot;");
 
                 htmlFilas += `
-                    <tr class="crm-row" data-nombre="${cliente.nombre.toLowerCase()}" data-correo="${cliente.correo.toLowerCase()}" style="border-bottom: 1px solid #eae5db;">
+                    <tr class="crm-row" data-nombre="${cliente.nombre.toLowerCase()}" style="border-bottom: 1px solid #eae5db;">
                         <td style="padding: 10px;">${cliente.id}</td>
                         <td style="padding: 10px;"><strong>${cliente.nombre}</strong><br><small>${cliente.correo}</small></td>
-                        <td style="padding: 10px;">${cliente.empresa || 'N/A'}</td>
+                        <td style="padding: 10px;">${cliente.empresa || '<span style="color:#aaa;">Sin registro</span>'}</td>
                         <td style="padding: 10px;"><span style="background:${colorEtapa}; color:white; padding:3px 8px; border-radius:12px; font-size:0.8rem;">${cliente.etapa_crm}</span></td>
-                        <td style="padding: 10px;">${cliente.estado}</td>
-                        <td class="admin-actions" style="padding: 10px;">
+                        <td class="admin-actions" style="padding: 10px; display:flex; gap:5px; align-items:center;">
+                            <div class="action-icons">
+                                <button class="btn-minimal" title="Registrar Llamada" onclick="registrarContactoFijo(${cliente.id}, '${cliente.nombre}', 'Llamada')">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                                </button>
+                                <button class="btn-minimal" title="Registrar Mensaje" onclick="registrarContactoFijo(${cliente.id}, '${cliente.nombre}', 'Mensaje')">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+                                </button>
+                                <button class="btn-minimal" title="Registrar Correo" onclick="registrarContactoFijo(${cliente.id}, '${cliente.nombre}', 'Correo')">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                                </button>
+                            </div>
+                            <button style="background:#557268;" onclick="window.location.href='admin-detalle.html?id=${cliente.id}'">Detalle</button>
                             <button onclick='editarClienteCRM(${clienteData})'>Editar</button>
                         </td>
                     </tr>
@@ -494,49 +484,12 @@ window.cargarClientesCRM = async function() {
 window.filtrarClientesCRM = function() {
     let input = document.getElementById('crm-search');
     if(!input) return;
-    
     let texto = input.value.toLowerCase();
     let filas = document.querySelectorAll('.crm-row');
-    
     filas.forEach(fila => {
         let nombre = fila.getAttribute('data-nombre');
-        let correo = fila.getAttribute('data-correo');
-        
-        if (nombre.includes(texto) || correo.includes(texto)) {
-            fila.style.display = '';
-        } else {
-            fila.style.display = 'none';
-        }
+        if (nombre.includes(texto)) fila.style.display = ''; else fila.style.display = 'none';
     });
-}
-
-window.guardarNuevoCliente = async function(event) {
-    event.preventDefault();
-    const nombre = document.getElementById('crm-nombre').value;
-    const correo = document.getElementById('crm-correo').value;
-    const telefono = document.getElementById('crm-telefono').value;
-    const empresa = document.getElementById('crm-empresa').value;
-    const password = document.getElementById('crm-password').value;
-    const rol = document.getElementById('crm-rol').value;
-
-    try {
-        const respuesta = await fetch('http://localhost:3000/api/clientes', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre, correo, telefono, empresa, password, rol })
-        });
-        
-        const resultado = await respuesta.json();
-
-        if (respuesta.ok) {
-            Swal.fire({ toast:true, position:'top-end', icon:'success', title:'Datos actualizados', showConfirmButton:false, timer:2000 });
-            document.getElementById('form-alta-cliente').reset();
-            cargarClientesCRM(); 
-        } else {
-            Swal.fire({ toast:true, position:'top-end', icon:'error', title: resultado.error || 'Error al guardar', showConfirmButton:false, timer:3000 });
-        }
-    } catch (error) {
-        Swal.fire({ toast:true, position:'top-end', icon:'error', title:'Sin conexión al servidor', showConfirmButton:false, timer:3000 });
-    }
 }
 
 window.editarClienteCRM = function(cliente) {
@@ -595,28 +548,59 @@ window.editarClienteCRM = function(cliente) {
     }).then(async (result) => {
         if (result.isConfirmed) {
             try {
-                const res = await fetch(`http://localhost:3000/api/clientes/${cliente.id}`, {
-                    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(result.value)
-                });
-                
-                if (res.ok) {
-                    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 2000 });
-                    cargarClientesCRM();
-                } else {
-                    Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Error al actualizar', showConfirmButton: false, timer: 3000 });
-                }
-            } catch (error) {
-                Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Sin conexión al servidor', showConfirmButton: false, timer: 3000 });
-            }
+                const res = await fetch(`http://localhost:3000/api/clientes/${cliente.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(result.value) });
+                if (res.ok) { Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 2000 }); cargarClientesCRM(); }
+            } catch (error) { Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Sin conexión', showConfirmButton: false, timer: 3000 }); }
         }
     });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    if(document.getElementById('tabla-clientes-crm')) cargarClientesCRM();
-});
+window.registrarContactoFijo = function(clienteId, clienteNombre, tipo) {
+    Swal.fire({
+        title: `Interacción por ${tipo}`,
+        text: `Registrar en historial de ${clienteNombre}`,
+        html: `<textarea id="desc-contacto-fijo" class="swal2-textarea" placeholder="¿Cuáles fueron los acuerdos o temas clave?..." style="width:100%; height:80px;"></textarea>`,
+        showCancelButton: true, confirmButtonText: 'Guardar', cancelButtonText: 'Cancelar', confirmButtonColor: '#3c4a45',
+        preConfirm: () => {
+            return {
+                cliente_id: clienteId,
+                tipo: tipo,
+                descripcion: document.getElementById('desc-contacto-fijo').value
+            }
+        }
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            await fetch('http://localhost:3000/api/interacciones', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(result.value)
+            });
+            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Guardado en historial', showConfirmButton: false, timer: 2000 });
+        }
+    });
+}
 
-// 17. AUTENTICACIÓN (LOGIN Y REGISTRO)
+window.cargarPersonal = async function() {
+    try {
+        const respuesta = await fetch('http://localhost:3000/api/personal');
+        const resultado = await respuesta.json();
+        const tabla = document.getElementById('tabla-personal');
+        if (!tabla) return;
+        
+        let htmlFilas = '';
+        resultado.data.forEach(emp => {
+            let badgeColor = emp.rol === 'admin' ? '#b7410e' : '#557268';
+            htmlFilas += `<tr style="border-bottom: 1px solid #eae5db;"><td style="padding: 10px;">${emp.id}</td><td style="padding: 10px;"><strong>${emp.nombre}</strong><br><small>${emp.correo}</small></td><td style="padding: 10px;"><span style="background:${badgeColor}; color:white; padding:3px 8px; border-radius:12px; font-size:0.8rem; text-transform:uppercase;">${emp.rol}</span></td></tr>`;
+        });
+        tabla.innerHTML = htmlFilas;
+    } catch (e) { console.error(e); }
+}
+
+window.guardarPersonal = async function(event) {
+    event.preventDefault();
+    const data = { nombre: document.getElementById('emp-nombre').value, correo: document.getElementById('emp-correo').value, password: document.getElementById('emp-pass').value, rol: document.getElementById('emp-rol').value };
+    const res = await fetch('http://localhost:3000/api/personal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    if (res.ok) { Swal.fire({ toast:true, position:'top-end', icon:'success', title:'Empleado Registrado', showConfirmButton:false, timer:2000 }); document.getElementById('form-alta-personal').reset(); cargarPersonal(); }
+}
+
 window.iniciarSesion = async function(event) {
     event.preventDefault();
     const correoInput = document.getElementById('login-correo');
@@ -624,48 +608,54 @@ window.iniciarSesion = async function(event) {
     if(!correoInput || !passwordInput) return;
 
     try {
-        const respuesta = await fetch('http://localhost:3000/api/login', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ correo: correoInput.value, password: passwordInput.value })
-        });
-        
+        const respuesta = await fetch('http://localhost:3000/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ correo: correoInput.value, password: passwordInput.value }) });
         const resultado = await respuesta.json();
 
         if (respuesta.ok && resultado.mensaje === "Éxito") {
             localStorage.setItem('casaBarro_usuario', JSON.stringify(resultado.usuario));
             Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 1500 }).then(() => {
-                window.location.href = resultado.usuario.rol === 'admin' ? 'admin.html' : 'perfil.html';
+                window.location.href = (resultado.usuario.rol === 'admin' || resultado.usuario.rol === 'vendedor') ? 'admin.html' : 'perfil.html';
             });
-        } else {
-            Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: resultado.error || 'Credenciales inválidas', showConfirmButton: false, timer: 2500 });
-        }
-    } catch (error) {
-        Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Sin conexión al servidor', showConfirmButton: false, timer: 2500 });
-    }
+        } else { Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: resultado.error || 'Credenciales inválidas', showConfirmButton: false, timer: 2500 }); }
+    } catch (error) { Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Sin conexión', showConfirmButton: false, timer: 2500 }); }
 }
 
 window.registrarUsuario = async function(event) {
     event.preventDefault();
     const inputs = event.target.querySelectorAll('input');
-    const nombre = inputs[0] ? inputs[0].value : '';
-    const correo = inputs[1] ? inputs[1].value : '';
-    const password = inputs[2] ? inputs[2].value : '';
-    const empresa = document.getElementById('reg-empresa') ? document.getElementById('reg-empresa').value : null;
+    const data = { nombre: inputs[0] ? inputs[0].value : '', correo: inputs[1] ? inputs[1].value : '', password: inputs[2] ? inputs[2].value : '', rol: 'cliente', empresa: document.getElementById('reg-empresa') ? document.getElementById('reg-empresa').value : null };
+    try {
+        const respuesta = await fetch('http://localhost:3000/api/registro', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+        if (respuesta.ok) { Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 2000 }).then(() => window.location.href = 'login.html'); }
+    } catch(e) { Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Sin conexión', showConfirmButton: false, timer: 3000 }); }
+}
+
+window.guardarConfiguracion = async function(event) {
+    event.preventDefault();
+    const userLogueado = JSON.parse(localStorage.getItem('casaBarro_usuario'));
+    if (!userLogueado) return;
+
+    const nuevaData = {
+        nombre: document.getElementById('conf-nombre').value,
+        correo: document.getElementById('conf-correo').value,
+        password: document.getElementById('conf-pass').value
+    };
 
     try {
-        const respuesta = await fetch('http://localhost:3000/api/registro', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre, correo, password, rol: 'cliente', empresa })
+        const res = await fetch(`http://localhost:3000/api/usuarios/${userLogueado.id}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(nuevaData)
         });
         
-        const resultado = await respuesta.json();
-
-        if (respuesta.ok) {
-            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 2000 }).then(() => window.location.href = 'login.html');
-        } else {
-            Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: resultado.error || 'Error al registrar', showConfirmButton: false, timer: 3000 });
+        if (res.ok) {
+            userLogueado.nombre = nuevaData.nombre;
+            userLogueado.correo = nuevaData.correo;
+            userLogueado.password = nuevaData.password;
+            localStorage.setItem('casaBarro_usuario', JSON.stringify(userLogueado));
+            
+            document.getElementById('admin-user-name').innerText = `Hola, ${nuevaData.nombre.split(' ')[0]} ♡`;
+            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 2000 });
         }
     } catch(e) {
-        Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Sin conexión al servidor', showConfirmButton: false, timer: 3000 });
+        Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Sin conexión', showConfirmButton: false, timer: 3000 });
     }
 }
