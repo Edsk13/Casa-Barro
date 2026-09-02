@@ -1,20 +1,33 @@
-<aside class="admin-sidebar">
+<nav class="admin-sidebar">
     <div class="admin-logo">
-        <span class="logo-casa">Casa</span>
-        <span class="logo-barro">BARRO</span>
-        <p class="admin-badge">Admin Panel</p>
+        <span class="logo-casa">Casa</span><br>
+        <span class="logo-barro">Barro</span>
+        <div class="admin-badge">Panel Administrativo</div>
     </div>
     
-    <nav class="admin-nav" id="admin-nav-links">
+    <div class="admin-nav" id="admin-nav-links">
         <a href="admin.html" data-page="admin.html">Dashboard</a>
         <a href="admin-productos.html" data-page="admin-productos.html">Productos</a>
         <a href="admin-pedidos.html" data-page="admin-pedidos.html">Pedidos</a>
         <a href="admin-promociones.html" data-page="admin-promociones.html">Promociones</a>
         <a href="admin-clientes.html" data-page="admin-clientes.html">Clientes</a>
+        <a href="admin-personal.html" id="link-personal" data-page="admin-personal.html">Personal</a>
         <a href="admin-reportes.html" data-page="admin-reportes.html">Reportes</a>
-    </nav>
-    
-    <div style="margin-top: auto; padding: 15px;">
-        <button onclick="window.location.href='index.html'" style="width: 100%; background: transparent; border: 1px solid rgba(255,255,255,0.3); color: white; padding: 10px; border-radius: 8px; cursor: pointer;">Ir a la Tienda</button>
+        <a href="admin-configuracion.html" data-page="admin-configuracion.html">Configuración</a>
+        <a href="#" style="margin-top: auto; color: #ffcccc;" id="btn-cerrar-sesion-admin">Cerrar Sesión</a>
     </div>
-</aside>
+    
+    <script>
+    const userLogueado = JSON.parse(localStorage.getItem('casaBarro_usuario'));
+    if (userLogueado && userLogueado.rol === 'vendedor') {
+        const btnPersonal = document.getElementById('link-personal');
+        if(btnPersonal) btnPersonal.style.display = 'none';
+    }
+
+    document.getElementById('btn-cerrar-sesion-admin').addEventListener('click', (e) => {
+        e.preventDefault();
+        localStorage.removeItem('casaBarro_usuario');
+        window.location.href = 'index.html';
+    });
+    </script>
+</nav>
