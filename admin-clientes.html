@@ -21,10 +21,56 @@
                 </div>
             </header>
 
-            <div class="admin-toolbar" style="justify-content: space-between; margin-top: 20px;">
-                <input type="text" id="crm-search" onkeyup="filtrarClientesCRM()" placeholder="Buscar cliente por nombre o correo..." style="max-width: 400px; padding: 10px 15px; border-radius: 8px; border: 1px solid #ccc;">
+            <!-- FORMULARIO DE ALTA -->
+            <div class="crm-card" style="margin-top: 20px;">
+                <h3 style="color: var(--verde-logo); margin-top: 0; margin-bottom: 15px; font-size: 1.2rem; border-bottom: 2px solid #fcf9f2; padding-bottom: 10px;">Agregar Nuevo Cliente</h3>
+                <form id="form-alta-cliente" onsubmit="guardarNuevoCliente(event)" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <label style="font-size: 0.85rem; font-weight: bold; color: #555;">Nombre *</label>
+                        <input type="text" id="crm-nombre" required style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
+                    </div>
+                    <div style="flex: 1; min-width: 200px;">
+                        <label style="font-size: 0.85rem; font-weight: bold; color: #555;">Correo *</label>
+                        <input type="email" id="crm-correo" required style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
+                    </div>
+                    <div style="flex: 1; min-width: 150px;">
+                        <label style="font-size: 0.85rem; font-weight: bold; color: #555;">Contraseña *</label>
+                        <input type="password" id="crm-password" required style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
+                    </div>
+                    <div style="flex: 1; min-width: 150px;">
+                        <label style="font-size: 0.85rem; font-weight: bold; color: #555;">Teléfono</label>
+                        <input type="text" id="crm-telefono" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
+                    </div>
+                    <div style="flex: 1; min-width: 150px;">
+                        <label style="font-size: 0.85rem; font-weight: bold; color: #555;">Empresa</label>
+                        <input type="text" id="crm-empresa" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #ccc;">
+                    </div>
+                    <div>
+                        <button type="submit" class="btn-primary" style="padding: 9px 20px; height: 40px; border-radius: 8px; font-size: 0.95rem;">Guardar Cliente</button>
+                    </div>
+                </form>
             </div>
 
+            <!-- BARRA DE BÚSQUEDA Y FILTROS -->
+            <div class="admin-toolbar" style="display: flex; gap: 15px; margin-top: 20px; align-items: center; flex-wrap: wrap;">
+                <input type="text" id="crm-search" onkeyup="filtrarClientesCRM()" placeholder="Buscar cliente por nombre o correo..." style="flex: 1; min-width: 250px; padding: 10px 15px; border-radius: 8px; border: 1px solid #ccc;">
+                
+                <select id="crm-filter-etapa" onchange="filtrarClientesCRM()" style="padding: 10px; border-radius: 8px; border: 1px solid #ccc;">
+                    <option value="todos">Todas las Etapas</option>
+                    <option value="Prospecto">Prospecto</option>
+                    <option value="Activo">Activo</option>
+                    <option value="Frecuente">Frecuente</option>
+                    <option value="Inactivo">Inactivo</option>
+                </select>
+
+                <select id="crm-filter-estado" onchange="filtrarClientesCRM()" style="padding: 10px; border-radius: 8px; border: 1px solid #ccc;">
+                    <option value="todos">Todos los Estados</option>
+                    <option value="activo">Activos</option>
+                    <option value="inactivo">Inactivos</option>
+                </select>
+            </div>
+
+            <!-- TABLA DE RESULTADOS -->
             <div class="admin-table-container">
                 <table class="admin-table">
                     <thead>
