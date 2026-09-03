@@ -82,6 +82,7 @@ app.get('/api/personal', (req, res) => {
     });
 });
 
+// Actualizar datos de personal o perfil propio
 app.put('/api/usuarios/:id', (req, res) => {
     const { nombre, correo, password, telefono, rol } = req.body;
     const { id } = req.params;
@@ -106,6 +107,7 @@ app.delete('/api/usuarios/:id', (req, res) => {
         res.json({ mensaje: "Empleado eliminado correctamente" });
     });
 });
+
 
 // MÓDULO CRM (CLIENTES E INTERACCIONES)
 app.post('/api/clientes', (req, res) => {
@@ -191,7 +193,7 @@ app.get('/api/metricas-crm', (req, res) => {
             });
         });
     });
-});}
+});
 
 // MÓDULO CATÁLOGO
 app.get('/api/productos', (req, res) => {
