@@ -195,6 +195,20 @@ app.get('/api/metricas-crm', (req, res) => {
     });
 });
 
+app.get('/api/mis-interacciones/:usuario_id', (req, res) => {
+    const sql = `
+        SELECT i.*, c.nombre as cliente_nombre 
+        FROM interacciones i 
+        JOIN clientes c ON i.cliente_id = c.id 
+        WHERE i.usuario_id = ? 
+        ORDER BY i.fecha DESC
+    `;
+    db.all(sql, [req.params.usuario_id], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ mensaje: "Éxito", data: rows });
+    });
+});
+
 // MÓDULO CATÁLOGO
 app.get('/api/productos', (req, res) => {
     db.all("SELECT * FROM productos WHERE estado = 'disponible'", [], (err, rows) => {
