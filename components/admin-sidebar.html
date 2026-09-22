@@ -1,34 +1,70 @@
-<nav class="admin-sidebar">
-    <div class="admin-logo">
-        <span class="logo-casa">Casa</span><br>
-        <span class="logo-barro">Barro</span>
-        <div class="admin-badge">Panel Administrativo</div>
-    </div>
-    
-    <div class="admin-nav" id="admin-nav-links">
-        <a href="admin.html" data-page="admin.html">Dashboard</a>
-        <a href="admin-productos.html" data-page="admin-productos.html">Productos</a>
-        <a href="admin-pedidos.html" data-page="admin-pedidos.html">Pedidos</a>
-        <a href="admin-promociones.html" data-page="admin-promociones.html">Promociones</a>
-        <a href="admin-clientes.html" data-page="admin-clientes.html">Clientes</a>
-        <a href="admin-personal.html" id="link-personal" data-page="admin-personal.html">Personal</a>
-        <a href="admin-reportes.html" data-page="admin-reportes.html">Reportes</a>
-        <a href="admin-actividad.html" class="nav-link">Mi Actividad</a>
-        <a href="admin-configuracion.html" data-page="admin-configuracion.html">Configuración</a>
-        <a href="#" style="margin-top: auto; color: #ffcccc;" onclick="cerrarSesionAdmin(event)">Cerrar Sesión</a>
-    </div>
-    
-    <script>
-    const userLogueado = JSON.parse(localStorage.getItem('casaBarro_usuario'));
-    if (userLogueado && userLogueado.rol === 'vendedor') {
-        const btnPersonal = document.getElementById('link-personal');
-        if(btnPersonal) btnPersonal.style.display = 'none';
-    }
+<aside class="admin-sidebar">
 
-    document.getElementById('btn-cerrar-sesion-admin').addEventListener('click', (e) => {
-        e.preventDefault();
-        localStorage.removeItem('casaBarro_usuario');
-        window.location.href = 'index.html';
-    });
-    </script>
-</nav>
+    <div style="padding: 25px 20px; font-size: 1.5rem; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.1);">
+        Casa Barro
+    </div>
+    
+    <nav class="admin-sidebar-nav">
+        
+        <!-- INICIO -->
+        <a href="admin.html" class="nav-simple" style="display: flex; align-items: center; gap: 10px; padding: 12px 25px; color: white; text-decoration: none; font-size: 1.05rem; font-weight: bold;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            <span>Inicio</span>
+        </a>
+
+        <!-- CRM -->
+        <button class="nav-accordion" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 12px 25px; background: none; border: none; cursor: pointer; color: white; font-size: 1.05rem; font-weight: bold;">
+            <div style="display: flex; align-items: center; gap: 10px; color: white;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                <span>Dashboard CRM</span>
+            </div>
+            <span class="arrow">▼</span>
+        </button>
+        <div class="nav-panel" style="background: rgba(0,0,0,0.15); display: none;">
+            <a href="admin-crm-resumen.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Resumen CRM</a>
+            <a href="admin-clientes.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Directorio de Clientes</a>
+            <a href="admin-promociones.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Promociones</a>
+        </div>
+
+        <!-- SCM -->
+        <button class="nav-accordion" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 12px 25px; background: none; border: none; cursor: pointer; color: white; font-size: 1.05rem; font-weight: bold;">
+            <div style="display: flex; align-items: center; gap: 10px; color: white;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                <span>Dashboard SCM</span>
+            </div>
+            <span class="arrow">▼</span>
+        </button>
+        <div class="nav-panel" style="background: rgba(0,0,0,0.15); display: none;">
+            <a href="admin-scm-resumen.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Resumen SCM</a>
+            <a href="admin-productos.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Productos (Menú)</a>
+            <a href="admin-inventario.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Inventario (Insumos)</a>
+            <a href="admin-proveedores.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Proveedores</a>
+            <a href="admin-pedidos.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Pedidos de Cliente</a>
+            <a href="admin-logistica.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Estrategia Logística</a>
+        </div>
+
+        <!-- ADMIN -->
+        <button class="nav-accordion" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 12px 25px; background: none; border: none; cursor: pointer; color: white; font-size: 1.05rem; font-weight: bold;">
+            <div style="display: flex; align-items: center; gap: 10px; color: white;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+                <span>Administración</span>
+            </div>
+            <span class="arrow">▼</span>
+        </button>
+        <div class="nav-panel" style="background: rgba(0,0,0,0.15); display: none;">
+            <a href="admin-personal.html" class="nav-sublink" id="link-personal" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Personal</a>
+            <a href="admin-reportes.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Reportes Globales</a>
+                        <a href="admin-actividad.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Mi Actividad</a>
+            <a href="admin-configuracion.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Configuración</a>
+        </div>
+    </nav>
+
+    <!-- CERRAR SESIÓN -->
+    <div class="admin-sidebar-footer">
+        <a href="#" onclick="cerrarSesionAdmin(event)" style="color: #ffb3b3; text-decoration: none; font-weight: bold; font-size: 1.05rem; display: flex; align-items: center; gap: 10px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+            <span>Cerrar Sesión</span>
+        </a>
+    </div>
+
+</aside>

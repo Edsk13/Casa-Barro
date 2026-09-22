@@ -671,17 +671,68 @@ nav a:hover {
 }
 
 /* --- Menú Lateral --- */
-.admin-sidebar {
+#admin-sidebar-container {
     width: 260px;
+    flex: 0 0 260px;
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    overflow: hidden;
+}
+
+.admin-sidebar {
+    width: 100%;
+    height: 100%;
     background-color: var(--verde-logo);
     color: white;
     display: flex;
     flex-direction: column;
-    padding: 20px 0;
+    position: relative;
+    padding: 0;
+    overflow: hidden;
     box-shadow: 4px 0 15px rgba(0,0,0,0.1);
-    position: sticky;
-    top: 0;
-    height: 100vh;
+}
+
+.admin-sidebar > div:first-child {
+    flex-shrink: 0;
+}
+
+.admin-sidebar-nav {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 15px 0;
+}
+
+.admin-sidebar-footer {
+    flex-shrink: 0;
+    padding: 20px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    background-color: var(--verde-logo);
+}
+
+.admin-sidebar-nav::-webkit-scrollbar {
+    width: 6px;
+}
+
+.admin-sidebar-nav::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.admin-sidebar-nav::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.25);
+    border-radius: 10px;
+}
+
+.admin-sidebar-nav::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.4);
+}
+
+.admin-main {
+    flex: 1;
+    min-width: 0;
 }
 
 .admin-logo {
@@ -1266,3 +1317,53 @@ nav a:hover {
 .badge-activo { background: #557268; }
 .badge-frecuente { background: #2980b9; }
 .badge-inactivo { background: #7f8c8d; }
+
+/* --- ESTILOS DEL MENÚ LATERAL (ACORDEÓN) --- */
+.nav-simple {
+    display: block;
+    padding: 12px 25px;
+    color: #d0d7d4;
+    text-decoration: none;
+    font-size: 1.05rem;
+    font-weight: bold;
+    transition: 0.2s;
+}
+.nav-simple:hover { color: white; background-color: rgba(255,255,255,0.05); }
+
+.nav-accordion {
+    background-color: transparent;
+    color: #d0d7d4;
+    cursor: pointer;
+    padding: 12px 25px;
+    width: 100%;
+    border: none;
+    text-align: left;
+    outline: none;
+    font-size: 1.05rem;
+    font-weight: bold;
+    transition: 0.2s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.nav-accordion:hover, .nav-accordion.active {
+    color: white;
+    background-color: rgba(255,255,255,0.05);
+}
+.nav-accordion .arrow { font-size: 0.8rem; transition: transform 0.3s; }
+.nav-accordion.active .arrow { transform: rotate(180deg); }
+
+.nav-panel {
+    background-color: rgba(0, 0, 0, 0.15); /* Fondo más oscuro para submenús */
+    display: none; /* Ocultos por defecto */
+    overflow: hidden;
+}
+.nav-sublink {
+    display: block;
+    color: #a4b3ac;
+    padding: 10px 25px 10px 40px;
+    text-decoration: none;
+    font-size: 0.95rem;
+    transition: 0.2s;
+}
+.nav-sublink:hover { color: white; background-color: rgba(255,255,255,0.05); }

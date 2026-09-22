@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel de Administrador | Casa Barro</title>
+    <title>Inicio | Casa Barro</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="admin-body">
     <div class="admin-layout">
@@ -14,82 +13,40 @@
         <main class="admin-main crm-main-bg">
             <header class="admin-header">
                 <div>
-                    <h1>Dashboard</h1>
-                    <p style="color: #777;">Resumen general del CRM Casa Barro</p>
+                    <h1>Inicio</h1>
+                    <p style="color: #777;">Panel de control y acciones rápidas</p>
                 </div>
                 <div class="admin-user">
                     <span id="admin-user-name">Cargando...</span>
                 </div>
             </header>
 
-            <section class="crm-stats-grid">
-                <div class="crm-stat-box">
-                    <h4>Total de clientes</h4>
-                    <h2 id="metrica-total">0</h2>
-                    <p>En base de datos</p>
-                </div>
-                <div class="crm-stat-box">
-                    <h4>Clientes activos</h4>
-                    <h2 id="metrica-activos">0</h2>
-                    <p id="metrica-activos-porcentaje">0% del total</p>
-                </div>
-                <div class="crm-stat-box">
-                    <h4>Interacciones</h4>
-                    <h2 id="metrica-interacciones">0</h2>
-                    <p>Módulo en desarrollo</p>
-                </div>
-                <div class="crm-stat-box crm-stat-warning">
-                    <h4>Sin interacción</h4>
-                    <h2 id="metrica-riesgo">0</h2>
-                    <p>Últimos 30 días</p>
-                </div>
-            </section>
-
-            <div class="admin-grid-2" style="margin-bottom: 30px;">
-                <div class="crm-card">
-                    <h4 style="margin-top: 0; border-bottom: 2px solid #fcf9f2; padding-bottom: 10px; color: var(--verde-logo); font-size: 1.2rem;">Clientes activos vs inactivos</h4>
-                    <div style="display: flex; align-items: center; justify-content: center; height: 200px; margin-top: 15px;">
-                        <canvas id="grafica-activos" style="max-height: 180px;"></canvas>
-                    </div>
-                </div>
-
-                <div class="crm-card">
-                    <h4 style="margin-top: 0; border-bottom: 2px solid #fcf9f2; padding-bottom: 10px; color: var(--verde-logo); font-size: 1.2rem;">Clientes en riesgo</h4>
-                    <ul style="list-style: none; padding: 0; margin: 15px 0 0 0; font-size: 0.95rem;" id="lista-riesgo">
-                        <li style="padding: 10px 0; border-bottom: 1px dashed #eae5db;">
-                            <strong style="color: #333;">Cargando datos...</strong>
-                        </li>
-                    </ul>
-                    <div style="text-align: right; margin-top: 15px;">
-                        <a href="admin-clientes.html" style="color: #777; font-size: 0.85rem; text-decoration: underline; font-weight: bold;">Ver directorio ></a>
-                    </div>
-                </div>
-            </div>
-
-            <div class="admin-grid-2">
-                <section class="admin-section">
-                    <h2>Acciones Rápidas</h2>
-                    <div class="action-buttons">
-                        <button class="btn-primary" onclick="abrirFormularioProducto()">Agregar producto</button>
-                        <button class="btn-primary" onclick="window.location.href='admin-pedidos.html'">Ver pedidos</button>
-                        <button class="btn-primary" onclick="abrirFormularioPromocion()">Crear promoción</button>
+            <div class="admin-grid-2" style="margin-top: 20px;">
+                <!-- SECCIÓN: ACCIONES RÁPIDAS -->
+                <section class="crm-card">
+                    <h2 style="margin-top: 0; color: #333; font-size: 1.4rem;">Acciones Rápidas</h2>
+                    <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 20px;">
+                        <button style="background: #3e4c46; color: white; border: none; padding: 15px 20px; text-align: left; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer; transition: 0.2s;" onclick="abrirFormularioProducto()">Agregar producto</button>
+                        <button style="background: #3e4c46; color: white; border: none; padding: 15px 20px; text-align: left; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer; transition: 0.2s;" onclick="window.location.href='admin-pedidos.html'">Ver pedidos</button>
+                        <button style="background: #3e4c46; color: white; border: none; padding: 15px 20px; text-align: left; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer; transition: 0.2s;" onclick="abrirFormularioPromocion()">Crear promoción</button>
                     </div>
                 </section>
 
-                <section class="admin-section">
-                    <h2>Actividad Reciente</h2>
-                    <ul class="activity-list">
-                        <li>
-                            <span class="activity-time">Hace 5 minutos</span>
-                            <p><strong>Pedido #125 recibido:</strong> 2x Chilaquiles, 1x Capuchino.</p>
+                <!-- SECCIÓN: ACTIVIDAD RECIENTE -->
+                <section class="crm-card">
+                    <h2 style="margin-top: 0; color: #333; font-size: 1.4rem;">Actividad Reciente</h2>
+                    <ul style="list-style: none; padding: 0; margin-top: 20px;">
+                        <li style="border-bottom: 1px dashed #eae5db; padding-bottom: 15px; margin-bottom: 15px;">
+                            <span style="font-size: 0.85rem; color: #888; display: block; margin-bottom: 5px;">Hace 5 minutos</span>
+                            <p style="margin: 0; color: #555;"><strong style="color: #333;">Pedido #125 recibido:</strong> 2x Chilaquiles, 1x Capuchino.</p>
+                        </li>
+                        <li style="border-bottom: 1px dashed #eae5db; padding-bottom: 15px; margin-bottom: 15px;">
+                            <span style="font-size: 0.85rem; color: #888; display: block; margin-bottom: 5px;">Hace 22 minutos</span>
+                            <p style="margin: 0; color: #555;"><strong style="color: #333;">Nuevo cliente registrado:</strong> Sofía Ramírez.</p>
                         </li>
                         <li>
-                            <span class="activity-time">Hace 22 minutos</span>
-                            <p><strong>Nuevo cliente registrado:</strong> Sofía Ramírez.</p>
-                        </li>
-                        <li>
-                            <span class="activity-time">Hace 1 hora</span>
-                            <p><strong>Producto actualizado:</strong> 'Waffles Bruce' (Ajuste de precio).</p>
+                            <span style="font-size: 0.85rem; color: #888; display: block; margin-bottom: 5px;">Hace 1 hora</span>
+                            <p style="margin: 0; color: #555;"><strong style="color: #333;">Producto actualizado:</strong> 'Waffles Bruce' (Ajuste de precio).</p>
                         </li>
                     </ul>
                 </section>
@@ -98,50 +55,5 @@
     </div>
     
     <script src="js/app.js"></script>
-    <script>
-        async function cargarDashboard() {
-            try {
-                const res = await fetch('http://localhost:3000/api/metricas-crm');
-                const data = await res.json();
-                
-                if(data.mensaje === "Éxito") {
-                    document.getElementById('metrica-total').innerText = data.total;
-                    document.getElementById('metrica-activos').innerText = data.activos;
-                    document.getElementById('metrica-riesgo').innerText = data.inactivos;
-                    
-                    let pct = data.total > 0 ? Math.round((data.activos / data.total) * 100) : 0;
-                    document.getElementById('metrica-activos-porcentaje').innerText = `${pct}% del total`;
-
-                    let htmlRiesgo = '';
-                    if(data.listaRiesgo.length === 0) {
-                        htmlRiesgo = '<li style="padding:10px 0; color:var(--verde-logo); font-weight:bold;">Todos los clientes están activos.</li>';
-                    } else {
-                        data.listaRiesgo.forEach(c => {
-                            htmlRiesgo += `
-                            <li style="padding: 10px 0; border-bottom: 1px dashed #eae5db; display: flex; justify-content: space-between; align-items: center;">
-                                <div>
-                                    <strong style="color: #333; display:block;">${c.nombre}</strong>
-                                    <span style="color: #b7410e; font-size: 0.85rem; font-weight:bold;">Etapa: ${c.etapa_crm}</span>
-                                </div>
-                                <span style="color: #ccc; font-weight:bold;">></span>
-                            </li>`;
-                        });
-                    }
-                    document.getElementById('lista-riesgo').innerHTML = htmlRiesgo;
-
-                    const ctx = document.getElementById('grafica-activos').getContext('2d');
-                    new Chart(ctx, {
-                        type: 'doughnut',
-                        data: {
-                            labels: ['Activos', 'Prospectos/Inactivos'],
-                            datasets: [{ data: [data.activos, data.inactivos], backgroundColor: ['#557268', '#b7410e'], borderWidth: 0 }]
-                        },
-                        options: { responsive: true, maintainAspectRatio: false, cutout: '75%' }
-                    });
-                }
-            } catch (error) { console.error("Error cargando dashboard"); }
-        }
-        document.addEventListener('DOMContentLoaded', cargarDashboard);
-    </script>
 </body>
 </html>

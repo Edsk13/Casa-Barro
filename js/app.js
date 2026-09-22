@@ -1,10 +1,26 @@
 // 1. INYECCIÓN DE COMPONENTES
 async function cargarComponente(id, ruta) {
+    const contenedor = document.getElementById(id);
+    // Si la página no utiliza este componente, no hacemos nada.
+    if (!contenedor) return;
     try {
-        const respuesta = await fetch(ruta);
+        const respuesta = await fetch(ruta, {
+            cache: "no-store"
+        });
+        if (!respuesta.ok) {
+            throw new Error(
+                `No se pudo cargar ${ruta}. HTTP ${respuesta.status}`
+            );
+        }
         const html = await respuesta.text();
-        document.getElementById(id).innerHTML = html;
-    } catch (error) { console.error("Error al cargar " + ruta, error); }
+        contenedor.innerHTML = html;
+        console.log(`Componente cargado correctamente: ${ruta}`);
+    } catch (error) {
+        console.error(
+            `Error cargando el componente ${ruta}:`,
+            error
+        );
+    }
 }
 
 // 2. SISTEMA DE CARRITO PERSISTENTE Y DESCUENTOS
@@ -173,34 +189,79 @@ window.eliminarProductoAdmin = function(nombreProducto) {
 
 // INICIALIZADOR DE SEGURIDAD Y VISTAS
 document.addEventListener('DOMContentLoaded', async () => {
+    // 1. Cargar Navbar y Footer (Vista cliente)
     await cargarComponente('navbar-container', 'components/navbar.html');
     await cargarComponente('footer-container', 'components/footer.html');
     
+    // 2. Cargar Menú Lateral (Vista Admin)
     const adminSidebarContainer = document.getElementById('admin-sidebar-container');
     if (adminSidebarContainer) {
         await cargarComponente('admin-sidebar-container', 'components/admin-sidebar.html');
+        const acordeones = document.querySelectorAll(".nav-accordion");
+        
+        // 1. Leer la memoria del navegador para ver cuáles estaban abiertos
+        let menusAbiertos = JSON.parse(localStorage.getItem('casaBarro_menus_abiertos')) || [];
 
+        acordeones.forEach((btn, index) => {
+            // 2. Restaurar visualmente los menús que el usuario dejó abiertos
+            if (menusAbiertos.includes(index)) {
+                btn.classList.add("active");
+                btn.nextElementSibling.style.display = "block";
+            }
+
+            // 3. Detectar clics y guardar la decisión
+            btn.addEventListener("click", function() {
+                this.classList.toggle("active");
+                let panel = this.nextElementSibling;
+                
+                if (panel.style.display === "block") {
+                    panel.style.display = "none";
+                    // Quitar de la memoria porque se cerró
+                    menusAbiertos = menusAbiertos.filter(i => i !== index); 
+                } else {
+                    panel.style.display = "block";
+                    // Guardar en la memoria porque se abrió
+                    if (!menusAbiertos.includes(index)) menusAbiertos.push(index); 
+                }
+                
+                // Actualizar el localStorage para la siguiente página
+                localStorage.setItem('casaBarro_menus_abiertos', JSON.stringify(menusAbiertos));
+            });
+        });
+
+        // 3. Validar Seguridad del Usuario
         const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
         const spanUsuario = document.getElementById('admin-user-name');
         
         if (spanUsuario) {
-            if (!usuarioActual || (usuarioActual.rol !== 'admin' && usuarioActual.rol !== 'vendedor')) {
+            const rolesInternos = ['admin', 'vendedor', 'logistica'];
+
+            if (!usuarioActual || !rolesInternos.includes(usuarioActual.rol)) {
                 window.location.href = 'login.html';
             } else {
                 spanUsuario.innerText = `Hola, ${usuarioActual.nombre.split(' ')[0]} ♡`;
 
-                if (usuarioActual.rol === 'vendedor') {
+                // Solo el Administrador Maestro puede gestionar Personal.
+                if (usuarioActual.rol !== 'admin') {
                     const btnPersonal = document.getElementById('link-personal');
                     if (btnPersonal) btnPersonal.style.display = 'none';
 
                     if (window.location.pathname.includes('admin-personal.html')) {
-                        Swal.fire({ icon: 'error', title: 'Acceso Denegado', text: 'Solo Administradores Maestros.', confirmButtonColor: '#3c4a45' }).then(() => { window.location.href = 'admin.html'; });
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Acceso Denegado',
+                            text: 'Solo Administradores Maestros.',
+                            confirmButtonColor: '#3c4a45'
+                        }).then(() => {
+                            window.location.href = 'admin.html';
+                        });
                     }
                 }
             }
         }
     }
 
+    // 4. Iniciar Funciones Generales
     activarAlertas();
     actualizarUI();
     renderizarCarrito();
@@ -208,15 +269,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnCarritoNav = document.getElementById('btn-carrito-nav');
     if(btnCarritoNav) btnCarritoNav.addEventListener('click', () => window.location.href = 'carrito.html');
 
+    // 5. Cargar Tablas Específicas según la página
     if(document.getElementById('tabla-clientes-crm')) cargarClientesCRM();
     if(document.getElementById('tabla-personal')) cargarPersonal();
+    if(document.getElementById('tabla-proveedores')) cargarProveedores();
     if(window.location.pathname.includes('catalogo.html')) cargarProductosBD();
     if(document.getElementById('timeline-actividad')) cargarMiActividad();
-    
 });
 
-window.cerrarSesionAdmin = function(e) {
-    if(e) e.preventDefault();
+window.cerrarSesionAdmin = async function(e) {
+    if (e) e.preventDefault();
+
+    const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
+
+    if (usuarioActual && usuarioActual.id) {
+        try {
+            await fetch('http://localhost:3000/api/logout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ usuario_id: usuarioActual.id })
+            });
+        } catch (error) {
+            console.warn('No se pudo registrar el cierre de sesión:', error);
+        }
+    }
+
     localStorage.removeItem('casaBarro_usuario');
     window.location.href = 'index.html';
 }
@@ -376,9 +453,23 @@ window.editarClienteCRM = function(cliente) {
     }).then(async (result) => {
         if (result.isConfirmed) {
             try {
-                const res = await fetch(`http://localhost:3000/api/clientes/${cliente.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(result.value) });
-                if (res.ok) { Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 2000 }); cargarClientesCRM(); }
-            } catch (error) { Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Sin conexión', showConfirmButton: false, timer: 3000 }); }
+                const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
+                result.value.usuario_id = usuarioActual ? usuarioActual.id : null;
+
+                const res = await fetch(`http://localhost:3000/api/clientes/${cliente.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(result.value)
+                });
+
+                if (res.ok) {
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 2000 });
+                    cargarClientesCRM();
+                    if (document.getElementById('timeline-actividad')) cargarMiActividad();
+                }
+            } catch (error) {
+                Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Sin conexión', showConfirmButton: false, timer: 3000 });
+            }
         }
     });
 }
@@ -396,12 +487,24 @@ window.eliminarClienteCRM = function(id, nombre) {
     }).then(async (result) => {
         if (result.isConfirmed) {
             try {
-                const res = await fetch(`http://localhost:3000/api/clientes/${id}`, { method: 'DELETE' });
+                const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
+
+                const res = await fetch(`http://localhost:3000/api/clientes/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        usuario_id: usuarioActual ? usuarioActual.id : null
+                    })
+                });
+
                 if (res.ok) {
                     Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Cliente eliminado', showConfirmButton: false, timer: 2000 });
                     cargarClientesCRM();
+                    if (document.getElementById('timeline-actividad')) cargarMiActividad();
                 }
-            } catch (e) { Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Error de conexión', showConfirmButton: false, timer: 3000 }); }
+            } catch (e) {
+                Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Error de conexión', showConfirmButton: false, timer: 3000 });
+            }
         }
     });
 }
@@ -427,12 +530,15 @@ window.registrarContactoFijo = function(clienteId, clienteNombre, tipo) {
 
 window.guardarNuevoCliente = async function(event) {
     event.preventDefault();
+    const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
+
     const data = {
         nombre: document.getElementById('crm-nombre').value,
         correo: document.getElementById('crm-correo').value,
         telefono: document.getElementById('crm-telefono').value,
         empresa: document.getElementById('crm-empresa').value,
-        password: document.getElementById('crm-password').value
+        password: document.getElementById('crm-password').value,
+        usuario_id: usuarioActual ? usuarioActual.id : null // Enviamos quién hace el registro
     };
 
     try {
@@ -443,6 +549,7 @@ window.guardarNuevoCliente = async function(event) {
             Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Cliente agregado', showConfirmButton: false, timer: 2000 });
             document.getElementById('form-alta-cliente').reset();
             cargarClientesCRM(); 
+            if(document.getElementById('timeline-actividad')) cargarMiActividad(); // Recargar línea de tiempo
         } else {
             const error = await res.json();
             Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: error.error || 'Error al guardar', showConfirmButton: false, timer: 3000 });
@@ -462,7 +569,7 @@ window.cargarPersonal = async function() {
         
         let htmlFilas = '';
         resultado.data.forEach(emp => {
-            let badgeColor = emp.rol === 'admin' ? '#b7410e' : '#557268';
+            let badgeColor = emp.rol === 'admin' ? '#b7410e' : emp.rol === 'logistica' ? '#d9822b' : '#557268';
             const empData = JSON.stringify(emp).replace(/'/g, "\\'").replace(/"/g, "&quot;");
 
             htmlFilas += `
@@ -495,9 +602,38 @@ window.filtrarPersonal = function() {
 
 window.guardarPersonal = async function(event) {
     event.preventDefault();
-    const data = { nombre: document.getElementById('emp-nombre').value, correo: document.getElementById('emp-correo').value, password: document.getElementById('emp-pass').value, rol: document.getElementById('emp-rol').value, telefono: document.getElementById('emp-telefono').value };
-    const res = await fetch('http://localhost:3000/api/personal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-    if (res.ok) { Swal.fire({ toast:true, position:'top-end', icon:'success', title:'Empleado Registrado', showConfirmButton:false, timer:2000 }); document.getElementById('form-alta-personal').reset(); cargarPersonal(); }
+
+    const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
+
+    const data = {
+        nombre: document.getElementById('emp-nombre').value,
+        correo: document.getElementById('emp-correo').value,
+        password: document.getElementById('emp-pass').value,
+        rol: document.getElementById('emp-rol').value,
+        telefono: document.getElementById('emp-telefono').value,
+        usuario_id_actor: usuarioActual ? usuarioActual.id : null
+    };
+
+    try {
+        const res = await fetch('http://localhost:3000/api/personal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        const resultado = await res.json();
+
+        if (res.ok) {
+            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Empleado Registrado', showConfirmButton: false, timer: 2000 });
+            document.getElementById('form-alta-personal').reset();
+            cargarPersonal();
+            if (document.getElementById('timeline-actividad')) cargarMiActividad();
+        } else {
+            Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: resultado.error || 'Error al registrar', showConfirmButton: false, timer: 3000 });
+        }
+    } catch (error) {
+        Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Error de conexión', showConfirmButton: false, timer: 3000 });
+    }
 }
 
 window.editarPersonal = function(emp) {
@@ -516,6 +652,7 @@ window.editarPersonal = function(emp) {
                 <label style="font-size:0.85rem; font-weight:bold; color:var(--verde-logo);">Rol:</label>
                 <select id="edit-emp-rol" class="swal2-select" style="margin:0; width:100%;">
                     <option value="vendedor" ${emp.rol === 'vendedor' ? 'selected' : ''}>Vendedor</option>
+                    <option value="logistica" ${emp.rol === 'logistica' ? 'selected' : ''}>Logística</option>
                     <option value="admin" ${emp.rol === 'admin' ? 'selected' : ''}>Administrador Maestro</option>
                 </select>
             </form>
@@ -533,9 +670,26 @@ window.editarPersonal = function(emp) {
     }).then(async (result) => {
         if (result.isConfirmed) {
             try {
-                const res = await fetch(`http://localhost:3000/api/usuarios/${emp.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(result.value) });
-                if (res.ok) { Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Empleado actualizado', showConfirmButton: false, timer: 2000 }); cargarPersonal(); }
-            } catch (e) { Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Error de conexión', showConfirmButton: false, timer: 3000 }); }
+                const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
+                result.value.usuario_id_actor = usuarioActual ? usuarioActual.id : null;
+
+                const res = await fetch(`http://localhost:3000/api/usuarios/${emp.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(result.value)
+                });
+
+                const respuesta = await res.json();
+
+                if (res.ok) {
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Empleado actualizado', showConfirmButton: false, timer: 2000 });
+                    cargarPersonal();
+                } else {
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: respuesta.error || 'No se pudo actualizar', showConfirmButton: false, timer: 3000 });
+                }
+            } catch (e) {
+                Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Error de conexión', showConfirmButton: false, timer: 3000 });
+            }
         }
     });
 }
@@ -553,12 +707,27 @@ window.eliminarPersonal = function(id, nombre) {
     }).then(async (result) => {
         if (result.isConfirmed) {
             try {
-                const res = await fetch(`http://localhost:3000/api/usuarios/${id}`, { method: 'DELETE' });
+                const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
+
+                const res = await fetch(`http://localhost:3000/api/usuarios/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        usuario_id_actor: usuarioActual ? usuarioActual.id : null
+                    })
+                });
+
+                const respuesta = await res.json();
+
                 if (res.ok) {
                     Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Empleado eliminado', showConfirmButton: false, timer: 2000 });
                     cargarPersonal();
+                } else {
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: respuesta.error || 'No se pudo eliminar', showConfirmButton: false, timer: 3000 });
                 }
-            } catch (e) { Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Error de conexión', showConfirmButton: false, timer: 3000 }); }
+            } catch (e) {
+                Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Error de conexión', showConfirmButton: false, timer: 3000 });
+            }
         }
     });
 }
@@ -577,7 +746,7 @@ window.iniciarSesion = async function(event) {
         if (respuesta.ok && resultado.mensaje === "Éxito") {
             localStorage.setItem('casaBarro_usuario', JSON.stringify(resultado.usuario));
             Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 1500 }).then(() => {
-                window.location.href = (resultado.usuario.rol === 'admin' || resultado.usuario.rol === 'vendedor') ? 'admin.html' : 'perfil.html';
+                window.location.href = ['admin', 'vendedor', 'logistica'].includes(resultado.usuario.rol) ? 'admin.html' : 'perfil.html';
             });
         } else { Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: resultado.error || 'Credenciales inválidas', showConfirmButton: false, timer: 2500 }); }
     } catch (error) { Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Sin conexión', showConfirmButton: false, timer: 2500 }); }
@@ -598,7 +767,13 @@ window.guardarConfiguracion = async function(event) {
     const userLogueado = JSON.parse(localStorage.getItem('casaBarro_usuario'));
     if (!userLogueado) return;
 
-    const nuevaData = { nombre: document.getElementById('conf-nombre').value, correo: document.getElementById('conf-correo').value, password: document.getElementById('conf-pass').value, telefono: document.getElementById('conf-telefono').value };
+    const nuevaData = {
+        nombre: document.getElementById('conf-nombre').value,
+        correo: document.getElementById('conf-correo').value,
+        password: document.getElementById('conf-pass').value,
+        telefono: document.getElementById('conf-telefono').value,
+        usuario_id_actor: userLogueado.id
+    };
 
     try {
         const res = await fetch(`http://localhost:3000/api/usuarios/${userLogueado.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(nuevaData) });
@@ -611,50 +786,153 @@ window.guardarConfiguracion = async function(event) {
     } catch(e) { Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Sin conexión', showConfirmButton: false, timer: 3000 }); }
 }
 
-// Mi actividad (Timeline)
+// MI ACTIVIDAD: BITÁCORA GENERAL DEL SISTEMA
 window.cargarMiActividad = async function() {
     const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
     if (!usuarioActual) return;
 
+    const contenedor = document.getElementById('timeline-actividad');
+    if (!contenedor) return;
+
+    contenedor.innerHTML = '<p style="color:#777; text-align:center; padding:20px;">Cargando actividad...</p>';
+
     try {
-        const res = await fetch(`http://localhost:3000/api/mis-interacciones/${usuarioActual.id}`);
+        const res = await fetch(`http://localhost:3000/api/mis-actividades/${usuarioActual.id}`);
         const resultado = await res.json();
-        const contenedor = document.getElementById('timeline-actividad');
-        if (!contenedor) return;
+
+        if (!res.ok) {
+            throw new Error(resultado.error || 'No se pudo cargar la actividad');
+        }
 
         if (!resultado.data || resultado.data.length === 0) {
-            contenedor.innerHTML = '<p style="color: #777; text-align:center; padding: 20px;">No has registrado ninguna interacción aún.</p>';
+            contenedor.innerHTML = `
+                <div style="text-align:center; padding:40px 20px; color:#777;">
+                    <h3 style="color:var(--verde-logo); margin-bottom:8px;">Sin actividad registrada</h3>
+                    <p>Tus altas, ediciones, bajas y demás movimientos aparecerán aquí.</p>
+                </div>
+            `;
             return;
         }
 
+        const configuracion = {
+            ALTA:       { icono: '+', color: '#198754' },
+            EDICION:    { icono: '✎', color: '#d39e00' },
+            BAJA:       { icono: '−', color: '#b7410e' },
+            CRM:        { icono: '☎', color: '#2980b9' },
+            SESION:     { icono: '↪', color: '#6c757d' },
+            PEDIDO:     { icono: '▣', color: '#6f42c1' },
+            INVENTARIO: { icono: '▤', color: '#17a2b8' },
+            LOGISTICA:  { icono: '➜', color: '#d9822b' }
+        };
+
         let html = '';
-        resultado.data.forEach(int => {
-            let iconoSvg = '';
-            if (int.tipo === 'Llamada') {
-                iconoSvg = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>`;
-            } else if (int.tipo === 'Correo') {
-                iconoSvg = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>`;
-            } else {
-                iconoSvg = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>`;
+
+        resultado.data.forEach(act => {
+            const estilo = configuracion[act.accion] || { icono: '•', color: '#557268' };
+
+            let fechaTexto = '';
+            if (act.fecha) {
+                // SQLite guarda CURRENT_TIMESTAMP en UTC.
+                const fechaISO = act.fecha.includes('T') ? act.fecha : act.fecha.replace(' ', 'T') + 'Z';
+                const fecha = new Date(fechaISO);
+
+                if (!Number.isNaN(fecha.getTime())) {
+                    fechaTexto = fecha.toLocaleString('es-MX', {
+                        dateStyle: 'medium',
+                        timeStyle: 'short'
+                    });
+                }
             }
 
-            let fechaFormat = new Date(int.fecha).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
-            
+            const rolTexto = act.rol === 'admin'
+                ? 'Administrador'
+                : act.rol === 'vendedor'
+                    ? 'Vendedor'
+                    : act.rol === 'logistica'
+                        ? 'Logística'
+                        : act.rol;
+
             html += `
-                <div style="display: flex; gap: 15px; align-items: flex-start; border-left: 2px solid var(--verde-logo); padding-left: 20px; margin-left: 15px; position: relative;">
-                    <div style="position: absolute; left: -16px; top: 0; background: var(--verde-logo); width: 30px; height: 30px; border-radius: 50%; display: flex; justify-content: center; align-items: center; color: white;">
-                        ${iconoSvg}
+                <div class="actividad-item"
+                     data-accion="${act.accion}"
+                     data-modulo="${act.modulo}"
+                     style="display:flex; gap:16px; align-items:flex-start;">
+
+                    <div style="
+                        width:42px;
+                        height:42px;
+                        min-width:42px;
+                        border-radius:50%;
+                        background:${estilo.color};
+                        color:white;
+                        display:flex;
+                        justify-content:center;
+                        align-items:center;
+                        font-size:1.15rem;
+                        font-weight:bold;
+                        box-shadow:0 3px 8px rgba(0,0,0,0.12);">
+                        ${estilo.icono}
                     </div>
-                    <div style="background: white; border: 1px solid #eae5db; padding: 15px; border-radius: 8px; width: 100%; box-shadow: 0 2px 5px rgba(0,0,0,0.02);">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 10px;">
-                            <strong style="color: var(--verde-logo); font-size: 1.05rem;">Cliente: ${int.cliente_nombre}</strong>
-                            <span style="color: #777; font-size: 0.85rem; background: #fcf9f2; padding: 3px 8px; border-radius: 12px;">${fechaFormat}</span>
+
+                    <div style="
+                        flex:1;
+                        background:white;
+                        border:1px solid #eae5db;
+                        padding:16px 18px;
+                        border-radius:12px;
+                        box-shadow:0 2px 8px rgba(0,0,0,0.03);">
+
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:9px;">
+                            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                <span style="background:${estilo.color}; color:white; padding:4px 10px; border-radius:14px; font-size:0.75rem; font-weight:bold;">
+                                    ${act.accion}
+                                </span>
+                                <strong style="color:var(--verde-logo);">${act.modulo}</strong>
+                                <span style="color:#888; font-size:0.82rem;">${rolTexto || ''}</span>
+                            </div>
+
+                            <span style="color:#999; font-size:0.82rem;">${fechaTexto}</span>
                         </div>
-                        <p style="margin: 0; color: #555; font-size: 0.95rem; line-height: 1.5;">${int.descripcion}</p>
+
+                        <p style="margin:0; color:#444; line-height:1.5; font-size:0.95rem;">
+                            ${act.descripcion}
+                        </p>
                     </div>
                 </div>
             `;
         });
+
         contenedor.innerHTML = html;
-    } catch (e) { console.error("Error cargando actividad:", e); }
+        filtrarMiActividad();
+
+    } catch (error) {
+        console.error('Error cargando actividad:', error);
+        contenedor.innerHTML = `
+            <p style="color:#b7410e; text-align:center; padding:25px;">
+                No fue posible cargar la actividad.
+            </p>
+        `;
+    }
+}
+
+window.filtrarMiActividad = function() {
+    const filtro = document.getElementById('actividad-filtro');
+    const modulo = document.getElementById('actividad-modulo');
+    const texto = document.getElementById('actividad-busqueda');
+
+    const accionSeleccionada = filtro ? filtro.value : 'todos';
+    const moduloSeleccionado = modulo ? modulo.value : 'todos';
+    const busqueda = texto ? texto.value.toLowerCase().trim() : '';
+
+    document.querySelectorAll('.actividad-item').forEach(item => {
+        const accion = item.dataset.accion || '';
+        const moduloItem = item.dataset.modulo || '';
+        const contenido = item.innerText.toLowerCase();
+
+        const coincideAccion = accionSeleccionada === 'todos' || accion === accionSeleccionada;
+        const coincideModulo = moduloSeleccionado === 'todos' || moduloItem === moduloSeleccionado;
+        const coincideTexto = !busqueda || contenido.includes(busqueda);
+
+        item.style.display = (coincideAccion && coincideModulo && coincideTexto) ? 'flex' : 'none';
+    });
 }
