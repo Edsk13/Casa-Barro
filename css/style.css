@@ -42,6 +42,14 @@ header {
     color: var(--verde-logo);
 }
 
+.admin-sidebar .logo {
+    width: 100%;
+    justify-content: center;
+    color: white;
+    padding: 20px 10px;
+    box-sizing: border-box;
+}
+
 .logo-casa {
     font-family: 'Dancing Script', cursive;
     font-size: 2.4rem; 

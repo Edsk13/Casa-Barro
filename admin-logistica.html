@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logística | Casa Barro</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="admin-body">
+    <div class="admin-layout">
+        <div id="admin-sidebar-container"></div>
+
+        <main class="admin-main crm-main-bg">
+            <header class="admin-header">
+                <div>
+                    <h1>Estrategia Logística</h1>
+                    <p style="color: #777;">Administración de estrategias Push y Pull</p>
+                </div>
+
+                <div class="admin-user">
+                    <span id="admin-user-name">Cargando...</span>
+                </div>
+            </header>
+
+            <!-- RESUMEN PUSH / PULL -->
+            <div class="admin-grid-2" style="margin-top:20px;">
+                <section class="crm-card">
+                    <h2>Push</h2>
+
+                    <div style="margin-top:15px;">
+                        <p style="color:#555; line-height:1.6;">
+                            Reposición automática cuando el inventario alcanza el stock mínimo establecido.
+                        </p>
+                    </div>
+
+                    <div style="margin-top:20px;">
+                        <span
+                            id="total-productos-push"
+                            style="font-size:2rem; font-weight:bold; color:var(--verde-logo);"
+                        >
+                            0
+                        </span>
+
+                        <p style="color:#777;">Productos configurados</p>
+                    </div>
+                </section>
+
+                <section class="crm-card">
+                    <h2>Pull</h2>
+
+                    <div style="margin-top:15px;">
+                        <p style="color:#555; line-height:1.6;">
+                            Reposición realizada bajo pedido o cuando existe una necesidad específica.
+                        </p>
+                    </div>
+
+                    <div style="margin-top:20px;">
+                        <span
+                            id="total-productos-pull"
+                            style="font-size:2rem; font-weight:bold; color:var(--verde-logo);"
+                        >
+                            0
+                        </span>
+
+                        <p style="color:#777;">Productos configurados</p>
+                    </div>
+                </section>
+            </div>
+
+            <!-- FILTROS -->
+            <div class="crm-card">
+                <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+                    <input
+                        type="text"
+                        id="logistica-busqueda"
+                        placeholder="Buscar producto..."
+                        style="flex:2; min-width:220px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"
+                    >
+
+                    <select
+                        id="logistica-estrategia"
+                        style="flex:1; min-width:160px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;"
+                    >
+                        <option value="todos">Todas las estrategias</option>
+                        <option value="PUSH">Push</option>
+                        <option value="PULL">Pull</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- TABLA DE ESTRATEGIAS -->
+            <div class="crm-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:15px; flex-wrap:wrap;">
+                    <div>
+                        <h2>Configuración por Producto</h2>
+                        <p style="color:#777; margin-top:5px;">Estrategia logística asignada a cada producto</p>
+                    </div>
+                </div>
+
+                <div class="admin-table-container" style="margin-top:20px;">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Producto</th>
+                                <th>Stock actual</th>
+                                <th>Stock mínimo</th>
+                                <th>Estrategia</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="tabla-logistica">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- PEDIDOS DE REPOSICIÓN -->
+            <div class="crm-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:15px; flex-wrap:wrap;">
+                    <div>
+                        <h2>Pedidos de Reposición</h2>
+                        <p style="color:#777; margin-top:5px;">Seguimiento de solicitudes a proveedores</p>
+                    </div>
+
+                    <button
+                        type="button"
+                        id="btn-generar-pedido"
+                        class="btn-primary"
+                        style="width:auto; padding:8px 16px; font-size:0.9rem; border-radius:16px;"
+                    >
+                        Generar pedido
+                    </button>
+                </div>
+
+                <div class="admin-table-container" style="margin-top:20px;">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Insumo</th>
+                                <th>Proveedor</th>
+                                <th>Cantidad</th>
+                                <th>Origen</th>
+                                <th>Estado</th>
+                                <th>Fecha</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="tabla-pedidos-reposicion">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

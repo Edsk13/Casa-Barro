@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard SCM | Casa Barro</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="admin-body">
+    <div class="admin-layout">
+        <div id="admin-sidebar-container"></div>
+
+        <main class="admin-main crm-main-bg">
+            <header class="admin-header">
+                <div>
+                    <h1>Dashboard SCM</h1>
+                    <p style="color: #777;">Resumen de la cadena de suministros de Casa Barro</p>
+                </div>
+
+                <div class="admin-user">
+                    <span id="admin-user-name">Cargando...</span>
+                </div>
+            </header>
+
+            <!-- INDICADORES PRINCIPALES -->
+            <div class="admin-cards" style="margin-top: 20px;">
+                <div class="admin-card">
+                    <h3>Productos</h3>
+                    <div
+                        id="scm-total-productos"
+                        class="admin-stat"
+                    >
+                        0
+                    </div>
+                </div>
+
+                <div class="admin-card">
+                    <h3>Insumos</h3>
+                    <div
+                        id="scm-total-insumos"
+                        class="admin-stat"
+                    >
+                        0
+                    </div>
+                </div>
+
+                <div class="admin-card">
+                    <h3>Proveedores</h3>
+                    <div
+                        id="scm-total-proveedores"
+                        class="admin-stat"
+                    >
+                        0
+                    </div>
+                </div>
+
+                <div class="admin-card danger">
+                    <h3>Stock crítico</h3>
+                    <div
+                        id="scm-stock-critico"
+                        class="admin-stat"
+                    >
+                        0
+                    </div>
+                </div>
+            </div>
+
+            <!-- RESUMEN LOGÍSTICO -->
+            <div class="admin-grid-2">
+                <section class="crm-card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:15px; flex-wrap:wrap;">
+                        <div>
+                            <h2>Estrategias Logísticas</h2>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; gap:20px; margin-top:25px; flex-wrap:wrap;">
+                        <div style="flex:1; min-width:180px;">
+                            <p style="color:#777;">Productos Push</p>
+                            <span
+                                id="scm-total-push"
+                                style="font-size:2rem; font-weight:bold; color:var(--verde-logo);"
+                            >
+                                0
+                            </span>
+                        </div>
+
+                        <div style="flex:1; min-width:180px;">
+                            <p style="color:#777;">Productos Pull</p>
+                            <span
+                                id="scm-total-pull"
+                                style="font-size:2rem; font-weight:bold; color:var(--verde-logo);"
+                            >
+                                0
+                            </span>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="crm-card">
+                    <div>
+                        <h2>Pedidos</h2>
+                    </div>
+
+                    <div style="display:flex; gap:20px; margin-top:25px; flex-wrap:wrap;">
+                        <div style="flex:1; min-width:180px;">
+                            <p style="color:#777;">Pendientes</p>
+                            <span
+                                id="scm-pedidos-pendientes"
+                                style="font-size:2rem; font-weight:bold; color:#b7410e;"
+                            >
+                                0
+                            </span>
+                        </div>
+
+                        <div style="flex:1; min-width:180px;">
+                            <p style="color:#777;">Surtidos</p>
+                            <span
+                                id="scm-pedidos-surtidos"
+                                style="font-size:2rem; font-weight:bold; color:var(--verde-logo);"
+                            >
+                                0
+                            </span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- NIVEL DE MADUREZ SCM -->
+            <div class="crm-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:15px; flex-wrap:wrap;">
+                    <div>
+                        <h2>Nivel de Madurez SCM</h2>
+                        <p style="color:#777; margin-top:5px;">Estado actual de implementación del sistema</p>
+                    </div>
+
+                    <span
+                        id="scm-nivel-actual"
+                        style="background:var(--verde-logo); color:white; padding:8px 14px; border-radius:20px; font-weight:bold;"
+                    >
+                        Inicial
+                    </span>
+                </div>
+
+                <div style="margin-top:25px;">
+                    <div style="display:flex; justify-content:space-between; gap:15px; flex-wrap:wrap;">
+                        <div style="flex:1; min-width:200px;">
+                            <h3 style="color:var(--verde-logo);">Inicial</h3>
+                            <p style="color:#777; margin-top:8px; line-height:1.6;">
+                            </p>
+                        </div>
+
+                        <div style="flex:1; min-width:200px;">
+                            <h3 style="color:var(--verde-logo);">En desarrollo</h3>
+                            <p style="color:#777; margin-top:8px; line-height:1.6;">
+                            </p>
+                        </div>
+
+                        <div style="flex:1; min-width:200px;">
+                            <h3 style="color:var(--verde-logo);">Optimizado</h3>
+                            <p style="color:#777; margin-top:8px; line-height:1.6;">
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- INVENTARIO CRÍTICO -->
+            <div class="crm-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:15px; flex-wrap:wrap;">
+                    <div>
+                        <h2>Inventario Crítico</h2>
+                        <p style="color:#777; margin-top:5px;">Insumos que requieren atención</p>
+                    </div>
+
+                    <button
+                        type="button"
+                        class="btn-primary"
+                        onclick="window.location.href='admin-inventario.html'"
+                        style="width:auto; padding:8px 16px; font-size:0.9rem; border-radius:16px;"
+                    >
+                        Ver Inventario
+                    </button>
+                </div>
+
+                <div class="admin-table-container" style="margin-top:20px;">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Insumo</th>
+                                <th>Stock actual</th>
+                                <th>Stock mínimo</th>
+                                <th>Proveedor</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="tabla-scm-stock-critico">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- CHECKLIST SCM -->
+            <div class="crm-card">
+                <h2>Avance del Sistema SCM</h2>
+                <p style="color:#777; margin-top:5px;">Seguimiento de las funciones principales del módulo</p>
+
+                <div style="display:flex; flex-direction:column; gap:12px; margin-top:20px;">
+                    <div style="display:flex; justify-content:space-between; gap:15px; padding:12px 0; border-bottom:1px solid #eae5db;">
+                        <span>Productos registrados</span>
+                        <span id="scm-check-productos">—</span>
+                    </div>
+
+                    <div style="display:flex; justify-content:space-between; gap:15px; padding:12px 0; border-bottom:1px solid #eae5db;">
+                        <span>Proveedores registrados</span>
+                        <span id="scm-check-proveedores">—</span>
+                    </div>
+
+                    <div style="display:flex; justify-content:space-between; gap:15px; padding:12px 0; border-bottom:1px solid #eae5db;">
+                        <span>Inventario configurado</span>
+                        <span id="scm-check-inventario">—</span>
+                    </div>
+
+                    <div style="display:flex; justify-content:space-between; gap:15px; padding:12px 0; border-bottom:1px solid #eae5db;">
+                        <span>Trazabilidad de movimientos</span>
+                        <span id="scm-check-movimientos">—</span>
+                    </div>
+
+                    <div style="display:flex; justify-content:space-between; gap:15px; padding:12px 0; border-bottom:1px solid #eae5db;">
+                        <span>Estrategias Push / Pull</span>
+                        <span id="scm-check-logistica">—</span>
+                    </div>
+
+                    <div style="display:flex; justify-content:space-between; gap:15px; padding:12px 0;">
+                        <span>Pedidos y reposiciones</span>
+                        <span id="scm-check-pedidos">—</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario | Casa Barro</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="admin-body">
+    <div class="admin-layout">
+        <div id="admin-sidebar-container"></div>
+
+        <main class="admin-main crm-main-bg">
+            <header class="admin-header">
+                <div>
+                    <h1>Inventario de Insumos</h1>
+                    <p style="color: #777;">Control de existencias y porciones disponibles</p>
+                </div>
+
+                <div class="admin-user">
+                    <span id="admin-user-name">Cargando...</span>
+                </div>
+            </header>
+
+            <!-- CONTROLES DE INVENTARIO -->
+            <div class="crm-card" style="margin-top: 20px;">
+                <div style="display:flex; justify-content:space-between; gap:15px; flex-wrap:wrap; align-items:center;">
+                    <div style="display:flex; gap:12px; flex-wrap:wrap; flex:1;">
+                        <input
+                            type="text"
+                            id="inventario-busqueda"
+                            placeholder="Buscar insumo..."
+                            style="flex:2; min-width:220px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"
+                        >
+
+                        <select
+                            id="inventario-estado"
+                            style="flex:1; min-width:160px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;"
+                        >
+                            <option value="todos">Todos los estados</option>
+                            <option value="normal">Stock normal</option>
+                            <option value="bajo">Stock bajo</option>
+                            <option value="agotado">Agotado</option>
+                        </select>
+                    </div>
+
+                    <button
+                        type="button"
+                        id="btn-movimiento-inventario"
+                        class="btn-primary"
+                        style="width:auto; padding:8px 16px; font-size:0.9rem; border-radius:16px;"
+                    >
+                        Registrar movimiento
+                    </button>
+                </div>
+            </div>
+
+            <!-- TABLA DE INVENTARIO -->
+            <div class="crm-card">
+                <div class="admin-table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Insumo</th>
+                                <th>Proveedor</th>
+                                <th>Porciones disponibles</th>
+                                <th>Stock mínimo</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="tabla-inventario">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- HISTORIAL DE MOVIMIENTOS -->
+            <div class="crm-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:15px; flex-wrap:wrap;">
+                    <div>
+                        <h2>Movimientos de Inventario</h2>
+                        <p style="color:#777; margin-top:5px;">Entradas y salidas registradas</p>
+                    </div>
+
+                    <select
+                        id="movimiento-tipo"
+                        style="min-width:160px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;"
+                    >
+                        <option value="todos">Todos</option>
+                        <option value="entrada">Entradas</option>
+                        <option value="salida">Salidas</option>
+                    </select>
+                </div>
+
+                <div class="admin-table-container" style="margin-top:20px;">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Insumo</th>
+                                <th>Tipo</th>
+                                <th>Cantidad</th>
+                                <th>Motivo</th>
+                                <th>Usuario</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="tabla-movimientos-inventario">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
