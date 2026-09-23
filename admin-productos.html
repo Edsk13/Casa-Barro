@@ -3,313 +3,245 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestión de Productos | Casa Barro</title>
-    
+    <title>Productos | Casa Barro</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body class="admin-body">
-
     <div class="admin-layout">
-        <!-- ================= CONTENEDOR DEL MENÚ LATERAL ================= -->
         <div id="admin-sidebar-container"></div>
 
-        <!-- ================= CONTENIDO PRINCIPAL ================= -->
-        <main class="admin-main">
-            
+        <main class="admin-main crm-main-bg">
             <header class="admin-header">
                 <div>
-                    <h1>Gestión de Productos</h1>
-                    <p style="color: #777;">Controla el menú, precios y disponibilidad.</p>
+                    <h1>Productos</h1>
+                    <p style="color: #777;">Administración de productos y platillos</p>
                 </div>
+
                 <div class="admin-user">
-                    <span>Holi♡</span>
+                    <span id="admin-user-name">Cargando...</span>
                 </div>
             </header>
 
-            <!-- Buscador y Filtros -->
-            <div class="admin-toolbar">
-                <input type="text" id="admin-search" placeholder="Buscar por nombre..." oninput="filtrarProductosAdmin()">
-                
-                <select id="admin-filter-cat" onchange="filtrarProductosAdmin()">
-                    <option value="todos">Todas las categorías</option>
-                    <option value="alimentos">Alimentos</option>
-                    <option value="calientes">Bebidas Calientes</option>
-                    <option value="frias">Bebidas Frías</option>
-                    <option value="postres">Postres</option>
-                </select>
+            <!-- ALTA DE PRODUCTO -->
+            <div class="crm-card" style="margin-top: 20px;">
+                <h2>Nuevo Producto</h2>
 
-                <select id="admin-filter-status" onchange="filtrarProductosAdmin()">
-                    <option value="todos">Todos los estados</option>
-                    <option value="disponible">Disponible</option>
-                    <option value="agotado">Agotado</option>
-                </select>
+                <form
+                    id="form-alta-producto"
+                    onsubmit="guardarProducto(event)"
+                    style="display:grid; grid-template-columns:repeat(2, 1fr); gap:15px; margin-top:20px;"
+                >
+                    <div>
+                        <label for="producto-nombre" style="font-weight:bold; color:var(--verde-logo);">
+                            Nombre
+                        </label>
 
-                <button class="btn-admin-add" onclick="abrirFormularioProducto()">Agregar Producto</button>
+                        <input
+                            type="text"
+                            id="producto-nombre"
+                            required
+                            placeholder="Nombre del producto"
+                            style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"
+                        >
+                    </div>
+
+                    <div>
+                        <label for="producto-categoria" style="font-weight:bold; color:var(--verde-logo);">
+                            Categoría
+                        </label>
+
+                        <input
+                            type="text"
+                            id="producto-categoria"
+                            placeholder="Ej. Bebidas, Desayunos..."
+                            style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"
+                        >
+                    </div>
+
+                    <div style="grid-column:1 / -1;">
+                        <label for="producto-descripcion" style="font-weight:bold; color:var(--verde-logo);">
+                            Descripción
+                        </label>
+
+                        <textarea
+                            id="producto-descripcion"
+                            placeholder="Descripción del producto"
+                            style="width:100%; min-height:80px; resize:vertical; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"
+                        ></textarea>
+                    </div>
+
+                    <div>
+                        <label for="producto-precio" style="font-weight:bold; color:var(--verde-logo);">
+                            Precio de venta
+                        </label>
+
+                        <input
+                            type="number"
+                            id="producto-precio"
+                            min="0"
+                            step="0.01"
+                            value="0"
+                            required
+                            style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"
+                        >
+                    </div>
+
+                    <div>
+                        <label for="producto-costo" style="font-weight:bold; color:var(--verde-logo);">
+                            Costo unitario
+                        </label>
+
+                        <input
+                            type="number"
+                            id="producto-costo"
+                            min="0"
+                            step="0.01"
+                            value="0"
+                            style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"
+                        >
+                    </div>
+
+                    <div>
+                        <label for="producto-stock-actual" style="font-weight:bold; color:var(--verde-logo);">
+                            Stock actual
+                        </label>
+
+                        <input
+                            type="number"
+                            id="producto-stock-actual"
+                            min="0"
+                            step="1"
+                            value="0"
+                            style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"
+                        >
+                    </div>
+
+                    <div>
+                        <label for="producto-stock-minimo" style="font-weight:bold; color:var(--verde-logo);">
+                            Stock mínimo
+                        </label>
+
+                        <input
+                            type="number"
+                            id="producto-stock-minimo"
+                            min="0"
+                            step="1"
+                            value="0"
+                            style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"
+                        >
+                    </div>
+
+                    <div>
+                        <label for="producto-proveedor" style="font-weight:bold; color:var(--verde-logo);">
+                            Proveedor principal
+                        </label>
+
+                        <select
+                            id="producto-proveedor"
+                            style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;"
+                        >
+                            <option value="">Sin proveedor</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="producto-estrategia" style="font-weight:bold; color:var(--verde-logo);">
+                            Estrategia logística
+                        </label>
+
+                        <select
+                            id="producto-estrategia"
+                            style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;"
+                        >
+                            <option value="PULL">PULL</option>
+                            <option value="PUSH">PUSH</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="producto-estado" style="font-weight:bold; color:var(--verde-logo);">
+                            Estado
+                        </label>
+
+                        <select
+                            id="producto-estado"
+                            style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;"
+                        >
+                            <option value="disponible">Disponible</option>
+                            <option value="agotado">Agotado</option>
+                            <option value="inactivo">Inactivo</option>
+                        </select>
+                    </div>
+
+                    <div style="display:flex; align-items:flex-end;">
+                        <button
+                            type="submit"
+                            class="btn-primary"
+                            style="width:auto; padding:8px 16px; font-size:0.9rem; border-radius:16px;"
+                        >
+                            Guardar Producto
+                        </button>
+                    </div>
+                </form>
             </div>
 
-            <!-- Tabla de Productos -->
-            <div class="admin-table-container">
-                <table class="admin-table">
-                    <thead>
-                        <tr>
-                            <th>Imagen</th>
-                            <th>Nombre</th>
-                            <th>Categoría</th>
-                            <th>Precio</th>
-                            <th>Existencia</th>
-                            <th>Estado</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="admin-table-body">
-                        
-                        <!-- ================= ALIMENTOS ================= -->
-                        <tr class="admin-row" data-nombre="enchiladas suizas pollo queso cochinita" data-categoria="alimentos" data-estado="disponible">
-                            <td><img src="Enchiladas.jpeg" alt="Enchiladas"></td>
-                            <td><strong>Enchiladas Suizas</strong></td>
-                            <td>Alimentos</td>
-                            <td>$125.00</td>
-                            <td>20</td>
-                            <td><span class="badge-status disponible">Disponible</span></td>
-                            <td class="admin-actions">
-                                <button title="Ver Detalle" onclick="verDetalleAdmin('Enchiladas Suizas', 'Tacos de pollo, queso o cochinita pibil bañados en salsa suiza, queso y crema, acompañados de cebolla curtida y cilantro.', '$125.00 MXN', 'Enchiladas.jpeg')">Ver</button>
-                                <button title="Editar" onclick="abrirFormularioProducto(true)">Editar</button>
-                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarProductoAdmin('Enchiladas Suizas')">Eliminar</button>
-                            </td>
-                        </tr>
-                        <tr class="admin-row" data-nombre="chilaquiles verdes rojos mixtos" data-categoria="alimentos" data-estado="disponible">
-                            <td><img src="Chilaquiles.jpeg" alt="Chilaquiles"></td>
-                            <td><strong>Chilaquiles</strong></td>
-                            <td>Alimentos</td>
-                            <td>$110.00</td>
-                            <td>35</td>
-                            <td><span class="badge-status disponible">Disponible</span></td>
-                            <td class="admin-actions">
-                                <button title="Ver Detalle" onclick="verDetalleAdmin('Chilaquiles', 'Verdes, rojos o mixtos con queso, crema, cebolla curtida y aguacate. Acompañados con frijoles, cochinita, pollo, y/o huevo al gusto.', '$110.00 MXN', 'Chilaquiles.jpeg')">Ver</button>
-                                <button title="Editar" onclick="abrirFormularioProducto(true)">Editar</button>
-                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarProductoAdmin('Chilaquiles')">Eliminar</button>
-                            </td>
-                        </tr>
-                        <tr class="admin-row" data-nombre="torta de chilaquiles" data-categoria="alimentos" data-estado="disponible">
-                            <td><img src="TortadeChilaquiles.jpeg" alt="Torta Chilaquiles"></td>
-                            <td><strong>Torta de Chilaquiles</strong></td>
-                            <td>Alimentos</td>
-                            <td>$95.00</td>
-                            <td>15</td>
-                            <td><span class="badge-status disponible">Disponible</span></td>
-                            <td class="admin-actions">
-                                <button title="Ver Detalle" onclick="verDetalleAdmin('Torta de Chilaquiles', 'Verdes, rojos o mixtos con queso, crema, cebolla curtida y aguacate. Acompañados con frijoles, pollo, y/o huevo al gusto.', '$95.00 MXN', 'TortadeChilaquiles.jpeg')">Ver</button>
-                                <button title="Editar" onclick="abrirFormularioProducto(true)">Editar</button>
-                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarProductoAdmin('Torta de Chilaquiles')">Eliminar</button>
-                            </td>
-                        </tr>
-                        <tr class="admin-row" data-nombre="tacos de cochinita" data-categoria="alimentos" data-estado="disponible">
-                            <td><img src="TacosDeCochinita.jpeg" alt="Tacos Cochinita"></td>
-                            <td><strong>Tacos de Cochinita</strong></td>
-                            <td>Alimentos</td>
-                            <td>$120.00</td>
-                            <td>40</td>
-                            <td><span class="badge-status disponible">Disponible</span></td>
-                            <td class="admin-actions">
-                                <button title="Ver Detalle" onclick="verDetalleAdmin('Tacos de Cochinita', 'Orden de 4 deliciosos tacos de cochinita, acompañados con nuestra rica cebolla curtida y salsa de habanero.', '$120.00 MXN', 'TacosDeCochinita.jpeg')">Ver</button>
-                                <button title="Editar" onclick="abrirFormularioProducto(true)">Editar</button>
-                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarProductoAdmin('Tacos de Cochinita')">Eliminar</button>
-                            </td>
-                        </tr>
-                        <tr class="admin-row" data-nombre="torta de cochinita" data-categoria="alimentos" data-estado="disponible">
-                            <td><img src="Tortadecochinita.jpeg" alt="Torta Cochinita"></td>
-                            <td><strong>Torta de Cochinita</strong></td>
-                            <td>Alimentos</td>
-                            <td>$105.00</td>
-                            <td>18</td>
-                            <td><span class="badge-status disponible">Disponible</span></td>
-                            <td class="admin-actions">
-                                <button title="Ver Detalle" onclick="verDetalleAdmin('Torta de Cochinita', 'Tradicional torta de cochinita, servida con cebolla curtida y salsa de habanero.', '$105.00 MXN', 'Tortadecochinita.jpeg')">Ver</button>
-                                <button title="Editar" onclick="abrirFormularioProducto(true)">Editar</button>
-                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarProductoAdmin('Torta de Cochinita')">Eliminar</button>
-                            </td>
-                        </tr>
-                        <tr class="admin-row" data-nombre="club sandwich sándwich" data-categoria="alimentos" data-estado="disponible">
-                            <td><img src="ClubSandwinch.jpeg" alt="Club Sándwich"></td>
-                            <td><strong>Club Sándwich</strong></td>
-                            <td>Alimentos</td>
-                            <td>$130.00</td>
-                            <td>10</td>
-                            <td><span class="badge-status disponible">Disponible</span></td>
-                            <td class="admin-actions">
-                                <button title="Ver Detalle" onclick="verDetalleAdmin('Club Sándwich', 'Delicioso sándwich de 3 pisos con pollo, queso manchego, jamón de pavo, lechuga, jitomate y tocino. Acompañado de aderezo de la casa y papas fritas.', '$130.00 MXN', 'ClubSandwinch.jpeg')">Ver</button>
-                                <button title="Editar" onclick="abrirFormularioProducto(true)">Editar</button>
-                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarProductoAdmin('Club Sándwich')">Eliminar</button>
-                            </td>
-                        </tr>
-                        <tr class="admin-row" data-nombre="sandwich sándwich casa barro" data-categoria="alimentos" data-estado="disponible">
-                            <td><img src="SandwichCasaBarro.jpeg" alt="Sándwich Casa Barro"></td>
-                            <td><strong>Sándwich Casa Barro</strong></td>
-                            <td>Alimentos</td>
-                            <td>$115.00</td>
-                            <td>25</td>
-                            <td><span class="badge-status disponible">Disponible</span></td>
-                            <td class="admin-actions">
-                                <button title="Ver Detalle" onclick="verDetalleAdmin('Sándwich Casa Barro', 'El clásico de la casa: huevo, queso y tocino, acompañado con ensalada fresca y nuestro aderezo especial.', '$115.00 MXN', 'SandwichCasaBarro.jpeg')">Ver</button>
-                                <button title="Editar" onclick="abrirFormularioProducto(true)">Editar</button>
-                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarProductoAdmin('Sándwich Casa Barro')">Eliminar</button>
-                            </td>
-                        </tr>
-                        <tr class="admin-row" data-nombre="enfrijoladas" data-categoria="alimentos" data-estado="disponible">
-                            <td><img src="Enfrijoladas.jpeg" alt="Enfrijoladas"></td>
-                            <td><strong>Enfrijoladas</strong></td>
-                            <td>Alimentos</td>
-                            <td>$105.00</td>
-                            <td>30</td>
-                            <td><span class="badge-status disponible">Disponible</span></td>
-                            <td class="admin-actions">
-                                <button title="Ver Detalle" onclick="verDetalleAdmin('Enfrijoladas', 'Tacos de pollo o queso bañados en nuestra salsa especial de frijoles, queso fresco y crema. Acompañados de cebolla curtida y aguacate.', '$105.00 MXN', 'Enfrijoladas.jpeg')">Ver</button>
-                                <button title="Editar" onclick="abrirFormularioProducto(true)">Editar</button>
-                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarProductoAdmin('Enfrijoladas')">Eliminar</button>
-                            </td>
-                        </tr>
-                        <tr class="admin-row" data-nombre="croissants" data-categoria="alimentos" data-estado="disponible">
-                            <td><img src="Crossaint.jpeg" alt="Croissants"></td>
-                            <td><strong>Croissants</strong></td>
-                            <td>Alimentos</td>
-                            <td>$90.00</td>
-                            <td>12</td>
-                            <td><span class="badge-status disponible">Disponible</span></td>
-                            <td class="admin-actions">
-                                <button title="Ver Detalle" onclick="verDetalleAdmin('Croissants', 'A elegir: 3 quesos, jamón de pavo o jamón serrano. Acompañado con ensalada fresca y aderezo de la casa.', '$90.00 MXN', 'Crossaint.jpeg')">Ver</button>
-                                <button title="Editar" onclick="abrirFormularioProducto(true)">Editar</button>
-                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarProductoAdmin('Croissants')">Eliminar</button>
-                            </td>
-                        </tr>
-                        <tr class="admin-row" data-nombre="waffles salados huevo tocino" data-categoria="alimentos" data-estado="disponible">
-                            <td><img src="WaffleSalado.jpeg" alt="Waffles Salados"></td>
-                            <td><strong>Waffles Salados</strong></td>
-                            <td>Alimentos</td>
-                            <td>$115.00</td>
-                            <td>15</td>
-                            <td><span class="badge-status disponible">Disponible</span></td>
-                            <td class="admin-actions">
-                                <button title="Ver Detalle" onclick="verDetalleAdmin('Waffles Salados', 'Waffles recién hechos, acompañados con huevo al gusto y tocino crujiente.', '$115.00 MXN', 'WaffleSalado.jpeg')">Ver</button>
-                                <button title="Editar" onclick="abrirFormularioProducto(true)">Editar</button>
-                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarProductoAdmin('Waffles Salados')">Eliminar</button>
-                            </td>
-                        </tr>
+            <!-- FILTROS -->
+            <div class="crm-card">
+                <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+                    <input
+                        type="text"
+                        id="admin-search"
+                        placeholder="Buscar producto..."
+                        oninput="filtrarProductosAdmin()"
+                        style="flex:2; min-width:220px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"
+                    >
 
-                        <!-- ================= BEBIDAS CALIENTES ================= -->
-                        <tr class="admin-row" data-nombre="capuchinos lattes cafe calientes" data-categoria="calientes" data-estado="disponible">
-                            <td><img src="LatteCaliente.jpeg" alt="Capuchinos"></td>
-                            <td><strong>Capuchinos y Lattes</strong></td>
-                            <td>B. Calientes</td>
-                            <td>$65.00</td>
-                            <td>50</td>
-                            <td><span class="badge-status disponible">Disponible</span></td>
-                            <td class="admin-actions">
-                                <button title="Ver Detalle" onclick="verDetalleAdmin('Capuchinos y Lattes', 'Nuestras especialidades calientes. Elige tu base y sabor favorito.', '$65.00 MXN', 'LatteCaliente.jpeg')">Ver</button>
-                                <button title="Editar" onclick="abrirFormularioProducto(true)">Editar</button>
-                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarProductoAdmin('Capuchinos y Lattes')">Eliminar</button>
-                            </td>
-                        </tr>
-                        <tr class="admin-row" data-nombre="tes tisanas te calientes infusión" data-categoria="calientes" data-estado="disponible">
-                            <td><img src="Tizana.jpeg" alt="Tés"></td>
-                            <td><strong>Tés y Tisanas</strong></td>
-                            <td>B. Calientes</td>
-                            <td>$55.00</td>
-                            <td>40</td>
-                            <td><span class="badge-status disponible">Disponible</span></td>
-                            <td class="admin-actions">
-                                <button title="Ver Detalle" onclick="verDetalleAdmin('Tés y Tisanas', 'Sabores para relajar el alma.', '$55.00 MXN', 'Tizana.jpeg')">Ver</button>
-                                <button title="Editar" onclick="abrirFormularioProducto(true)">Editar</button>
-                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarProductoAdmin('Tés y Tisanas')">Eliminar</button>
-                            </td>
-                        </tr>
+                    <select
+                        id="admin-filter-cat"
+                        onchange="filtrarProductosAdmin()"
+                        style="flex:1; min-width:160px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;"
+                    >
+                        <option value="todos">Todas las categorías</option>
+                    </select>
 
-                        <!-- ================= BEBIDAS FRÍAS ================= -->
-                        <tr class="admin-row" data-nombre="malteadas helado frias dulces" data-categoria="frias" data-estado="disponible">
-                            <td><img src="Malteada.jpeg" alt="Malteadas"></td>
-                            <td><strong>Malteadas</strong></td>
-                            <td>B. Frías</td>
-                            <td>$80.00</td>
-                            <td>25</td>
-                            <td><span class="badge-status disponible">Disponible</span></td>
-                            <td class="admin-actions">
-                                <button title="Ver Detalle" onclick="verDetalleAdmin('Malteadas', 'Cremosas y refrescantes. Elige entre nuestros sabores clásicos: Fresa, Vainilla o Chocolate.', '$80.00 MXN', 'Malteada.jpeg')">Ver</button>
-                                <button title="Editar" onclick="abrirFormularioProducto(true)">Editar</button>
-                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarProductoAdmin('Malteadas')">Eliminar</button>
-                            </td>
-                        </tr>
-                        <tr class="admin-row" data-nombre="frappes lattes frios helados hielo" data-categoria="frias" data-estado="disponible">
-                            <td><img src="LatteFrio.jpeg" alt="Frappes"></td>
-                            <td><strong>Frappes y Lattes Fríos</strong></td>
-                            <td>B. Frías</td>
-                            <td>$85.00</td>
-                            <td>30</td>
-                            <td><span class="badge-status disponible">Disponible</span></td>
-                            <td class="admin-actions">
-                                <button title="Ver Detalle" onclick="verDetalleAdmin('Frappes y Lattes Fríos', 'El toque helado perfecto para acompañar tu brunch.', '$85.00 MXN', 'LatteFrio.jpeg')">Ver</button>
-                                <button title="Editar" onclick="abrirFormularioProducto(true)">Editar</button>
-                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarProductoAdmin('Frappes y Lattes Fríos')">Eliminar</button>
-                            </td>
-                        </tr>
-
-                        <!-- ================= POSTRES ================= -->
-                        <tr class="admin-row" data-nombre="hot cakes dulce postre" data-categoria="postres" data-estado="disponible">
-                            <td><img src="HotCakes.jpeg" alt="Hot Cakes"></td>
-                            <td><strong>Hot Cakes</strong></td>
-                            <td>Postres</td>
-                            <td>$95.00</td>
-                            <td>15</td>
-                            <td><span class="badge-status disponible">Disponible</span></td>
-                            <td class="admin-actions">
-                                <button title="Ver Detalle" onclick="verDetalleAdmin('Hot Cakes', 'Esponjosos y deliciosos. Pídelos naturales o acompáñalos con: frutos rojos, avellana, cajeta o helado de vainilla.', '$95.00 MXN', 'HotCakes.jpeg')">Ver</button>
-                                <button title="Editar" onclick="abrirFormularioProducto(true)">Editar</button>
-                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarProductoAdmin('Hot Cakes')">Eliminar</button>
-                            </td>
-                        </tr>
-                        <tr class="admin-row" data-nombre="waffles dulces postre maple" data-categoria="postres" data-estado="disponible">
-                            <td><img src="WaffleDulce.jpeg" alt="Waffles Dulces"></td>
-                            <td><strong>Waffles Dulces</strong></td>
-                            <td>Postres</td>
-                            <td>$105.00</td>
-                            <td>20</td>
-                            <td><span class="badge-status disponible">Disponible</span></td>
-                            <td class="admin-actions">
-                                <button title="Ver Detalle" onclick="verDetalleAdmin('Waffles Dulces', 'Nuestros crujientes waffles acompañados con frutos rojos frescos y miel maple.', '$105.00 MXN', 'WaffleDulce.jpeg')">Ver</button>
-                                <button title="Editar" onclick="abrirFormularioProducto(true)">Editar</button>
-                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarProductoAdmin('Waffles Dulces')">Eliminar</button>
-                            </td>
-                        </tr>
-                        <tr class="admin-row" data-nombre="waffles bruce chocolate avellana postre" data-categoria="postres" data-estado="disponible">
-                            <td><img src="WaffleBruce.jpeg" alt="Waffles Bruce"></td>
-                            <td><strong>Waffles Bruce</strong></td>
-                            <td>Postres</td>
-                            <td>$125.00</td>
-                            <td>10</td>
-                            <td><span class="badge-status disponible">Disponible</span></td>
-                            <td class="admin-actions">
-                                <button title="Ver Detalle" onclick="verDetalleAdmin('Waffles Bruce', 'El postre definitivo. Waffles bañados en crema de avellana, acompañados con frutos rojos y nuez.', '$125.00 MXN', 'WaffleBruce.jpeg')">Ver</button>
-                                <button title="Editar" onclick="abrirFormularioProducto(true)">Editar</button>
-                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarProductoAdmin('Waffles Bruce')">Eliminar</button>
-                            </td>
-                        </tr>
-                        <tr class="admin-row" data-nombre="pan frances francés postre dulce" data-categoria="postres" data-estado="disponible">
-                            <td><img src="PanFrances.jpeg" alt="Pan Francés"></td>
-                            <td><strong>Pan Francés</strong></td>
-                            <td>Postres</td>
-                            <td>$110.00</td>
-                            <td>12</td>
-                            <td><span class="badge-status disponible">Disponible</span></td>
-                            <td class="admin-actions">
-                                <button title="Ver Detalle" onclick="verDetalleAdmin('Pan Francés', 'Suave pan bañado y tostado, servido con una nube de crema batida y frutos rojos.', '$110.00 MXN', 'PanFrances.jpeg')">Ver</button>
-                                <button title="Editar" onclick="abrirFormularioProducto(true)">Editar</button>
-                                <button title="Eliminar" class="btn-eliminar-admin" onclick="eliminarProductoAdmin('Pan Francés')">Eliminar</button>
-                            </td>
-                        </tr>
-
-                    </tbody>
-                </table>
+                    <select
+                        id="admin-filter-status"
+                        onchange="filtrarProductosAdmin()"
+                        style="flex:1; min-width:160px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;"
+                    >
+                        <option value="todos">Todos los estados</option>
+                        <option value="disponible">Disponible</option>
+                        <option value="agotado">Agotado</option>
+                        <option value="inactivo">Inactivo</option>
+                    </select>
+                </div>
             </div>
 
+            <!-- TABLA DE PRODUCTOS -->
+            <div class="crm-card">
+                <div class="admin-table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Producto</th>
+                                <th>Categoría</th>
+                                <th>Precio</th>
+                                <th>Stock</th>
+                                <th>Mínimo</th>
+                                <th>Proveedor</th>
+                                <th>Estrategia</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="tabla-productos-admin">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </main>
     </div>
 
