@@ -149,43 +149,818 @@ function activarAlertas() {
     });
 }
 
+// ============================================================
+// MÓDULO SCM - PRODUCTOS Y PROVEEDORES
+// ============================================================
+
+let productosAdminCache = [];
+let proveedoresSCMCache = [];
+
+function escaparHtmlSCM(valor) {
+    return String(valor ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+// ============================================================
+// PRODUCTOS
+// ============================================================
+
+window.cargarProductosAdmin = async function() {
+    const tabla = document.getElementById('tabla-productos-admin');
+    if (!tabla) return;
+
+    try {
+        const respuesta = await fetch('http://localhost:3000/api/productos?todos=1');
+        const resultado = await respuesta.json();
+
+        if (!respuesta.ok) {
+            throw new Error(resultado.error || 'No se pudieron cargar los productos');
+        }
+
+        productosAdminCache = resultado.data || [];
+
+        if (productosAdminCache.length === 0) {
+            tabla.innerHTML = `
+                <tr>
+                    <td colspan="10" style="text-align:center; padding:30px; color:#777;">
+                        No hay productos registrados.
+                    </td>
+                </tr>
+            `;
+            actualizarFiltroCategoriasProductos();
+            return;
+        }
+
+        let html = '';
+
+        productosAdminCache.forEach(producto => {
+            let colorEstado = '#557268';
+            if (producto.estado === 'agotado') colorEstado = '#d9822b';
+            if (producto.estado === 'inactivo') colorEstado = '#777';
+
+            const colorEstrategia = producto.estrategia_logistica === 'PUSH'
+                ? '#b7410e'
+                : '#557268';
+
+            html += `
+                <tr
+                    class="admin-row producto-admin-row"
+                    data-nombre="${escaparHtmlSCM(producto.nombre).toLowerCase()}"
+                    data-categoria="${escaparHtmlSCM(producto.categoria || '')}"
+                    data-estado="${escaparHtmlSCM(producto.estado || '')}"
+                    style="border-bottom:1px solid #eae5db;"
+                >
+                    <td style="padding:10px;">${producto.id}</td>
+
+                    <td style="padding:10px;">
+                        <strong>${escaparHtmlSCM(producto.nombre)}</strong><br>
+                        <small style="color:#777;">
+                            ${escaparHtmlSCM(producto.descripcion || 'Sin descripción')}
+                        </small>
+                    </td>
+
+                    <td style="padding:10px;">
+                        ${escaparHtmlSCM(producto.categoria || 'Sin categoría')}
+                    </td>
+
+                    <td style="padding:10px;">
+                        $${Number(producto.precio || 0).toFixed(2)}
+                    </td>
+
+                    <td style="padding:10px;">
+                        ${Number(producto.stock_actual || 0)}
+                    </td>
+
+                    <td style="padding:10px;">
+                        ${Number(producto.stock_minimo || 0)}
+                    </td>
+
+                    <td style="padding:10px;">
+                        ${escaparHtmlSCM(producto.proveedor_nombre || 'Sin proveedor')}
+                    </td>
+
+                    <td style="padding:10px;">
+                        <span style="background:${colorEstrategia}; color:white; padding:3px 8px; border-radius:12px; font-size:0.8rem; font-weight:bold;">
+                            ${escaparHtmlSCM(producto.estrategia_logistica || 'PULL')}
+                        </span>
+                    </td>
+
+                    <td style="padding:10px;">
+                        <span style="background:${colorEstado}; color:white; padding:3px 8px; border-radius:12px; font-size:0.8rem;">
+                            ${escaparHtmlSCM(producto.estado || 'disponible')}
+                        </span>
+                    </td>
+
+                    <td class="admin-actions" style="padding:10px; display:flex; gap:5px; align-items:center;">
+                        <button onclick="editarProductoAdmin(${producto.id})">
+                            Editar
+                        </button>
+
+                        <button
+                            onclick="eliminarProductoAdmin(${producto.id})"
+                            style="background:#b7410e; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;"
+                        >
+                            Eliminar
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        tabla.innerHTML = html;
+        actualizarFiltroCategoriasProductos();
+        filtrarProductosAdmin();
+
+    } catch (error) {
+        console.error('Error cargando productos:', error);
+        tabla.innerHTML = `
+            <tr>
+                <td colspan="10" style="text-align:center; padding:30px; color:#b7410e;">
+                    No se pudieron cargar los productos.
+                </td>
+            </tr>
+        `;
+    }
+}
+
+window.actualizarFiltroCategoriasProductos = function() {
+    const select = document.getElementById('admin-filter-cat');
+    if (!select) return;
+
+    const valorAnterior = select.value;
+    const categorias = [
+        ...new Set(
+            productosAdminCache
+                .map(producto => producto.categoria)
+                .filter(Boolean)
+        )
+    ].sort();
+
+    select.innerHTML = '<option value="todos">Todas las categorías</option>';
+
+    categorias.forEach(categoria => {
+        select.innerHTML += `
+            <option value="${escaparHtmlSCM(categoria)}">
+                ${escaparHtmlSCM(categoria)}
+            </option>
+        `;
+    });
+
+    if ([...select.options].some(option => option.value === valorAnterior)) {
+        select.value = valorAnterior;
+    }
+}
+
 window.filtrarProductosAdmin = function() {
-    let inputBusqueda = document.getElementById('admin-search');
-    let selectCategoria = document.getElementById('admin-filter-cat');
-    let selectEstado = document.getElementById('admin-filter-status');
+    const inputBusqueda = document.getElementById('admin-search');
+    const selectCategoria = document.getElementById('admin-filter-cat');
+    const selectEstado = document.getElementById('admin-filter-status');
 
     if (!inputBusqueda || !selectCategoria || !selectEstado) return;
 
-    let texto = inputBusqueda.value.toLowerCase();
-    let categoria = selectCategoria.value;
-    let estado = selectEstado.value;
-    let filas = document.querySelectorAll('.admin-row');
-    
-    filas.forEach(fila => {
-        let nombre = fila.getAttribute('data-nombre').toLowerCase();
-        let cat = fila.getAttribute('data-categoria');
-        let est = fila.getAttribute('data-estado');
-        let coincideTexto = nombre.includes(texto);
-        let coincideCat = (categoria === 'todos') || (cat === categoria);
-        let coincideEst = (estado === 'todos') || (est === estado);
-        
-        fila.style.display = (coincideTexto && coincideCat && coincideEst) ? '' : 'none';
+    const texto = inputBusqueda.value.toLowerCase().trim();
+    const categoria = selectCategoria.value;
+    const estado = selectEstado.value;
+
+    document.querySelectorAll('.producto-admin-row').forEach(fila => {
+        const nombre = fila.dataset.nombre || '';
+        const categoriaFila = fila.dataset.categoria || '';
+        const estadoFila = fila.dataset.estado || '';
+
+        const coincideTexto = nombre.includes(texto);
+        const coincideCategoria = categoria === 'todos' || categoriaFila === categoria;
+        const coincideEstado = estado === 'todos' || estadoFila === estado;
+
+        fila.style.display = coincideTexto && coincideCategoria && coincideEstado
+            ? ''
+            : 'none';
     });
 }
 
-window.abrirFormularioProducto = function(editMode = false) {
-    let title = editMode ? 'Editar Producto' : 'Agregar Nuevo Producto';
-    let btnText = editMode ? 'Guardar Cambios' : 'Guardar Producto';
-    Swal.fire({ title: title, html: `<p>Panel dinámico bloqueado hasta Sprint 2.</p>`, showCancelButton: true, confirmButtonText: btnText, confirmButtonColor: '#3c4a45' }).then((result) => {
-        if (result.isConfirmed) Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 1500 });
+window.guardarProducto = async function(event) {
+    event.preventDefault();
+
+    const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
+
+    const data = {
+        nombre: document.getElementById('producto-nombre').value.trim(),
+        descripcion: document.getElementById('producto-descripcion').value.trim(),
+        categoria: document.getElementById('producto-categoria').value.trim(),
+        precio: Number(document.getElementById('producto-precio').value),
+        stock_actual: Number(document.getElementById('producto-stock-actual').value),
+        stock_minimo: Number(document.getElementById('producto-stock-minimo').value),
+        proveedor_id: document.getElementById('producto-proveedor').value || null,
+        costo_unitario: Number(document.getElementById('producto-costo').value),
+        estrategia_logistica: document.getElementById('producto-estrategia').value,
+        estado: document.getElementById('producto-estado').value,
+        usuario_id: usuarioActual ? usuarioActual.id : null
+    };
+
+    try {
+        const respuesta = await fetch('http://localhost:3000/api/productos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        const resultado = await respuesta.json();
+
+        if (!respuesta.ok) {
+            return Swal.fire({
+                icon: 'error',
+                title: resultado.error || 'No se pudo registrar',
+                confirmButtonColor: '#3c4a45'
+            });
+        }
+
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'Producto registrado',
+            showConfirmButton: false,
+            timer: 2000
+        });
+
+        document.getElementById('form-alta-producto').reset();
+        document.getElementById('producto-precio').value = 0;
+        document.getElementById('producto-costo').value = 0;
+        document.getElementById('producto-stock-actual').value = 0;
+        document.getElementById('producto-stock-minimo').value = 0;
+        document.getElementById('producto-estrategia').value = 'PULL';
+        document.getElementById('producto-estado').value = 'disponible';
+
+        await cargarProductosAdmin();
+
+    } catch (error) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Error de conexión',
+            confirmButtonColor: '#3c4a45'
+        });
+    }
+}
+
+window.editarProductoAdmin = async function(id) {
+    const producto = productosAdminCache.find(item => Number(item.id) === Number(id));
+    if (!producto) return;
+
+    try {
+        await obtenerProveedoresSCM(false);
+    } catch (error) {
+        return Swal.fire({
+            icon: 'error',
+            title: 'No se pudieron cargar los proveedores',
+            confirmButtonColor: '#3c4a45'
+        });
+    }
+
+    let opcionesProveedor = '<option value="">Sin proveedor</option>';
+
+    proveedoresSCMCache.forEach(proveedor => {
+        opcionesProveedor += `
+            <option
+                value="${proveedor.id}"
+                ${Number(producto.proveedor_id) === Number(proveedor.id) ? 'selected' : ''}
+            >
+                ${escaparHtmlSCM(proveedor.nombre)}${proveedor.estado === 'inactivo' ? ' (Inactivo)' : ''}
+            </option>
+        `;
+    });
+
+    Swal.fire({
+        title: 'Editar Producto',
+        width: '600px',
+        html: `
+            <div style="display:flex; flex-direction:column; gap:10px; text-align:left;">
+                <label>Nombre:</label>
+                <input type="text" id="edit-producto-nombre" class="swal2-input" style="margin:0; width:100%;" value="${escaparHtmlSCM(producto.nombre)}">
+
+                <label>Descripción:</label>
+                <textarea id="edit-producto-descripcion" class="swal2-textarea" style="margin:0; width:100%;">${escaparHtmlSCM(producto.descripcion || '')}</textarea>
+
+                <label>Categoría:</label>
+                <input type="text" id="edit-producto-categoria" class="swal2-input" style="margin:0; width:100%;" value="${escaparHtmlSCM(producto.categoria || '')}">
+
+                <div style="display:flex; gap:10px;">
+                    <div style="flex:1;">
+                        <label>Precio:</label>
+                        <input type="number" id="edit-producto-precio" class="swal2-input" min="0" step="0.01" style="margin:0; width:100%;" value="${Number(producto.precio || 0)}">
+                    </div>
+                    <div style="flex:1;">
+                        <label>Costo:</label>
+                        <input type="number" id="edit-producto-costo" class="swal2-input" min="0" step="0.01" style="margin:0; width:100%;" value="${Number(producto.costo_unitario || 0)}">
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:10px;">
+                    <div style="flex:1;">
+                        <label>Stock actual:</label>
+                        <input type="number" id="edit-producto-stock" class="swal2-input" min="0" step="1" style="margin:0; width:100%;" value="${Number(producto.stock_actual || 0)}">
+                    </div>
+                    <div style="flex:1;">
+                        <label>Stock mínimo:</label>
+                        <input type="number" id="edit-producto-minimo" class="swal2-input" min="0" step="1" style="margin:0; width:100%;" value="${Number(producto.stock_minimo || 0)}">
+                    </div>
+                </div>
+
+                <label>Proveedor:</label>
+                <select id="edit-producto-proveedor" class="swal2-select" style="margin:0; width:100%;">
+                    ${opcionesProveedor}
+                </select>
+
+                <label>Estrategia:</label>
+                <select id="edit-producto-estrategia" class="swal2-select" style="margin:0; width:100%;">
+                    <option value="PULL" ${producto.estrategia_logistica === 'PULL' ? 'selected' : ''}>PULL</option>
+                    <option value="PUSH" ${producto.estrategia_logistica === 'PUSH' ? 'selected' : ''}>PUSH</option>
+                </select>
+
+                <label>Estado:</label>
+                <select id="edit-producto-estado" class="swal2-select" style="margin:0; width:100%;">
+                    <option value="disponible" ${producto.estado === 'disponible' ? 'selected' : ''}>Disponible</option>
+                    <option value="agotado" ${producto.estado === 'agotado' ? 'selected' : ''}>Agotado</option>
+                    <option value="inactivo" ${producto.estado === 'inactivo' ? 'selected' : ''}>Inactivo</option>
+                </select>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Actualizar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#3c4a45',
+        preConfirm: () => {
+            const nombre = document.getElementById('edit-producto-nombre').value.trim();
+
+            if (!nombre) {
+                Swal.showValidationMessage('El nombre es obligatorio');
+                return false;
+            }
+
+            const precio = Number(document.getElementById('edit-producto-precio').value);
+            const costo = Number(document.getElementById('edit-producto-costo').value);
+            const stockActual = Number(document.getElementById('edit-producto-stock').value);
+            const stockMinimo = Number(document.getElementById('edit-producto-minimo').value);
+
+            if (precio < 0 || costo < 0 || stockActual < 0 || stockMinimo < 0) {
+                Swal.showValidationMessage('Precio, costo y existencias no pueden ser negativos');
+                return false;
+            }
+
+            return {
+                nombre,
+                descripcion: document.getElementById('edit-producto-descripcion').value.trim(),
+                categoria: document.getElementById('edit-producto-categoria').value.trim(),
+                precio,
+                costo_unitario: costo,
+                stock_actual: stockActual,
+                stock_minimo: stockMinimo,
+                proveedor_id: document.getElementById('edit-producto-proveedor').value || null,
+                estrategia_logistica: document.getElementById('edit-producto-estrategia').value,
+                estado: document.getElementById('edit-producto-estado').value
+            };
+        }
+    }).then(async result => {
+        if (!result.isConfirmed) return;
+
+        const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
+        result.value.usuario_id = usuarioActual ? usuarioActual.id : null;
+
+        try {
+            const respuesta = await fetch(`http://localhost:3000/api/productos/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(result.value)
+            });
+
+            const datos = await respuesta.json();
+
+            if (!respuesta.ok) {
+                return Swal.fire({
+                    icon: 'error',
+                    title: datos.error || 'No se pudo actualizar',
+                    confirmButtonColor: '#3c4a45'
+                });
+            }
+
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'Producto actualizado',
+                showConfirmButton: false,
+                timer: 2000
+            });
+
+            cargarProductosAdmin();
+
+        } catch (error) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error de conexión',
+                confirmButtonColor: '#3c4a45'
+            });
+        }
     });
 }
 
-window.eliminarProductoAdmin = function(nombreProducto) {
-    Swal.fire({ title: `¿Eliminar ${nombreProducto}?`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Sí, eliminar' }).then((result) => {
-        if (result.isConfirmed) Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 1500 });
+window.eliminarProductoAdmin = function(id) {
+    const producto = productosAdminCache.find(item => Number(item.id) === Number(id));
+    if (!producto) return;
+
+    Swal.fire({
+        title: `¿Dar de baja ${producto.nombre}?`,
+        text: 'El producto quedará inactivo y conservará su historial.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#b7410e',
+        cancelButtonColor: '#8a8a8a',
+        confirmButtonText: 'Sí, dar de baja',
+        cancelButtonText: 'Cancelar'
+    }).then(async result => {
+        if (!result.isConfirmed) return;
+
+        const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
+
+        try {
+            const respuesta = await fetch(`http://localhost:3000/api/productos/${id}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    usuario_id: usuarioActual ? usuarioActual.id : null
+                })
+            });
+
+            const datos = await respuesta.json();
+
+            if (!respuesta.ok) {
+                return Swal.fire({
+                    icon: 'error',
+                    title: datos.error || 'No se pudo dar de baja',
+                    confirmButtonColor: '#3c4a45'
+                });
+            }
+
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'Producto dado de baja',
+                showConfirmButton: false,
+                timer: 2000
+            });
+
+            cargarProductosAdmin();
+
+        } catch (error) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error de conexión',
+                confirmButtonColor: '#3c4a45'
+            });
+        }
     });
 }
+
+// ============================================================
+// PROVEEDORES
+// ============================================================
+
+window.obtenerProveedoresSCM = async function(soloActivos = false) {
+    const url = soloActivos
+        ? 'http://localhost:3000/api/proveedores?activos=1'
+        : 'http://localhost:3000/api/proveedores';
+
+    const respuesta = await fetch(url);
+    const resultado = await respuesta.json();
+
+    if (!respuesta.ok) {
+        throw new Error(resultado.error || 'No se pudieron cargar los proveedores');
+    }
+
+    proveedoresSCMCache = resultado.data || [];
+    return proveedoresSCMCache;
+}
+
+window.cargarProveedoresEnProductos = async function() {
+    const select = document.getElementById('producto-proveedor');
+    if (!select) return;
+
+    try {
+        const proveedores = await obtenerProveedoresSCM(true);
+        select.innerHTML = '<option value="">Sin proveedor</option>';
+
+        proveedores.forEach(proveedor => {
+            select.innerHTML += `
+                <option value="${proveedor.id}">
+                    ${escaparHtmlSCM(proveedor.nombre)}
+                </option>
+            `;
+        });
+
+    } catch (error) {
+        console.error('Error cargando proveedores:', error);
+    }
+}
+
+window.cargarProveedores = async function() {
+    const tabla = document.getElementById('tabla-proveedores');
+    if (!tabla) return;
+
+    try {
+        const proveedores = await obtenerProveedoresSCM(false);
+
+        if (proveedores.length === 0) {
+            tabla.innerHTML = `
+                <tr>
+                    <td colspan="7" style="text-align:center; padding:30px; color:#777;">
+                        No hay proveedores registrados.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        let html = '';
+
+        proveedores.forEach(proveedor => {
+            const colorEstado = proveedor.estado === 'activo' ? '#557268' : '#777';
+
+            html += `
+                <tr
+                    class="proveedor-row"
+                    data-nombre="${escaparHtmlSCM(proveedor.nombre).toLowerCase()}"
+                    data-contacto="${escaparHtmlSCM(proveedor.contacto || '').toLowerCase()}"
+                    data-estado="${escaparHtmlSCM(proveedor.estado || 'activo')}"
+                    style="border-bottom:1px solid #eae5db;"
+                >
+                    <td style="padding:10px;">${proveedor.id}</td>
+                    <td style="padding:10px;"><strong>${escaparHtmlSCM(proveedor.nombre)}</strong></td>
+                    <td style="padding:10px;">${escaparHtmlSCM(proveedor.contacto || '-')}</td>
+                    <td style="padding:10px;">${escaparHtmlSCM(proveedor.correo || '-')}</td>
+                    <td style="padding:10px;">${escaparHtmlSCM(proveedor.telefono || '-')}</td>
+                    <td style="padding:10px;">
+                        <span style="background:${colorEstado}; color:white; padding:3px 8px; border-radius:12px; font-size:0.8rem;">
+                            ${escaparHtmlSCM(proveedor.estado || 'activo')}
+                        </span>
+                    </td>
+                    <td class="admin-actions" style="padding:10px; display:flex; gap:5px; align-items:center;">
+                        <button onclick="editarProveedor(${proveedor.id})">Editar</button>
+                        <button
+                            onclick="eliminarProveedor(${proveedor.id})"
+                            style="background:#b7410e; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;"
+                        >
+                            Eliminar
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        tabla.innerHTML = html;
+        filtrarProveedores();
+
+    } catch (error) {
+        console.error('Error cargando proveedores:', error);
+        tabla.innerHTML = `
+            <tr>
+                <td colspan="7" style="text-align:center; padding:30px; color:#b7410e;">
+                    No se pudieron cargar los proveedores.
+                </td>
+            </tr>
+        `;
+    }
+}
+
+window.guardarProveedor = async function(event) {
+    event.preventDefault();
+
+    const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
+
+    const data = {
+        nombre: document.getElementById('proveedor-nombre').value.trim(),
+        contacto: document.getElementById('proveedor-contacto').value.trim(),
+        correo: document.getElementById('proveedor-correo').value.trim(),
+        telefono: document.getElementById('proveedor-telefono').value.trim(),
+        usuario_id: usuarioActual ? usuarioActual.id : null
+    };
+
+    try {
+        const respuesta = await fetch('http://localhost:3000/api/proveedores', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        const resultado = await respuesta.json();
+
+        if (!respuesta.ok) {
+            return Swal.fire({
+                icon: 'error',
+                title: resultado.error || 'No se pudo registrar',
+                confirmButtonColor: '#3c4a45'
+            });
+        }
+
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'Proveedor registrado',
+            showConfirmButton: false,
+            timer: 2000
+        });
+
+        document.getElementById('form-alta-proveedor').reset();
+        await cargarProveedores();
+
+    } catch (error) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Error de conexión',
+            confirmButtonColor: '#3c4a45'
+        });
+    }
+}
+
+window.editarProveedor = function(id) {
+    const proveedor = proveedoresSCMCache.find(item => Number(item.id) === Number(id));
+    if (!proveedor) return;
+
+    Swal.fire({
+        title: 'Editar Proveedor',
+        html: `
+            <div style="display:flex; flex-direction:column; gap:10px; text-align:left;">
+                <label>Nombre:</label>
+                <input type="text" id="edit-proveedor-nombre" class="swal2-input" style="margin:0; width:100%;" value="${escaparHtmlSCM(proveedor.nombre)}">
+
+                <label>Contacto:</label>
+                <input type="text" id="edit-proveedor-contacto" class="swal2-input" style="margin:0; width:100%;" value="${escaparHtmlSCM(proveedor.contacto || '')}">
+
+                <label>Correo:</label>
+                <input type="email" id="edit-proveedor-correo" class="swal2-input" style="margin:0; width:100%;" value="${escaparHtmlSCM(proveedor.correo || '')}">
+
+                <label>Teléfono:</label>
+                <input type="text" id="edit-proveedor-telefono" class="swal2-input" style="margin:0; width:100%;" value="${escaparHtmlSCM(proveedor.telefono || '')}">
+
+                <label>Estado:</label>
+                <select id="edit-proveedor-estado" class="swal2-select" style="margin:0; width:100%;">
+                    <option value="activo" ${proveedor.estado === 'activo' ? 'selected' : ''}>Activo</option>
+                    <option value="inactivo" ${proveedor.estado === 'inactivo' ? 'selected' : ''}>Inactivo</option>
+                </select>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Actualizar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#3c4a45',
+        preConfirm: () => {
+            const nombre = document.getElementById('edit-proveedor-nombre').value.trim();
+
+            if (!nombre) {
+                Swal.showValidationMessage('El nombre es obligatorio');
+                return false;
+            }
+
+            return {
+                nombre,
+                contacto: document.getElementById('edit-proveedor-contacto').value.trim(),
+                correo: document.getElementById('edit-proveedor-correo').value.trim(),
+                telefono: document.getElementById('edit-proveedor-telefono').value.trim(),
+                estado: document.getElementById('edit-proveedor-estado').value
+            };
+        }
+    }).then(async result => {
+        if (!result.isConfirmed) return;
+
+        const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
+        result.value.usuario_id = usuarioActual ? usuarioActual.id : null;
+
+        try {
+            const respuesta = await fetch(`http://localhost:3000/api/proveedores/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(result.value)
+            });
+
+            const datos = await respuesta.json();
+
+            if (!respuesta.ok) {
+                return Swal.fire({
+                    icon: 'error',
+                    title: datos.error || 'No se pudo actualizar',
+                    confirmButtonColor: '#3c4a45'
+                });
+            }
+
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'Proveedor actualizado',
+                showConfirmButton: false,
+                timer: 2000
+            });
+
+            cargarProveedores();
+
+        } catch (error) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error de conexión',
+                confirmButtonColor: '#3c4a45'
+            });
+        }
+    });
+}
+
+window.eliminarProveedor = function(id) {
+    const proveedor = proveedoresSCMCache.find(item => Number(item.id) === Number(id));
+    if (!proveedor) return;
+
+    Swal.fire({
+        title: `¿Dar de baja ${proveedor.nombre}?`,
+        text: 'El proveedor quedará inactivo y conservará su historial.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#b7410e',
+        cancelButtonColor: '#8a8a8a',
+        confirmButtonText: 'Sí, dar de baja',
+        cancelButtonText: 'Cancelar'
+    }).then(async result => {
+        if (!result.isConfirmed) return;
+
+        const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
+
+        try {
+            const respuesta = await fetch(`http://localhost:3000/api/proveedores/${id}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    usuario_id: usuarioActual ? usuarioActual.id : null
+                })
+            });
+
+            const datos = await respuesta.json();
+
+            if (!respuesta.ok) {
+                return Swal.fire({
+                    icon: 'error',
+                    title: datos.error || 'No se pudo dar de baja',
+                    confirmButtonColor: '#3c4a45'
+                });
+            }
+
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'Proveedor dado de baja',
+                showConfirmButton: false,
+                timer: 2000
+            });
+
+            cargarProveedores();
+
+            if (document.getElementById('producto-proveedor')) {
+                cargarProveedoresEnProductos();
+            }
+
+        } catch (error) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error de conexión',
+                confirmButtonColor: '#3c4a45'
+            });
+        }
+    });
+}
+
+window.filtrarProveedores = function() {
+    const input = document.getElementById('proveedor-busqueda');
+    const selectEstado = document.getElementById('proveedor-estado');
+
+    if (!input || !selectEstado) return;
+
+    const texto = input.value.toLowerCase().trim();
+    const estado = selectEstado.value;
+
+    document.querySelectorAll('.proveedor-row').forEach(fila => {
+        const nombre = fila.dataset.nombre || '';
+        const contacto = fila.dataset.contacto || '';
+        const estadoFila = fila.dataset.estado || '';
+
+        const coincideTexto = nombre.includes(texto) || contacto.includes(texto);
+        const coincideEstado = estado === 'todos' || estadoFila === estado;
+
+        fila.style.display = coincideTexto && coincideEstado
+            ? ''
+            : 'none';
+    });
+}
+
 
 // INICIALIZADOR DE SEGURIDAD Y VISTAS
 document.addEventListener('DOMContentLoaded', async () => {
@@ -270,11 +1045,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     if(btnCarritoNav) btnCarritoNav.addEventListener('click', () => window.location.href = 'carrito.html');
 
     // 5. Cargar Tablas Específicas según la página
-    if(document.getElementById('tabla-clientes-crm')) cargarClientesCRM();
-    if(document.getElementById('tabla-personal')) cargarPersonal();
-    if(document.getElementById('tabla-proveedores')) cargarProveedores();
-    if(window.location.pathname.includes('catalogo.html')) cargarProductosBD();
-    if(document.getElementById('timeline-actividad')) cargarMiActividad();
+    if(document.getElementById('tabla-clientes-crm')) {
+        cargarClientesCRM();
+    }
+
+    if(document.getElementById('tabla-personal')) {
+        cargarPersonal();
+    }
+
+    if(document.getElementById('tabla-productos-admin')) {
+        cargarProductosAdmin();
+        cargarProveedoresEnProductos();
+    }
+
+    if(document.getElementById('tabla-proveedores')) {
+        cargarProveedores();
+    }
+
+    if(window.location.pathname.includes('catalogo.html') && typeof cargarProductosBD === 'function') {
+        cargarProductosBD();
+    }
+
+    if(document.getElementById('timeline-actividad')) {
+        cargarMiActividad();
+    }
 });
 
 window.cerrarSesionAdmin = async function(e) {
