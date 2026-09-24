@@ -480,6 +480,440 @@ app.delete('/api/proveedores/:id', (req, res) => {
     });
 });
 
+
+// ============================================================
+// SCM: INSUMOS, INVENTARIO Y RECETAS
+// ============================================================
+
+function recalcularDisponibilidadProducto(productoId, callback = () => {}) {
+    const sql = `
+        SELECT pi.porciones_requeridas, COALESCE(inv.stock_actual, 0) AS stock_actual
+        FROM producto_insumo pi
+        LEFT JOIN inventario inv ON inv.insumo_id = pi.insumo_id
+        WHERE pi.producto_id = ?
+    `;
+
+    db.all(sql, [productoId], (err, rows) => {
+        if (err) return callback(err);
+
+        const disponibles = rows.length === 0
+            ? 0
+            : Math.min(...rows.map(row => Math.floor(Number(row.stock_actual || 0) / Number(row.porciones_requeridas || 1))));
+
+        db.run('UPDATE productos SET stock_actual = ? WHERE id = ?', [disponibles, productoId], (errUpdate) => {
+            callback(errUpdate, disponibles);
+        });
+    });
+}
+
+function recalcularProductosPorInsumo(insumoId) {
+    db.all('SELECT DISTINCT producto_id FROM producto_insumo WHERE insumo_id = ?', [insumoId], (err, rows) => {
+        if (err) return console.error('Error recalculando productos:', err.message);
+        rows.forEach(row => recalcularDisponibilidadProducto(row.producto_id));
+    });
+}
+
+// -------------------- INSUMOS --------------------
+app.get('/api/insumos', (req, res) => {
+    const soloActivos = req.query.activos === '1';
+    const sql = `
+        SELECT i.*, p.nombre AS proveedor_nombre,
+               COALESCE(inv.stock_actual, 0) AS stock_actual,
+               COALESCE(inv.stock_minimo, 0) AS stock_minimo,
+               CASE
+                   WHEN COALESCE(inv.stock_actual, 0) <= 0 THEN 'agotado'
+                   WHEN COALESCE(inv.stock_actual, 0) <= COALESCE(inv.stock_minimo, 0) THEN 'bajo'
+                   ELSE 'normal'
+               END AS estado_inventario
+        FROM insumos i
+        LEFT JOIN proveedores p ON p.id = i.proveedor_id
+        LEFT JOIN inventario inv ON inv.insumo_id = i.id
+        ${soloActivos ? "WHERE i.estado = 'activo'" : ''}
+        ORDER BY i.id DESC
+    `;
+
+    db.all(sql, [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ mensaje: 'Éxito', data: rows });
+    });
+});
+
+app.post('/api/insumos', (req, res) => {
+    const { nombre, descripcion, proveedor_id, costo_porcion, stock_actual, stock_minimo, usuario_id } = req.body;
+    if (!nombre?.trim()) return res.status(400).json({ error: 'El nombre del insumo es obligatorio.' });
+
+    const costo = Number(costo_porcion || 0);
+    const stock = Number(stock_actual || 0);
+    const minimo = Number(stock_minimo || 0);
+    if ([costo, stock, minimo].some(n => !Number.isFinite(n) || n < 0)) {
+        return res.status(400).json({ error: 'Costo y existencias deben ser números no negativos.' });
+    }
+
+    const proveedorFinal = proveedor_id ? Number(proveedor_id) : null;
+    const crear = () => {
+        db.run(
+            `INSERT INTO insumos (nombre, descripcion, proveedor_id, costo_porcion, estado) VALUES (?, ?, ?, ?, 'activo')`,
+            [nombre.trim(), descripcion?.trim() || null, proveedorFinal, costo],
+            function(err) {
+                if (err) return res.status(500).json({ error: err.message });
+                const insumoId = this.lastID;
+
+                db.run(
+                    `INSERT INTO inventario (insumo_id, stock_actual, stock_minimo, fecha_actualizacion) VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
+                    [insumoId, stock, minimo],
+                    (errInv) => {
+                        if (errInv) return res.status(500).json({ error: errInv.message });
+
+                        const finalizarAlta = () => {
+                            registrarActividad(usuario_id, 'ALTA', 'Insumos', `Registró el insumo ${nombre.trim()}`, 'insumo', insumoId);
+                            res.status(201).json({ mensaje: 'Insumo registrado correctamente', id: insumoId });
+                        };
+
+                        if (stock > 0) {
+                            db.run(
+                                `INSERT INTO movimientos_inventario (insumo_id, tipo, cantidad, motivo, usuario_id) VALUES (?, 'entrada', ?, 'stock inicial', ?)`,
+                                [insumoId, stock, usuario_id || null],
+                                (errMov) => {
+                                    if (errMov) return res.status(500).json({ error: errMov.message });
+                                    finalizarAlta();
+                                }
+                            );
+                        } else {
+                            finalizarAlta();
+                        }
+                    }
+                );
+            }
+        );
+    };
+
+    if (!proveedorFinal) return crear();
+    db.get(`SELECT id FROM proveedores WHERE id = ? AND estado = 'activo'`, [proveedorFinal], (err, proveedor) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!proveedor) return res.status(400).json({ error: 'El proveedor seleccionado no existe o está inactivo.' });
+        crear();
+    });
+});
+
+app.put('/api/insumos/:id', (req, res) => {
+    const insumoId = Number(req.params.id);
+    if (!Number.isInteger(insumoId) || insumoId <= 0) return res.status(400).json({ error: 'ID de insumo no válido.' });
+
+    const { nombre, descripcion, proveedor_id, costo_porcion, stock_minimo, estado, usuario_id } = req.body;
+    if (!nombre?.trim()) return res.status(400).json({ error: 'El nombre del insumo es obligatorio.' });
+
+    const costo = Number(costo_porcion || 0);
+    const minimo = Number(stock_minimo || 0);
+    if (![costo, minimo].every(Number.isFinite) || costo < 0 || minimo < 0) {
+        return res.status(400).json({ error: 'Costo y stock mínimo deben ser números no negativos.' });
+    }
+
+    const estadoFinal = estado || 'activo';
+    if (!['activo', 'inactivo'].includes(estadoFinal)) return res.status(400).json({ error: 'Estado de insumo no válido.' });
+
+    const proveedorFinal = proveedor_id ? Number(proveedor_id) : null;
+    const actualizar = () => {
+        db.run(
+            `UPDATE insumos SET nombre = ?, descripcion = ?, proveedor_id = ?, costo_porcion = ?, estado = ? WHERE id = ?`,
+            [nombre.trim(), descripcion?.trim() || null, proveedorFinal, costo, estadoFinal, insumoId],
+            function(err) {
+                if (err) return res.status(500).json({ error: err.message });
+                if (this.changes === 0) return res.status(404).json({ error: 'Insumo no encontrado.' });
+
+                db.run(
+                    `UPDATE inventario SET stock_minimo = ?, fecha_actualizacion = CURRENT_TIMESTAMP WHERE insumo_id = ?`,
+                    [minimo, insumoId],
+                    (errInv) => {
+                        if (errInv) return res.status(500).json({ error: errInv.message });
+                        registrarActividad(usuario_id, 'EDICION', 'Insumos', `Actualizó el insumo ${nombre.trim()}`, 'insumo', insumoId);
+                        res.json({ mensaje: 'Insumo actualizado correctamente' });
+                    }
+                );
+            }
+        );
+    };
+
+    if (!proveedorFinal) return actualizar();
+    db.get('SELECT id FROM proveedores WHERE id = ?', [proveedorFinal], (err, proveedor) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!proveedor) return res.status(400).json({ error: 'El proveedor seleccionado no existe.' });
+        actualizar();
+    });
+});
+
+app.delete('/api/insumos/:id', (req, res) => {
+    const insumoId = Number(req.params.id);
+    const { usuario_id } = req.body || {};
+    if (!Number.isInteger(insumoId) || insumoId <= 0) return res.status(400).json({ error: 'ID de insumo no válido.' });
+
+    db.get('SELECT nombre FROM insumos WHERE id = ?', [insumoId], (err, insumo) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!insumo) return res.status(404).json({ error: 'Insumo no encontrado.' });
+
+        db.run(`UPDATE insumos SET estado = 'inactivo' WHERE id = ?`, [insumoId], (errUpdate) => {
+            if (errUpdate) return res.status(500).json({ error: errUpdate.message });
+            registrarActividad(usuario_id, 'BAJA', 'Insumos', `Dio de baja el insumo ${insumo.nombre}`, 'insumo', insumoId);
+            res.json({ mensaje: 'Insumo dado de baja correctamente' });
+        });
+    });
+});
+
+// -------------------- INVENTARIO --------------------
+app.get('/api/inventario', (req, res) => {
+    const sql = `
+        SELECT inv.id, inv.insumo_id, i.nombre AS insumo_nombre, i.estado AS insumo_estado,
+               p.nombre AS proveedor_nombre, inv.stock_actual, inv.stock_minimo, inv.fecha_actualizacion,
+               CASE
+                   WHEN inv.stock_actual <= 0 THEN 'agotado'
+                   WHEN inv.stock_actual <= inv.stock_minimo THEN 'bajo'
+                   ELSE 'normal'
+               END AS estado
+        FROM inventario inv
+        INNER JOIN insumos i ON i.id = inv.insumo_id
+        LEFT JOIN proveedores p ON p.id = i.proveedor_id
+        ORDER BY i.nombre ASC
+    `;
+
+    db.all(sql, [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ mensaje: 'Éxito', data: rows });
+    });
+});
+
+app.post('/api/inventario/movimiento', (req, res) => {
+    const { insumo_id, producto_id, tipo, cantidad, motivo, usuario_id } = req.body;
+    const insumoId = Number(insumo_id);
+    const cantidadNum = Number(cantidad);
+    const tipoFinal = String(tipo || '').toLowerCase();
+    const motivoFinal = String(motivo || '').toLowerCase();
+
+    if (!Number.isInteger(insumoId) || insumoId <= 0) return res.status(400).json({ error: 'Insumo no válido.' });
+    if (!Number.isInteger(cantidadNum) || cantidadNum <= 0) return res.status(400).json({ error: 'La cantidad debe ser un entero mayor que cero.' });
+    if (!['entrada', 'salida'].includes(tipoFinal)) return res.status(400).json({ error: 'El tipo debe ser entrada o salida.' });
+    if (!motivoFinal) return res.status(400).json({ error: 'El motivo es obligatorio.' });
+
+    db.get(
+        `SELECT inv.stock_actual, i.nombre FROM inventario inv INNER JOIN insumos i ON i.id = inv.insumo_id WHERE inv.insumo_id = ?`,
+        [insumoId],
+        (err, inventario) => {
+            if (err) return res.status(500).json({ error: err.message });
+            if (!inventario) return res.status(404).json({ error: 'No existe inventario para ese insumo.' });
+
+            const nuevoStock = tipoFinal === 'entrada'
+                ? Number(inventario.stock_actual) + cantidadNum
+                : Number(inventario.stock_actual) - cantidadNum;
+
+            if (nuevoStock < 0) return res.status(400).json({ error: 'No hay porciones suficientes para registrar la salida.' });
+
+            db.run('BEGIN TRANSACTION', (errBegin) => {
+                if (errBegin) return res.status(500).json({ error: errBegin.message });
+
+                db.run(
+                    `UPDATE inventario SET stock_actual = ?, fecha_actualizacion = CURRENT_TIMESTAMP WHERE insumo_id = ?`,
+                    [nuevoStock, insumoId],
+                    (errUpdate) => {
+                        if (errUpdate) {
+                            db.run('ROLLBACK');
+                            return res.status(500).json({ error: errUpdate.message });
+                        }
+
+                        db.run(
+                            `INSERT INTO movimientos_inventario (producto_id, insumo_id, tipo, cantidad, motivo, usuario_id) VALUES (?, ?, ?, ?, ?, ?)`,
+                            [producto_id ? Number(producto_id) : null, insumoId, tipoFinal, cantidadNum, motivoFinal, usuario_id || null],
+                            function(errMov) {
+                                if (errMov) {
+                                    db.run('ROLLBACK');
+                                    return res.status(500).json({ error: errMov.message });
+                                }
+
+                                db.run('COMMIT', (errCommit) => {
+                                    if (errCommit) return res.status(500).json({ error: errCommit.message });
+
+                                    recalcularProductosPorInsumo(insumoId);
+                                    registrarActividad(
+                                        usuario_id,
+                                        'INVENTARIO',
+                                        'Inventario',
+                                        `Registró ${tipoFinal} de ${cantidadNum} porciones de ${inventario.nombre} por ${motivoFinal}`,
+                                        'insumo',
+                                        insumoId
+                                    );
+
+                                    res.status(201).json({
+                                        mensaje: 'Movimiento registrado correctamente',
+                                        stock_anterior: Number(inventario.stock_actual),
+                                        stock_actual: nuevoStock,
+                                        movimiento_id: this.lastID
+                                    });
+                                });
+                            }
+                        );
+                    }
+                );
+            });
+        }
+    );
+});
+
+app.get('/api/inventario/movimientos', (req, res) => {
+    const sql = `
+        SELECT m.*, i.nombre AS insumo_nombre, p.nombre AS producto_nombre, u.nombre AS usuario_nombre
+        FROM movimientos_inventario m
+        LEFT JOIN insumos i ON i.id = m.insumo_id
+        LEFT JOIN productos p ON p.id = m.producto_id
+        LEFT JOIN usuarios u ON u.id = m.usuario_id
+        ORDER BY m.fecha DESC, m.id DESC
+    `;
+
+    db.all(sql, [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ mensaje: 'Éxito', data: rows });
+    });
+});
+
+app.get('/api/insumos/:id/movimientos', (req, res) => {
+    const insumoId = Number(req.params.id);
+    db.all(
+        `SELECT m.*, i.nombre AS insumo_nombre, u.nombre AS usuario_nombre FROM movimientos_inventario m LEFT JOIN insumos i ON i.id = m.insumo_id LEFT JOIN usuarios u ON u.id = m.usuario_id WHERE m.insumo_id = ? ORDER BY m.fecha DESC, m.id DESC`,
+        [insumoId],
+        (err, rows) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ mensaje: 'Éxito', data: rows });
+        }
+    );
+});
+
+app.get('/api/productos/:id/movimientos', (req, res) => {
+    const productoId = Number(req.params.id);
+    const sql = `
+        SELECT DISTINCT m.*, i.nombre AS insumo_nombre, u.nombre AS usuario_nombre
+        FROM movimientos_inventario m
+        LEFT JOIN insumos i ON i.id = m.insumo_id
+        LEFT JOIN usuarios u ON u.id = m.usuario_id
+        WHERE m.producto_id = ?
+           OR m.insumo_id IN (SELECT insumo_id FROM producto_insumo WHERE producto_id = ?)
+        ORDER BY m.fecha DESC, m.id DESC
+    `;
+
+    db.all(sql, [productoId, productoId], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ mensaje: 'Éxito', data: rows });
+    });
+});
+
+// -------------------- RECETAS PRODUCTO / INSUMO --------------------
+app.get('/api/productos/:id/insumos', (req, res) => {
+    const productoId = Number(req.params.id);
+    const sql = `
+        SELECT pi.id, pi.producto_id, pi.insumo_id, pi.porciones_requeridas,
+               i.nombre AS insumo_nombre, i.estado AS insumo_estado,
+               COALESCE(inv.stock_actual, 0) AS stock_actual
+        FROM producto_insumo pi
+        INNER JOIN insumos i ON i.id = pi.insumo_id
+        LEFT JOIN inventario inv ON inv.insumo_id = i.id
+        WHERE pi.producto_id = ?
+        ORDER BY i.nombre ASC
+    `;
+
+    db.all(sql, [productoId], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ mensaje: 'Éxito', data: rows });
+    });
+});
+
+app.post('/api/productos/:id/insumos', (req, res) => {
+    const productoId = Number(req.params.id);
+    const { insumo_id, porciones_requeridas, usuario_id } = req.body;
+    const insumoId = Number(insumo_id);
+    const porciones = Number(porciones_requeridas);
+
+    if (!Number.isInteger(productoId) || productoId <= 0) return res.status(400).json({ error: 'Producto no válido.' });
+    if (!Number.isInteger(insumoId) || insumoId <= 0) return res.status(400).json({ error: 'Insumo no válido.' });
+    if (!Number.isInteger(porciones) || porciones <= 0) return res.status(400).json({ error: 'Las porciones requeridas deben ser un entero mayor que cero.' });
+
+    db.get('SELECT nombre FROM productos WHERE id = ?', [productoId], (errProducto, producto) => {
+        if (errProducto) return res.status(500).json({ error: errProducto.message });
+        if (!producto) return res.status(404).json({ error: 'Producto no encontrado.' });
+
+        db.get(`SELECT nombre FROM insumos WHERE id = ? AND estado = 'activo'`, [insumoId], (errInsumo, insumo) => {
+            if (errInsumo) return res.status(500).json({ error: errInsumo.message });
+            if (!insumo) return res.status(400).json({ error: 'El insumo no existe o está inactivo.' });
+
+            db.run(
+                `INSERT INTO producto_insumo (producto_id, insumo_id, porciones_requeridas)
+                 VALUES (?, ?, ?)
+                 ON CONFLICT(producto_id, insumo_id)
+                 DO UPDATE SET porciones_requeridas = excluded.porciones_requeridas`,
+                [productoId, insumoId, porciones],
+                (errRelacion) => {
+                    if (errRelacion) return res.status(500).json({ error: errRelacion.message });
+
+                    recalcularDisponibilidadProducto(productoId, (errCalc, disponibles) => {
+                        if (errCalc) return res.status(500).json({ error: errCalc.message });
+                        registrarActividad(usuario_id, 'EDICION', 'Productos', `Configuró ${insumo.nombre} (${porciones} porciones) en la receta de ${producto.nombre}`, 'producto', productoId);
+                        res.json({ mensaje: 'Receta actualizada correctamente', disponibles });
+                    });
+                }
+            );
+        });
+    });
+});
+
+app.delete('/api/productos/:productoId/insumos/:insumoId', (req, res) => {
+    const productoId = Number(req.params.productoId);
+    const insumoId = Number(req.params.insumoId);
+    const { usuario_id } = req.body || {};
+
+    db.run(
+        `DELETE FROM producto_insumo WHERE producto_id = ? AND insumo_id = ?`,
+        [productoId, insumoId],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            if (this.changes === 0) return res.status(404).json({ error: 'El insumo no forma parte de la receta.' });
+
+            recalcularDisponibilidadProducto(productoId, (errCalc, disponibles) => {
+                if (errCalc) return res.status(500).json({ error: errCalc.message });
+                registrarActividad(usuario_id, 'EDICION', 'Productos', 'Eliminó un insumo de la receta del producto', 'producto', productoId);
+                res.json({ mensaje: 'Insumo eliminado de la receta', disponibles });
+            });
+        }
+    );
+});
+
+app.get('/api/productos/:id/disponibilidad', (req, res) => {
+    const productoId = Number(req.params.id);
+
+    db.get('SELECT id, nombre FROM productos WHERE id = ?', [productoId], (errProducto, producto) => {
+        if (errProducto) return res.status(500).json({ error: errProducto.message });
+        if (!producto) return res.status(404).json({ error: 'Producto no encontrado.' });
+
+        recalcularDisponibilidadProducto(productoId, (errCalc, disponibles) => {
+            if (errCalc) return res.status(500).json({ error: errCalc.message });
+
+            db.all(
+                `SELECT i.nombre AS insumo, pi.porciones_requeridas, COALESCE(inv.stock_actual, 0) AS stock_actual,
+                        CAST(COALESCE(inv.stock_actual, 0) / pi.porciones_requeridas AS INTEGER) AS productos_posibles
+                 FROM producto_insumo pi
+                 INNER JOIN insumos i ON i.id = pi.insumo_id
+                 LEFT JOIN inventario inv ON inv.insumo_id = pi.insumo_id
+                 WHERE pi.producto_id = ?
+                 ORDER BY i.nombre`,
+                [productoId],
+                (errDetalle, detalle) => {
+                    if (errDetalle) return res.status(500).json({ error: errDetalle.message });
+                    res.json({
+                        mensaje: 'Éxito',
+                        producto_id: producto.id,
+                        producto: producto.nombre,
+                        disponibles,
+                        receta: detalle
+                    });
+                }
+            );
+        });
+    });
+});
+
 // ============================================================
 // INICIAR SERVIDOR
 // ============================================================
