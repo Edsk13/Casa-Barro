@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Insumos | Casa Barro</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="admin-body">
+    <div class="admin-layout">
+        <div id="admin-sidebar-container"></div>
+
+        <main class="admin-main crm-main-bg">
+            <header class="admin-header">
+                <div>
+                    <h1>Insumos</h1>
+                    <p style="color:#777;">Administración de ingredientes y porciones</p>
+                </div>
+                <div class="admin-user">
+                    <span id="admin-user-name">Cargando...</span>
+                </div>
+            </header>
+
+            <div class="crm-card" style="margin-top:20px;">
+                <h2>Nuevo Insumo</h2>
+                <form id="form-alta-insumo" onsubmit="guardarInsumo(event)" style="display:grid; grid-template-columns:repeat(2, 1fr); gap:15px; margin-top:20px;">
+                    <div>
+                        <label for="insumo-nombre" style="font-weight:bold; color:var(--verde-logo);">Nombre</label>
+                        <input type="text" id="insumo-nombre" required placeholder="Ej. Leche" style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;">
+                    </div>
+                    <div>
+                        <label for="insumo-proveedor" style="font-weight:bold; color:var(--verde-logo);">Proveedor</label>
+                        <select id="insumo-proveedor" style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;">
+                            <option value="">Sin proveedor</option>
+                        </select>
+                    </div>
+                    <div style="grid-column:1 / -1;">
+                        <label for="insumo-descripcion" style="font-weight:bold; color:var(--verde-logo);">Descripción</label>
+                        <textarea id="insumo-descripcion" placeholder="Descripción del insumo" style="width:100%; min-height:75px; resize:vertical; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"></textarea>
+                    </div>
+                    <div>
+                        <label for="insumo-costo" style="font-weight:bold; color:var(--verde-logo);">Costo por porción</label>
+                        <input type="number" id="insumo-costo" min="0" step="0.01" value="0" style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;">
+                    </div>
+                    <div>
+                        <label for="insumo-stock" style="font-weight:bold; color:var(--verde-logo);">Stock inicial (porciones)</label>
+                        <input type="number" id="insumo-stock" min="0" step="1" value="0" style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;">
+                    </div>
+                    <div>
+                        <label for="insumo-minimo" style="font-weight:bold; color:var(--verde-logo);">Stock mínimo</label>
+                        <input type="number" id="insumo-minimo" min="0" step="1" value="0" style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;">
+                    </div>
+                    <div style="display:flex; align-items:flex-end; justify-content:flex-end;">
+                        <button type="submit" class="btn-primary" style="width:auto; padding:8px 16px; font-size:0.9rem; border-radius:16px;">Guardar Insumo</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="crm-card">
+                <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+                    <input type="text" id="insumo-busqueda" placeholder="Buscar insumo..." oninput="filtrarInsumos()" style="flex:2; min-width:220px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;">
+                    <select id="insumo-estado" onchange="filtrarInsumos()" style="flex:1; min-width:160px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;">
+                        <option value="todos">Todos los estados</option>
+                        <option value="activo">Activos</option>
+                        <option value="inactivo">Inactivos</option>
+                    </select>
+                    <button type="button" class="btn-primary" onclick="window.location.href='admin-inventario.html'" style="width:auto; padding:8px 16px; font-size:0.9rem; border-radius:16px;">Ver Inventario</button>
+                </div>
+            </div>
+
+            <div class="crm-card">
+                <div class="admin-table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Insumo</th>
+                                <th>Proveedor</th>
+                                <th>Costo/porción</th>
+                                <th>Stock</th>
+                                <th>Mínimo</th>
+                                <th>Estrategia</th>
+                                <th>Inventario</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-insumos"></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

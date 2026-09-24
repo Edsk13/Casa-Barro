@@ -156,6 +156,34 @@ function activarAlertas() {
 let productosAdminCache = [];
 let proveedoresSCMCache = [];
 
+// Categorías existentes en el menú público de Casa Barro.
+const CATEGORIAS_MENU = [
+    { valor: 'alimentos', nombre: 'Alimentos' },
+    { valor: 'calientes', nombre: 'Bebidas Calientes' },
+    { valor: 'frias', nombre: 'Bebidas Frías' },
+    { valor: 'postres', nombre: 'Postres' }
+];
+
+function normalizarCategoriaMenu(valor) {
+    const categoria = String(valor ?? '').trim().toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (['bebidas calientes', 'bebida caliente', 'b. calientes'].includes(categoria)) return 'calientes';
+    if (['bebidas frias', 'bebida fria', 'b. frias'].includes(categoria)) return 'frias';
+    return categoria;
+}
+
+function opcionesCategoriaProducto(valorActual = '') {
+    const actual = normalizarCategoriaMenu(valorActual);
+    let opciones = '<option value="">Selecciona una categoría</option>';
+    opciones += CATEGORIAS_MENU.map(({ valor, nombre }) =>
+        `<option value="${valor}" ${actual === valor ? 'selected' : ''}>${nombre}</option>`
+    ).join('');
+    if (valorActual && !CATEGORIAS_MENU.some(item => item.valor === actual)) {
+        opciones += `<option value="${escaparHtmlSCM(valorActual)}" selected>${escaparHtmlSCM(valorActual)} (categoría anterior)</option>`;
+    }
+    return opciones;
+}
+
 function escaparHtmlSCM(valor) {
     return String(valor ?? '')
         .replace(/&/g, '&amp;')
@@ -295,28 +323,16 @@ window.actualizarFiltroCategoriasProductos = function() {
     const select = document.getElementById('admin-filter-cat');
     if (!select) return;
 
-    const valorAnterior = select.value;
-    const categorias = [
-        ...new Set(
-            productosAdminCache
-                .map(producto => producto.categoria)
-                .filter(Boolean)
-        )
-    ].sort();
-
-    select.innerHTML = '<option value="todos">Todas las categorías</option>';
-
-    categorias.forEach(categoria => {
-        select.innerHTML += `
-            <option value="${escaparHtmlSCM(categoria)}">
-                ${escaparHtmlSCM(categoria)}
-            </option>
-        `;
+    const anterior = select.value;
+    select.innerHTML = '<option value="todos">Todas las categorías</option>' +
+        CATEGORIAS_MENU.map(item => `<option value="${item.valor}">${item.nombre}</option>`).join('');
+    const extras = [...new Set(productosAdminCache.map(p => String(p.categoria || '').trim()).filter(Boolean))]
+        .filter(c => !CATEGORIAS_MENU.some(item => item.valor === normalizarCategoriaMenu(c)))
+        .sort((a, b) => a.localeCompare(b, 'es'));
+    extras.forEach(c => {
+        select.innerHTML += `<option value="${escaparHtmlSCM(c)}">${escaparHtmlSCM(c)}</option>`;
     });
-
-    if ([...select.options].some(option => option.value === valorAnterior)) {
-        select.value = valorAnterior;
-    }
+    if ([...select.options].some(op => op.value === anterior)) select.value = anterior;
 }
 
 window.filtrarProductosAdmin = function() {
@@ -336,7 +352,7 @@ window.filtrarProductosAdmin = function() {
         const estadoFila = fila.dataset.estado || '';
 
         const coincideTexto = nombre.includes(texto);
-        const coincideCategoria = categoria === 'todos' || categoriaFila === categoria;
+        const coincideCategoria = categoria === 'todos' || normalizarCategoriaMenu(categoriaFila) === normalizarCategoriaMenu(categoria);
         const coincideEstado = estado === 'todos' || estadoFila === estado;
 
         fila.style.display = coincideTexto && coincideCategoria && coincideEstado
@@ -448,7 +464,9 @@ window.editarProductoAdmin = async function(id) {
                 <textarea id="edit-producto-descripcion" class="swal2-textarea" style="margin:0; width:100%;">${escaparHtmlSCM(producto.descripcion || '')}</textarea>
 
                 <label>Categoría:</label>
-                <input type="text" id="edit-producto-categoria" class="swal2-input" style="margin:0; width:100%;" value="${escaparHtmlSCM(producto.categoria || '')}">
+                <select id="edit-producto-categoria" class="swal2-select" style="margin:0; width:100%;">
+                    ${opcionesCategoriaProducto(producto.categoria || '')}
+                </select>
 
                 <div style="display:flex; gap:10px;">
                     <div style="flex:1;">
@@ -968,7 +986,7 @@ window.filtrarProveedores = function() {
 
 
 // ============================================================
-// DÍA 3 - SCM: INSUMOS, INVENTARIO Y RECETAS
+// SCM: INSUMOS, INVENTARIO Y RECETAS
 // ============================================================
 
 let insumosSCMCache = [];
@@ -1028,6 +1046,22 @@ window.cargarInsumos = async function() {
                     <td>$${Number(insumo.costo_porcion || 0).toFixed(2)}</td>
                     <td>${Number(insumo.stock_actual || 0)}</td>
                     <td>${Number(insumo.stock_minimo || 0)}</td>
+                    <td>
+                        <select
+                            onchange="actualizarEstrategiaInsumo(${insumo.id}, this)"
+                            style="padding:6px; border:1px solid #ccc; border-radius:6px;"
+                        >
+                            <option value="PUSH"
+                                ${insumo.estrategia_reposicion === 'PUSH' ? 'selected' : ''}>
+                                PUSH
+                            </option>
+
+                            <option value="PULL"
+                                ${insumo.estrategia_reposicion !== 'PUSH' ? 'selected' : ''}>
+                                PULL
+                            </option>
+                        </select>
+                    </td>
                     <td><span style="background:${colorInv}; color:white; padding:3px 8px; border-radius:12px; font-size:0.8rem;">${escaparHtmlSCM(insumo.estado_inventario)}</span></td>
                     <td><span style="background:${colorEstado}; color:white; padding:3px 8px; border-radius:12px; font-size:0.8rem;">${escaparHtmlSCM(insumo.estado)}</span></td>
                     <td class="admin-actions" style="display:flex; gap:5px; flex-wrap:wrap;">
@@ -2124,3 +2158,59 @@ window.filtrarMiActividad = function() {
         item.style.display = (coincideAccion && coincideModulo && coincideTexto) ? 'flex' : 'none';
     });
 }
+
+window.actualizarEstrategiaInsumo = async function(id, select) {
+
+    const anterior = select.value === 'PUSH' ? 'PULL' : 'PUSH';
+    const estrategia = select.value;
+
+    const usuario = JSON.parse(
+        localStorage.getItem('casaBarro_usuario') || 'null'
+    );
+
+    try {
+        const respuesta = await fetch(
+            `/api/insumos/${id}/estrategia`,
+            {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    estrategia_reposicion: estrategia,
+                    usuario_id: usuario?.id || null
+                })
+            }
+        );
+
+        const resultado = await respuesta.json();
+
+        if (!respuesta.ok) {
+            throw new Error(
+                resultado.error || 'No se pudo actualizar'
+            );
+        }
+
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: `Estrategia: ${estrategia}`,
+            timer: 1700,
+            showConfirmButton: false
+        });
+
+        await cargarInsumos();
+
+    } catch (error) {
+
+        select.value = anterior;
+
+        Swal.fire({
+            icon: 'error',
+            title: 'No se pudo guardar',
+            text: error.message,
+            confirmButtonColor: '#3c4a45'
+        });
+    }
+};

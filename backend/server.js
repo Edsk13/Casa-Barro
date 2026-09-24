@@ -914,6 +914,62 @@ app.get('/api/productos/:id/disponibilidad', (req, res) => {
     });
 });
 
+app.put('/api/insumos/:id/estrategia', (req, res) => {
+
+    const id = Number(req.params.id);
+
+    const estrategia = String(
+        req.body?.estrategia_reposicion || ''
+    ).toUpperCase();
+
+    if (!Number.isInteger(id) || id <= 0) {
+        return res.status(400).json({
+            error: 'ID de insumo no válido.'
+        });
+    }
+
+    if (!['PUSH', 'PULL'].includes(estrategia)) {
+        return res.status(400).json({
+            error: 'Estrategia no válida.'
+        });
+    }
+
+    db.run(
+        `UPDATE insumos
+         SET estrategia_reposicion = ?
+         WHERE id = ?`,
+        [estrategia, id],
+        function(error) {
+
+            if (error) {
+                return res.status(500).json({
+                    error: error.message
+                });
+            }
+
+            if (this.changes === 0) {
+                return res.status(404).json({
+                    error: 'Insumo no encontrado.'
+                });
+            }
+
+            registrarActividad(
+                req.body?.usuario_id,
+                'EDICION',
+                'Insumos',
+                `Cambió estrategia de reposición a ${estrategia}`,
+                'insumo',
+                id
+            );
+
+            res.json({
+                mensaje: 'Estrategia actualizada',
+                estrategia_reposicion: estrategia
+            });
+        }
+    );
+});
+
 // ============================================================
 // INICIAR SERVIDOR
 // ============================================================

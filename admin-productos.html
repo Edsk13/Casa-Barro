@@ -6,6 +6,19 @@
     <title>Productos | Casa Barro</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+    div:has(> #producto-proveedor),
+    div:has(> #producto-estrategia) {
+        display: none !important;
+    }
+
+    .admin-table th:nth-child(7),
+    .admin-table td:nth-child(7),
+    .admin-table th:nth-child(8),
+    .admin-table td:nth-child(8) {
+        display: none !important;
+    }
+</style>
 </head>
 <body class="admin-body">
     <div class="admin-layout">
@@ -51,13 +64,18 @@
                             Categoría
                         </label>
 
-                        <input
-                            type="text"
-                            id="producto-categoria"
-                            placeholder="Ej. Bebidas, Desayunos..."
-                            style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"
-                        >
-                    </div>
+                        <select
+                        id="producto-categoria"
+                        required
+                        style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;"
+                    >
+                        <option value="">Selecciona una categoría</option>
+                        <option value="alimentos">Alimentos</option>
+                        <option value="calientes">Bebidas Calientes</option>
+                        <option value="frias">Bebidas Frías</option>
+                        <option value="postres">Postres</option>
+                    </select>
+                </div>
 
                     <div style="grid-column:1 / -1;">
                         <label for="producto-descripcion" style="font-weight:bold; color:var(--verde-logo);">
@@ -104,7 +122,7 @@
 
                     <div>
                         <label for="producto-stock-actual" style="font-weight:bold; color:var(--verde-logo);">
-                            Stock actual
+                            Stock actual (calculado)
                         </label>
 
                         <input
@@ -113,6 +131,7 @@
                             min="0"
                             step="1"
                             value="0"
+                            readonly
                             style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"
                         >
                     </div>

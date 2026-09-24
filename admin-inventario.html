@@ -15,48 +15,31 @@
             <header class="admin-header">
                 <div>
                     <h1>Inventario de Insumos</h1>
-                    <p style="color: #777;">Control de existencias y porciones disponibles</p>
+                    <p style="color:#777;">Control de existencias y porciones disponibles</p>
                 </div>
-
                 <div class="admin-user">
                     <span id="admin-user-name">Cargando...</span>
                 </div>
             </header>
 
-            <!-- CONTROLES DE INVENTARIO -->
-            <div class="crm-card" style="margin-top: 20px;">
+            <div class="crm-card" style="margin-top:20px;">
                 <div style="display:flex; justify-content:space-between; gap:15px; flex-wrap:wrap; align-items:center;">
                     <div style="display:flex; gap:12px; flex-wrap:wrap; flex:1;">
-                        <input
-                            type="text"
-                            id="inventario-busqueda"
-                            placeholder="Buscar insumo..."
-                            style="flex:2; min-width:220px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"
-                        >
-
-                        <select
-                            id="inventario-estado"
-                            style="flex:1; min-width:160px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;"
-                        >
+                        <input type="text" id="inventario-busqueda" placeholder="Buscar insumo..." oninput="filtrarInventario()" style="flex:2; min-width:220px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;">
+                        <select id="inventario-estado" onchange="filtrarInventario()" style="flex:1; min-width:160px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;">
                             <option value="todos">Todos los estados</option>
                             <option value="normal">Stock normal</option>
                             <option value="bajo">Stock bajo</option>
                             <option value="agotado">Agotado</option>
                         </select>
                     </div>
-
-                    <button
-                        type="button"
-                        id="btn-movimiento-inventario"
-                        class="btn-primary"
-                        style="width:auto; padding:8px 16px; font-size:0.9rem; border-radius:16px;"
-                    >
-                        Registrar movimiento
-                    </button>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button type="button" class="btn-primary" onclick="window.location.href='admin-insumos.html'" style="width:auto; padding:8px 16px; font-size:0.9rem; border-radius:16px;">Administrar Insumos</button>
+                        <button type="button" id="btn-movimiento-inventario" class="btn-primary" onclick="abrirMovimientoInventario()" style="width:auto; padding:8px 16px; font-size:0.9rem; border-radius:16px;">Registrar movimiento</button>
+                    </div>
                 </div>
             </div>
 
-            <!-- TABLA DE INVENTARIO -->
             <div class="crm-card">
                 <div class="admin-table-container">
                     <table class="admin-table">
@@ -71,25 +54,18 @@
                                 <th>Acciones</th>
                             </tr>
                         </thead>
-
-                        <tbody id="tabla-inventario">
-                        </tbody>
+                        <tbody id="tabla-inventario"></tbody>
                     </table>
                 </div>
             </div>
 
-            <!-- HISTORIAL DE MOVIMIENTOS -->
             <div class="crm-card">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:15px; flex-wrap:wrap;">
                     <div>
                         <h2>Movimientos de Inventario</h2>
                         <p style="color:#777; margin-top:5px;">Entradas y salidas registradas</p>
                     </div>
-
-                    <select
-                        id="movimiento-tipo"
-                        style="min-width:160px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;"
-                    >
+                    <select id="movimiento-tipo" onchange="filtrarMovimientosInventario()" style="min-width:160px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;">
                         <option value="todos">Todos</option>
                         <option value="entrada">Entradas</option>
                         <option value="salida">Salidas</option>
@@ -108,9 +84,7 @@
                                 <th>Usuario</th>
                             </tr>
                         </thead>
-
-                        <tbody id="tabla-movimientos-inventario">
-                        </tbody>
+                        <tbody id="tabla-movimientos-inventario"></tbody>
                     </table>
                 </div>
             </div>
