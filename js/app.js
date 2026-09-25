@@ -2196,7 +2196,7 @@ function renderSugerenciasLogistica() {
         } else {
             estado = `<span style="color:#2f6b46;font-weight:700;">Correcto</span>`;
         }
-
+        
         return `
             <tr>
                 <td><strong>${escaparHtmlLogistica(i.insumo_nombre)}</strong></td>
@@ -2208,9 +2208,16 @@ function renderSugerenciasLogistica() {
                 <td>${Number(i.dias_cobertura)} días</td>
                 <td>${Number(i.cantidad_sugerida)}</td>
                 <td title="${escaparHtmlLogistica(i.motivo_sugerencia)}">${estado}</td>
-                <td style="white-space:nowrap;">
-                    <button onclick="configurarReposicionInsumo(${i.insumo_id})">Configurar</button>
-                    <button onclick="crearPedidoReposicion(${i.insumo_id})" ${!i.proveedor_id ? 'disabled' : ''}>Pedido</button>
+                <td>
+                    <div class="acciones-logistica-botones">
+                        <button class="btn-configurar-scm" onclick="configurarReposicionInsumo(${i.insumo_id})">
+                            Configurar
+                        </button>
+
+                        <button class="btn-pedido-scm" onclick="crearPedidoReposicion(${i.insumo_id})" ${!i.proveedor_id ? 'disabled' : ''}>
+                            Pedido
+                        </button>
+                    </div>
                 </td>
             </tr>
         `;

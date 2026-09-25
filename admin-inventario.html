@@ -6,91 +6,122 @@
     <title>Inventario | Casa Barro</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        .inv-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin:20px 0}
+        .inv-num{font-size:2rem;font-weight:800;color:var(--verde-logo);margin-top:8px}
+        .inv-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+        .inv-toolbar input,.inv-toolbar select{padding:10px 12px;border:1px solid #ccc;border-radius:8px;background:white;min-width:170px}
+        .inv-scroll{overflow-x:auto}.inv-scroll table{min-width:1180px}
+    </style>
 </head>
 <body class="admin-body">
-    <div class="admin-layout">
-        <div id="admin-sidebar-container"></div>
+<div class="admin-layout">
+    <div id="admin-sidebar-container"></div>
 
-        <main class="admin-main crm-main-bg">
-            <header class="admin-header">
+    <main class="admin-main crm-main-bg">
+        <header class="admin-header">
+            <div>
+                <h1>Inventario de Insumos</h1>
+                <p style="color:#777;">Existencias, estrategias PUSH/PULL y pedidos de reposición</p>
+            </div>
+            <div class="admin-user"><span id="admin-user-name">Cargando...</span></div>
+        </header>
+
+        <section class="inv-kpis">
+            <div class="crm-card"><h3>Insumos activos</h3><div class="inv-num" id="inventario-k-total">—</div></div>
+            <div class="crm-card"><h3>Stock bajo</h3><div class="inv-num" id="inventario-k-bajo">—</div></div>
+            <div class="crm-card"><h3>Agotados</h3><div class="inv-num" id="inventario-k-agotado">—</div></div>
+            <div class="crm-card"><h3>Pedidos abiertos</h3><div class="inv-num" id="inventario-k-pedidos">—</div></div>
+        </section>
+
+        <div class="crm-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap;">
                 <div>
-                    <h1>Inventario de Insumos</h1>
-                    <p style="color:#777;">Control de existencias y porciones disponibles</p>
+                    <h2>Existencias actuales</h2>
                 </div>
-                <div class="admin-user">
-                    <span id="admin-user-name">Cargando...</span>
-                </div>
-            </header>
-
-            <div class="crm-card" style="margin-top:20px;">
-                <div style="display:flex; justify-content:space-between; gap:15px; flex-wrap:wrap; align-items:center;">
-                    <div style="display:flex; gap:12px; flex-wrap:wrap; flex:1;">
-                        <input type="text" id="inventario-busqueda" placeholder="Buscar insumo..." oninput="filtrarInventario()" style="flex:2; min-width:220px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;">
-                        <select id="inventario-estado" onchange="filtrarInventario()" style="flex:1; min-width:160px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;">
-                            <option value="todos">Todos los estados</option>
-                            <option value="normal">Stock normal</option>
-                            <option value="bajo">Stock bajo</option>
-                            <option value="agotado">Agotado</option>
-                        </select>
-                    </div>
-                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                        <button type="button" class="btn-primary" onclick="window.location.href='admin-insumos.html'" style="width:auto; padding:8px 16px; font-size:0.9rem; border-radius:16px;">Administrar Insumos</button>
-                        <button type="button" id="btn-movimiento-inventario" class="btn-primary" onclick="abrirMovimientoInventario()" style="width:auto; padding:8px 16px; font-size:0.9rem; border-radius:16px;">Registrar movimiento</button>
-                    </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button class="btn-primary" onclick="cargarInventario();cargarMovimientosInventario();" style="width:auto;padding:8px 16px;font-size:0.9rem;border-radius:16px;">Actualizar</button>
+                    <button class="btn-primary" onclick="window.location.href='admin-logistica.html'" style="width:auto;padding:8px 16px;font-size:0.9rem;border-radius:16px;">Ir a Logística</button>
                 </div>
             </div>
 
-            <div class="crm-card">
-                <div class="admin-table-container">
-                    <table class="admin-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Insumo</th>
-                                <th>Proveedor</th>
-                                <th>Porciones disponibles</th>
-                                <th>Stock mínimo</th>
-                                <th>Estado</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabla-inventario"></tbody>
-                    </table>
-                </div>
+            <div class="inv-toolbar" style="margin-top:18px;">
+                <input type="text" id="inventario-busqueda" placeholder="Buscar insumo..." oninput="filtrarInventario()" style="flex:2;">
+
+                <select id="inventario-estado" onchange="filtrarInventario()">
+                    <option value="todos">Todos los estados</option>
+                    <option value="normal">Stock normal</option>
+                    <option value="bajo">Stock bajo</option>
+                    <option value="agotado">Agotado</option>
+                </select>
+
+                <select id="inventario-estrategia" onchange="filtrarInventario()">
+                    <option value="todos">PUSH y PULL</option>
+                    <option value="PULL">Solo PULL</option>
+                    <option value="PUSH">Solo PUSH</option>
+                </select>
+
+                <select id="inventario-pedido" onchange="filtrarInventario()">
+                    <option value="todos">Con y sin pedido</option>
+                    <option value="abierto">Con pedido abierto</option>
+                    <option value="sin">Sin pedido abierto</option>
+                </select>
             </div>
 
-            <div class="crm-card">
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:15px; flex-wrap:wrap;">
-                    <div>
-                        <h2>Movimientos de Inventario</h2>
-                        <p style="color:#777; margin-top:5px;">Entradas y salidas registradas</p>
-                    </div>
-                    <select id="movimiento-tipo" onchange="filtrarMovimientosInventario()" style="min-width:160px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;">
-                        <option value="todos">Todos</option>
-                        <option value="entrada">Entradas</option>
-                        <option value="salida">Salidas</option>
-                    </select>
-                </div>
-
-                <div class="admin-table-container" style="margin-top:20px;">
-                    <table class="admin-table">
-                        <thead>
-                            <tr>
-                                <th>Fecha</th>
-                                <th>Insumo</th>
-                                <th>Tipo</th>
-                                <th>Cantidad</th>
-                                <th>Motivo</th>
-                                <th>Usuario</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabla-movimientos-inventario"></tbody>
-                    </table>
-                </div>
+            <div class="admin-table-container inv-scroll" style="margin-top:20px;">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Insumo</th>
+                            <th>Proveedor</th>
+                            <th>Estrategia</th>
+                            <th>Stock actual</th>
+                            <th>Stock mínimo</th>
+                            <th>Pedido abierto</th>
+                            <th>Pendiente</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-inventario">
+                        <tr><td colspan="10" style="text-align:center;padding:25px;">Cargando...</td></tr>
+                    </tbody>
+                </table>
             </div>
-        </main>
-    </div>
+        </div>
 
-    <script src="js/app.js"></script>
+        <div class="crm-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap;">
+                <div>
+                    <h2>Movimientos de Inventario</h2>
+                    <p style="color:#777;margin-top:5px;">Las recepciones de pedidos aparecen como entradas automáticas.</p>
+                </div>
+                <select id="movimiento-tipo" onchange="filtrarMovimientosInventario()" style="min-width:160px;padding:10px 12px;border:1px solid #ccc;border-radius:8px;background:white;">
+                    <option value="todos">Todos</option>
+                    <option value="entrada">Entradas</option>
+                    <option value="salida">Salidas</option>
+                </select>
+            </div>
+
+            <div class="admin-table-container" style="margin-top:20px;">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Insumo</th>
+                            <th>Tipo</th>
+                            <th>Cantidad</th>
+                            <th>Motivo</th>
+                            <th>Usuario</th>git
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-movimientos-inventario"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+<script src="js/app.js"></script>
 </body>
 </html>

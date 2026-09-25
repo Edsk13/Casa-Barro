@@ -1,11 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Resumen SCM | Casa Barro</title>
-
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
@@ -30,20 +28,24 @@
             color: #3c4a45;
             font-weight: bold;
         }
+
+        .scm-error {
+            color: #a83c21;
+            padding: 12px 0;
+            font-weight: 700;
+        }
     </style>
 </head>
 
 <body class="admin-body">
     <div class="admin-layout">
-
         <div id="admin-sidebar-container"></div>
 
         <main class="admin-main crm-main-bg">
-
             <header class="admin-header">
                 <div>
                     <h1>Resumen SCM</h1>
-                    <p>Productos, proveedores e inventario en tiempo real.</p>
+                    <p>Datos reales de productos, insumos, inventario y logística.</p>
                 </div>
 
                 <div class="admin-user">
@@ -55,8 +57,9 @@
                 <button
                     type="button"
                     class="btn-primary"
+                    style="padding:8px 16px; font-size:0.9rem; border-radius:16px;"
+                    font-size:0.9rem;border-radius:16px;
                     onclick="cargarResumenSCM()"
-                    style="width:auto; padding:8px 16px;"
                 >
                     Actualizar datos
                 </button>
@@ -65,11 +68,10 @@
                     Consultando base de datos...
                 </span>
 
-                <p id="scm-error" style="color:#b7410e;"></p>
+                <div id="scm-error" class="scm-error" role="alert"></div>
             </div>
 
             <section class="scm-kpis">
-
                 <div class="crm-card">
                     <h3>Productos registrados</h3>
                     <div class="scm-num" id="k-productos">—</div>
@@ -79,13 +81,13 @@
                 <div class="crm-card">
                     <h3>Insumos activos</h3>
                     <div class="scm-num" id="k-insumos">—</div>
-                    <small>Ingredientes registrados.</small>
+                    <small>Catálogo de ingredientes.</small>
                 </div>
 
                 <div class="crm-card">
                     <h3>Proveedores activos</h3>
                     <div class="scm-num" id="k-proveedores">—</div>
-                    <small>Externos e internos.</small>
+                    <small>Proveedores externos e internos.</small>
                 </div>
 
                 <div class="crm-card">
@@ -97,71 +99,78 @@
                 <div class="crm-card">
                     <h3>Stock bajo</h3>
                     <div class="scm-num" id="k-bajos">—</div>
-                    <small>Existencia hasta el mínimo configurado.</small>
+                    <small>Stock mayor que cero y hasta el mínimo.</small>
                 </div>
 
                 <div class="crm-card">
-                    <h3>Insumos sin proveedor</h3>
+                    <h3>Sin proveedor</h3>
                     <div class="scm-num" id="k-sin-proveedor">—</div>
-                    <small>Pendientes de asignación.</small>
+                    <small>Insumos activos pendientes de asignación.</small>
                 </div>
 
+                <div class="crm-card">
+                    <h3>Reposiciones sugeridas</h3>
+                    <div class="scm-num" id="k-reposiciones">—</div>
+                    <small>Insumos que actualmente requieren reposición.</small>
+                </div>
+
+                <div class="crm-card">
+                    <h3>Pedidos pendientes</h3>
+                    <div class="scm-num" id="k-pedidos-pendientes">—</div>
+                    <small>Pedidos creados todavía no enviados.</small>
+                </div>
+
+                <div class="crm-card">
+                    <h3>En tránsito</h3>
+                    <div class="scm-num" id="k-en-transito">—</div>
+                    <small>Pedidos enviados o recibidos parcialmente.</small>
+                </div>
+
+                <div class="crm-card">
+                    <h3>Recibidos hoy</h3>
+                    <div class="scm-num" id="k-recibidos-hoy">—</div>
+                    <small>Pedidos completados durante el día.</small>
+                </div>
             </section>
 
             <div class="crm-card">
                 <h2>Accesos SCM</h2>
-
-                <a class="scm-link" href="admin-productos.html">
-                    Productos
-                </a>
-
-                <a class="scm-link" href="admin-insumos.html">
-                    Insumos
-                </a>
-
-                <a class="scm-link" href="admin-inventario.html">
-                    Inventario
-                </a>
-
-                <a class="scm-link" href="admin-proveedores.html">
-                    Proveedores
-                </a>
+                <a class="scm-link" href="admin-productos.html">Productos</a>
+                <a class="scm-link" href="admin-insumos.html">Insumos</a>
+                <a class="scm-link" href="admin-inventario.html">Inventario</a>
+                <a class="scm-link" href="admin-proveedores.html">Proveedores</a>
+                <a class="scm-link" href="admin-logistica.html">Estrategia Logística</a>
 
                 <p style="color:#777;">
-                    La reposición se configura por insumo.
-                    La disponibilidad de productos con variantes
-                    se calculará según la combinación seleccionada.
+                    La estrategia PUSH/PULL pertenece a cada insumo. Crear un pedido no aumenta el inventario; el stock cambia cuando se registra la recepción.
                 </p>
             </div>
 
             <div class="crm-card">
-
                 <h2>Insumos que requieren atención</h2>
 
                 <div class="admin-table-container">
                     <table class="admin-table">
-
                         <thead>
                             <tr>
                                 <th>Insumo</th>
                                 <th>Proveedor</th>
+                                <th>Estrategia</th>
                                 <th>Actual</th>
                                 <th>Mínimo</th>
+                                <th>Pedido</th>
                                 <th>Estado</th>
                             </tr>
                         </thead>
 
                         <tbody id="scm-tabla-alertas">
                             <tr>
-                                <td colspan="5">Cargando...</td>
+                                <td colspan="7">Cargando...</td>
                             </tr>
                         </tbody>
-
                     </table>
                 </div>
-
             </div>
-
         </main>
     </div>
 
@@ -170,131 +179,95 @@
     <script>
         const $scm = id => document.getElementById(id);
 
-        function escSCM(valor) {
-            return String(valor ?? '').replace(
-                /[&<>"']/g,
-                c => ({
-                    '&': '&amp;',
-                    '<': '&lt;',
-                    '>': '&gt;',
-                    '"': '&quot;',
-                    "'": '&#39;'
-                }[c])
-            );
-        }
+        const escSCM = valor => String(valor ?? '').replace(
+            /[&<>"']/g,
+            caracter => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[caracter])
+        );
 
         async function pedirSCM(ruta) {
-            const respuesta = await fetch(ruta, {
-                cache: 'no-store'
-            });
-
+            const respuesta = await fetch(ruta, { cache: 'no-store' });
             const resultado = await respuesta.json();
 
             if (!respuesta.ok) {
-                throw new Error(
-                    resultado.error || 'Error al consultar ' + ruta
-                );
+                throw new Error(resultado.error || 'Error al consultar ' + ruta);
             }
 
-            return resultado.data || [];
+            return resultado.data ?? resultado;
         }
 
         async function cargarResumenSCM() {
-
             $scm('scm-error').textContent = '';
             $scm('scm-actualizado').textContent = 'Actualizando...';
 
             try {
-
-                const [
-                    productos,
-                    insumos,
-                    proveedores,
-                    inventario
-                ] = await Promise.all([
-
+                const [productos, insumos, proveedores, inventario, resumenLogistica] = await Promise.all([
                     pedirSCM('/api/productos?todos=1'),
                     pedirSCM('/api/insumos'),
                     pedirSCM('/api/proveedores'),
-                    pedirSCM('/api/inventario')
-
+                    pedirSCM('/api/inventario'),
+                    pedirSCM('/api/scm/resumen')
                 ]);
 
-                const activos = insumos.filter(
-                    i => i.estado === 'activo'
+                const activos = insumos.filter(i => i.estado === 'activo');
+                const inventarioActivo = inventario.filter(i => i.insumo_estado === 'activo');
+                const agotados = inventarioActivo.filter(i => Number(i.stock_actual) <= 0);
+                const bajos = inventarioActivo.filter(i =>
+                    Number(i.stock_actual) > 0 &&
+                    Number(i.stock_actual) <= Number(i.stock_minimo)
                 );
 
-                const inv = inventario.filter(
-                    i => i.insumo_estado === 'activo'
-                );
+                const set = (id, valor) => {
+                    const elemento = $scm(id);
+                    if (elemento) elemento.textContent = valor;
+                };
 
-                const agotados = inv.filter(
-                    i => Number(i.stock_actual) <= 0
-                );
+                set('k-productos', productos.length);
+                set('k-insumos', activos.length);
+                set('k-proveedores', proveedores.filter(p => p.estado === 'activo').length);
+                set('k-agotados', agotados.length);
+                set('k-bajos', bajos.length);
+                set('k-sin-proveedor', activos.filter(i => !i.proveedor_id).length);
 
-                const bajos = inv.filter(
-                    i =>
-                        Number(i.stock_actual) > 0 &&
-                        Number(i.stock_actual) <= Number(i.stock_minimo)
-                );
-
-                $scm('k-productos').textContent = productos.length;
-
-                $scm('k-insumos').textContent = activos.length;
-
-                $scm('k-proveedores').textContent =
-                    proveedores.filter(p => p.estado === 'activo').length;
-
-                $scm('k-agotados').textContent = agotados.length;
-
-                $scm('k-bajos').textContent = bajos.length;
-
-                $scm('k-sin-proveedor').textContent =
-                    activos.filter(i => !i.proveedor_id).length;
+                set('k-reposiciones', resumenLogistica.sugerencias_reposicion || 0);
+                set('k-pedidos-pendientes', resumenLogistica.pedidos_pendientes || 0);
+                set('k-en-transito', Number(resumenLogistica.pedidos_enviados || 0) + Number(resumenLogistica.pedidos_parciales || 0));
+                set('k-recibidos-hoy', resumenLogistica.recibidos_hoy || 0);
 
                 const alertas = [...agotados, ...bajos].sort(
-                    (a, b) =>
-                        Number(a.stock_actual) - Number(b.stock_actual)
+                    (a, b) => Number(a.stock_actual) - Number(b.stock_actual)
                 );
 
-                const tabla = $scm('scm-tabla-alertas');
-
-                tabla.innerHTML = alertas.length
+                $scm('scm-tabla-alertas').innerHTML = alertas.length
                     ? alertas.map(i => `
                         <tr>
                             <td>${escSCM(i.insumo_nombre)}</td>
                             <td>${escSCM(i.proveedor_nombre || 'Sin proveedor')}</td>
+                            <td><strong>${escSCM(i.estrategia_reposicion || 'PULL')}</strong></td>
                             <td>${Number(i.stock_actual)}</td>
                             <td>${Number(i.stock_minimo)}</td>
-                            <td>
-                                ${Number(i.stock_actual) <= 0
-                                    ? 'Agotado'
-                                    : 'Bajo'}
-                            </td>
+                            <td>${i.pedido_abierto_id ? `#${i.pedido_abierto_id} · ${escSCM(i.pedido_estado || '')} · faltan ${Number(i.pedido_pendiente || 0)}` : 'Sin pedido'}</td>
+                            <td>${Number(i.stock_actual) <= 0 ? 'Agotado' : 'Bajo'}</td>
                         </tr>
                     `).join('')
-                    : '<tr><td colspan="5">Sin alertas de inventario.</td></tr>';
+                    : '<tr><td colspan="7">No hay alertas de inventario.</td></tr>';
 
                 $scm('scm-actualizado').textContent =
                     'Actualizado: ' + new Date().toLocaleString('es-MX');
 
             } catch (error) {
-
                 console.error(error);
-
-                $scm('scm-error').textContent =
-                    'No se pudieron cargar los datos: ' + error.message;
-
-                $scm('scm-actualizado').textContent =
-                    'Error de consulta';
+                $scm('scm-error').textContent = 'No se pudieron cargar los datos: ' + error.message;
+                $scm('scm-actualizado').textContent = 'Error de consulta';
             }
         }
 
-        document.addEventListener(
-            'DOMContentLoaded',
-            cargarResumenSCM
-        );
+        document.addEventListener('DOMContentLoaded', cargarResumenSCM);
     </script>
-
 </body>
 </html>

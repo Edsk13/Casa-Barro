@@ -6,69 +6,32 @@
     <title>Productos | Casa Barro</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <style>
-    div:has(> #producto-proveedor),
-    div:has(> #producto-estrategia) {
-        display: none !important;
-    }
-
-    .admin-table th:nth-child(7),
-    .admin-table td:nth-child(7),
-    .admin-table th:nth-child(8),
-    .admin-table td:nth-child(8) {
-        display: none !important;
-    }
-</style>
 </head>
 <body class="admin-body">
-    <div class="admin-layout">
-        <div id="admin-sidebar-container"></div>
+<div class="admin-layout">
+    <div id="admin-sidebar-container"></div>
 
-        <main class="admin-main crm-main-bg">
-            <header class="admin-header">
+    <main class="admin-main crm-main-bg">
+        <header class="admin-header">
+            <div>
+                <h1>Productos</h1>
+                <p style="color:#777;">Administración de platillos y bebidas</p>
+            </div>
+            <div class="admin-user"><span id="admin-user-name">Cargando...</span></div>
+        </header>
+
+        <div class="crm-card" style="margin-top:20px;">
+            <h2>Nuevo Producto</h2>
+            
+            <form id="form-alta-producto" onsubmit="guardarProducto(event)" style="display:grid; grid-template-columns:repeat(2,1fr); gap:15px; margin-top:20px;">
                 <div>
-                    <h1>Productos</h1>
-                    <p style="color: #777;">Administración de productos y platillos</p>
+                    <label for="producto-nombre" style="font-weight:bold; color:var(--verde-logo);">Nombre</label>
+                    <input type="text" id="producto-nombre" required placeholder="Nombre del producto" style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;">
                 </div>
 
-                <div class="admin-user">
-                    <span id="admin-user-name">Cargando...</span>
-                </div>
-            </header>
-
-            <!-- ALTA DE PRODUCTO -->
-            <div class="crm-card" style="margin-top: 20px;">
-                <h2>Nuevo Producto</h2>
-
-                <form
-                    id="form-alta-producto"
-                    onsubmit="guardarProducto(event)"
-                    style="display:grid; grid-template-columns:repeat(2, 1fr); gap:15px; margin-top:20px;"
-                >
-                    <div>
-                        <label for="producto-nombre" style="font-weight:bold; color:var(--verde-logo);">
-                            Nombre
-                        </label>
-
-                        <input
-                            type="text"
-                            id="producto-nombre"
-                            required
-                            placeholder="Nombre del producto"
-                            style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"
-                        >
-                    </div>
-
-                    <div>
-                        <label for="producto-categoria" style="font-weight:bold; color:var(--verde-logo);">
-                            Categoría
-                        </label>
-
-                        <select
-                        id="producto-categoria"
-                        required
-                        style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;"
-                    >
+                <div>
+                    <label for="producto-categoria" style="font-weight:bold; color:var(--verde-logo);">Categoría</label>
+                    <select id="producto-categoria" required style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;">
                         <option value="">Selecciona una categoría</option>
                         <option value="alimentos">Alimentos</option>
                         <option value="calientes">Bebidas Calientes</option>
@@ -77,193 +40,77 @@
                     </select>
                 </div>
 
-                    <div style="grid-column:1 / -1;">
-                        <label for="producto-descripcion" style="font-weight:bold; color:var(--verde-logo);">
-                            Descripción
-                        </label>
+                <div style="grid-column:1 / -1;">
+                    <label for="producto-descripcion" style="font-weight:bold; color:var(--verde-logo);">Descripción</label>
+                    <textarea id="producto-descripcion" placeholder="Descripción del producto" style="width:100%; min-height:80px; resize:vertical; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"></textarea>
+                </div>
 
-                        <textarea
-                            id="producto-descripcion"
-                            placeholder="Descripción del producto"
-                            style="width:100%; min-height:80px; resize:vertical; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"
-                        ></textarea>
-                    </div>
+                <div>
+                    <label for="producto-precio" style="font-weight:bold; color:var(--verde-logo);">Precio de venta</label>
+                    <input type="number" id="producto-precio" min="0" step="0.01" value="0" required style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;">
+                </div>
 
-                    <div>
-                        <label for="producto-precio" style="font-weight:bold; color:var(--verde-logo);">
-                            Precio de venta
-                        </label>
+                <div>
+                    <label for="producto-costo" style="font-weight:bold; color:var(--verde-logo);">Costo unitario estimado</label>
+                    <input type="number" id="producto-costo" min="0" step="0.01" value="0" style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;">
+                </div>
 
-                        <input
-                            type="number"
-                            id="producto-precio"
-                            min="0"
-                            step="0.01"
-                            value="0"
-                            required
-                            style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"
-                        >
-                    </div>
-
-                    <div>
-                        <label for="producto-costo" style="font-weight:bold; color:var(--verde-logo);">
-                            Costo unitario
-                        </label>
-
-                        <input
-                            type="number"
-                            id="producto-costo"
-                            min="0"
-                            step="0.01"
-                            value="0"
-                            style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"
-                        >
-                    </div>
-
-                    <div>
-                        <label for="producto-stock-actual" style="font-weight:bold; color:var(--verde-logo);">
-                            Stock actual (calculado)
-                        </label>
-
-                        <input
-                            type="number"
-                            id="producto-stock-actual"
-                            min="0"
-                            step="1"
-                            value="0"
-                            readonly
-                            style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"
-                        >
-                    </div>
-
-                    <div>
-                        <label for="producto-stock-minimo" style="font-weight:bold; color:var(--verde-logo);">
-                            Stock mínimo
-                        </label>
-
-                        <input
-                            type="number"
-                            id="producto-stock-minimo"
-                            min="0"
-                            step="1"
-                            value="0"
-                            style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"
-                        >
-                    </div>
-
-                    <div>
-                        <label for="producto-proveedor" style="font-weight:bold; color:var(--verde-logo);">
-                            Proveedor principal
-                        </label>
-
-                        <select
-                            id="producto-proveedor"
-                            style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;"
-                        >
-                            <option value="">Sin proveedor</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label for="producto-estrategia" style="font-weight:bold; color:var(--verde-logo);">
-                            Estrategia logística
-                        </label>
-
-                        <select
-                            id="producto-estrategia"
-                            style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;"
-                        >
-                            <option value="PULL">PULL</option>
-                            <option value="PUSH">PUSH</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label for="producto-estado" style="font-weight:bold; color:var(--verde-logo);">
-                            Estado
-                        </label>
-
-                        <select
-                            id="producto-estado"
-                            style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;"
-                        >
-                            <option value="disponible">Disponible</option>
-                            <option value="agotado">Agotado</option>
-                            <option value="inactivo">Inactivo</option>
-                        </select>
-                    </div>
-
-                    <div style="display:flex; align-items:flex-end;">
-                        <button
-                            type="submit"
-                            class="btn-primary"
-                            style="width:auto; padding:8px 16px; font-size:0.9rem; border-radius:16px;"
-                        >
-                            Guardar Producto
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-            <!-- FILTROS -->
-            <div class="crm-card">
-                <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
-                    <input
-                        type="text"
-                        id="admin-search"
-                        placeholder="Buscar producto..."
-                        oninput="filtrarProductosAdmin()"
-                        style="flex:2; min-width:220px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"
-                    >
-
-                    <select
-                        id="admin-filter-cat"
-                        onchange="filtrarProductosAdmin()"
-                        style="flex:1; min-width:160px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;"
-                    >
-                        <option value="todos">Todas las categorías</option>
-                    </select>
-
-                    <select
-                        id="admin-filter-status"
-                        onchange="filtrarProductosAdmin()"
-                        style="flex:1; min-width:160px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;"
-                    >
-                        <option value="todos">Todos los estados</option>
+                <div>
+                    <label for="producto-estado" style="font-weight:bold; color:var(--verde-logo);">Estado</label>
+                    <select id="producto-estado" style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;">
                         <option value="disponible">Disponible</option>
                         <option value="agotado">Agotado</option>
                         <option value="inactivo">Inactivo</option>
                     </select>
                 </div>
-            </div>
 
-            <!-- TABLA DE PRODUCTOS -->
-            <div class="crm-card">
-                <div class="admin-table-container">
-                    <table class="admin-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Producto</th>
-                                <th>Categoría</th>
-                                <th>Precio</th>
-                                <th>Stock</th>
-                                <th>Mínimo</th>
-                                <th>Proveedor</th>
-                                <th>Estrategia</th>
-                                <th>Estado</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-
-                        <tbody id="tabla-productos-admin">
-                        </tbody>
-                    </table>
+                <div style="display:flex; align-items:flex-end;">
+                    <button type="submit" class="btn-primary" style="width:auto; padding:8px 16px; font-size:.9rem; border-radius:16px;">Guardar Producto</button>
                 </div>
-            </div>
-        </main>
-    </div>
+            </form>
+        </div>
 
-    <script src="js/app.js"></script>
+        <div class="crm-card">
+            <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+                <input type="text" id="admin-search" placeholder="Buscar producto..." oninput="filtrarProductosAdmin()" style="flex:2; min-width:220px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;">
+
+                <select id="admin-filter-cat" onchange="filtrarProductosAdmin()" style="flex:1; min-width:180px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;">
+                    <option value="todos">Todas las categorías</option>
+                    <option value="alimentos">Alimentos</option>
+                    <option value="calientes">Bebidas Calientes</option>
+                    <option value="frias">Bebidas Frías</option>
+                    <option value="postres">Postres</option>
+                </select>
+
+                <select id="admin-filter-status" onchange="filtrarProductosAdmin()" style="flex:1; min-width:160px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;">
+                    <option value="todos">Todos los estados</option>
+                    <option value="disponible">Disponible</option>
+                    <option value="agotado">Agotado</option>
+                    <option value="inactivo">Inactivo</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="crm-card">
+            <div class="admin-table-container">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Producto</th>
+                            <th>Categoría</th>
+                            <th>Precio</th>
+                            <th>Disponibilidad</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-productos-admin"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+<script src="js/app.js"></script>
 </body>
 </html>
