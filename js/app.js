@@ -178,6 +178,8 @@ function opcionesCategoriaProducto(valorActual = '') {
     opciones += CATEGORIAS_MENU.map(({ valor, nombre }) =>
         `<option value="${valor}" ${actual === valor ? 'selected' : ''}>${nombre}</option>`
     ).join('');
+
+    // No perder la categoría de un producto guardado anteriormente con texto libre.
     if (valorActual && !CATEGORIAS_MENU.some(item => item.valor === actual)) {
         opciones += `<option value="${escaparHtmlSCM(valorActual)}" selected>${escaparHtmlSCM(valorActual)} (categoría anterior)</option>`;
     }
@@ -202,120 +204,51 @@ window.cargarProductosAdmin = async function() {
     if (!tabla) return;
 
     try {
-        const respuesta = await fetch('http://localhost:3000/api/productos?todos=1');
+        const respuesta = await fetch('http://localhost:3000/api/productos?todos=1', { cache:'no-store' });
         const resultado = await respuesta.json();
-
-        if (!respuesta.ok) {
-            throw new Error(resultado.error || 'No se pudieron cargar los productos');
-        }
+        if (!respuesta.ok) throw new Error(resultado.error || 'No se pudieron cargar los productos');
 
         productosAdminCache = resultado.data || [];
 
         if (productosAdminCache.length === 0) {
-            tabla.innerHTML = `
-                <tr>
-                    <td colspan="10" style="text-align:center; padding:30px; color:#777;">
-                        No hay productos registrados.
-                    </td>
-                </tr>
-            `;
+            tabla.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:#777;">No hay productos registrados.</td></tr>';
             actualizarFiltroCategoriasProductos();
             return;
         }
 
-        let html = '';
-
-        productosAdminCache.forEach(producto => {
+        tabla.innerHTML = productosAdminCache.map(producto => {
             let colorEstado = '#557268';
             if (producto.estado === 'agotado') colorEstado = '#d9822b';
             if (producto.estado === 'inactivo') colorEstado = '#777';
 
-            const colorEstrategia = producto.estrategia_logistica === 'PUSH'
-                ? '#b7410e'
-                : '#557268';
-
-            html += `
-                <tr
-                    class="admin-row producto-admin-row"
+            return `
+                <tr class="admin-row producto-admin-row"
                     data-nombre="${escaparHtmlSCM(producto.nombre).toLowerCase()}"
                     data-categoria="${escaparHtmlSCM(producto.categoria || '')}"
                     data-estado="${escaparHtmlSCM(producto.estado || '')}"
-                    style="border-bottom:1px solid #eae5db;"
-                >
+                    style="border-bottom:1px solid #eae5db;">
                     <td style="padding:10px;">${producto.id}</td>
-
                     <td style="padding:10px;">
                         <strong>${escaparHtmlSCM(producto.nombre)}</strong><br>
-                        <small style="color:#777;">
-                            ${escaparHtmlSCM(producto.descripcion || 'Sin descripción')}
-                        </small>
+                        <small style="color:#777;">${escaparHtmlSCM(producto.descripcion || 'Sin descripción')}</small>
                     </td>
-
-                    <td style="padding:10px;">
-                        ${escaparHtmlSCM(producto.categoria || 'Sin categoría')}
-                    </td>
-
-                    <td style="padding:10px;">
-                        $${Number(producto.precio || 0).toFixed(2)}
-                    </td>
-
-                    <td style="padding:10px;">
-                        ${Number(producto.stock_actual || 0)}
-                    </td>
-
-                    <td style="padding:10px;">
-                        ${Number(producto.stock_minimo || 0)}
-                    </td>
-
-                    <td style="padding:10px;">
-                        ${escaparHtmlSCM(producto.proveedor_nombre || 'Sin proveedor')}
-                    </td>
-
-                    <td style="padding:10px;">
-                        <span style="background:${colorEstrategia}; color:white; padding:3px 8px; border-radius:12px; font-size:0.8rem; font-weight:bold;">
-                            ${escaparHtmlSCM(producto.estrategia_logistica || 'PULL')}
-                        </span>
-                    </td>
-
-                    <td style="padding:10px;">
-                        <span style="background:${colorEstado}; color:white; padding:3px 8px; border-radius:12px; font-size:0.8rem;">
-                            ${escaparHtmlSCM(producto.estado || 'disponible')}
-                        </span>
-                    </td>
-
+                    <td style="padding:10px;">${escaparHtmlSCM(producto.categoria || 'Sin categoría')}</td>
+                    <td style="padding:10px;">$${Number(producto.precio || 0).toFixed(2)}</td>
+                    <td style="padding:10px; text-align:center;"><strong>${Number(producto.stock_actual || 0)}</strong></td>
+                    <td style="padding:10px;"><span style="background:${colorEstado}; color:white; padding:3px 8px; border-radius:12px; font-size:.8rem;">${escaparHtmlSCM(producto.estado || 'disponible')}</span></td>
                     <td class="admin-actions" style="padding:10px; display:flex; gap:5px; align-items:center; flex-wrap:wrap;">
-                        <button onclick="gestionarReceta(${producto.id})" style="background:#557268; color:white;">
-                            Receta
-                        </button>
-
-                        <button onclick="editarProductoAdmin(${producto.id})">
-                            Editar
-                        </button>
-
-                        <button
-                            onclick="eliminarProductoAdmin(${producto.id})"
-                            style="background:#b7410e; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;"
-                        >
-                            Eliminar
-                        </button>
+                        <button onclick="gestionarReceta(${producto.id})" style="background:#557268; color:white;">Receta</button>
+                        <button onclick="editarProductoAdmin(${producto.id})">Editar</button>
+                        <button onclick="eliminarProductoAdmin(${producto.id})" style="background:#b7410e; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;">Eliminar</button>
                     </td>
-                </tr>
-            `;
-        });
+                </tr>`;
+        }).join('');
 
-        tabla.innerHTML = html;
         actualizarFiltroCategoriasProductos();
         filtrarProductosAdmin();
-
     } catch (error) {
         console.error('Error cargando productos:', error);
-        tabla.innerHTML = `
-            <tr>
-                <td colspan="10" style="text-align:center; padding:30px; color:#b7410e;">
-                    No se pudieron cargar los productos.
-                </td>
-            </tr>
-        `;
+        tabla.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:#b7410e;">No se pudieron cargar los productos.</td></tr>';
     }
 }
 
@@ -326,6 +259,8 @@ window.actualizarFiltroCategoriasProductos = function() {
     const anterior = select.value;
     select.innerHTML = '<option value="todos">Todas las categorías</option>' +
         CATEGORIAS_MENU.map(item => `<option value="${item.valor}">${item.nombre}</option>`).join('');
+
+    // Conserva las categorías antiguas que se hayan escrito libremente.
     const extras = [...new Set(productosAdminCache.map(p => String(p.categoria || '').trim()).filter(Boolean))]
         .filter(c => !CATEGORIAS_MENU.some(item => item.valor === normalizarCategoriaMenu(c)))
         .sort((a, b) => a.localeCompare(b, 'es'));
@@ -365,17 +300,16 @@ window.guardarProducto = async function(event) {
     event.preventDefault();
 
     const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
-
     const data = {
         nombre: document.getElementById('producto-nombre').value.trim(),
         descripcion: document.getElementById('producto-descripcion').value.trim(),
         categoria: document.getElementById('producto-categoria').value.trim(),
         precio: Number(document.getElementById('producto-precio').value),
-        stock_actual: Number(document.getElementById('producto-stock-actual').value),
-        stock_minimo: Number(document.getElementById('producto-stock-minimo').value),
-        proveedor_id: document.getElementById('producto-proveedor').value || null,
-        costo_unitario: Number(document.getElementById('producto-costo').value),
-        estrategia_logistica: document.getElementById('producto-estrategia').value,
+        stock_actual: 0,
+        stock_minimo: 0,
+        proveedor_id: null,
+        costo_unitario: Number(document.getElementById('producto-costo').value || 0),
+        estrategia_logistica: 'PULL',
         estado: document.getElementById('producto-estado').value,
         usuario_id: usuarioActual ? usuarioActual.id : null
     };
@@ -383,45 +317,23 @@ window.guardarProducto = async function(event) {
     try {
         const respuesta = await fetch('http://localhost:3000/api/productos', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type':'application/json' },
             body: JSON.stringify(data)
         });
-
         const resultado = await respuesta.json();
 
         if (!respuesta.ok) {
-            return Swal.fire({
-                icon: 'error',
-                title: resultado.error || 'No se pudo registrar',
-                confirmButtonColor: '#3c4a45'
-            });
+            return Swal.fire({ icon:'error', title:resultado.error || 'No se pudo registrar', confirmButtonColor:'#3c4a45' });
         }
 
-        Swal.fire({
-            toast: true,
-            position: 'top-end',
-            icon: 'success',
-            title: 'Producto registrado',
-            showConfirmButton: false,
-            timer: 2000
-        });
-
+        Swal.fire({ toast:true, position:'top-end', icon:'success', title:'Producto registrado', showConfirmButton:false, timer:2000 });
         document.getElementById('form-alta-producto').reset();
         document.getElementById('producto-precio').value = 0;
         document.getElementById('producto-costo').value = 0;
-        document.getElementById('producto-stock-actual').value = 0;
-        document.getElementById('producto-stock-minimo').value = 0;
-        document.getElementById('producto-estrategia').value = 'PULL';
         document.getElementById('producto-estado').value = 'disponible';
-
         await cargarProductosAdmin();
-
     } catch (error) {
-        Swal.fire({
-            icon: 'error',
-            title: 'Error de conexión',
-            confirmButtonColor: '#3c4a45'
-        });
+        Swal.fire({ icon:'error', title:'Error de conexión', confirmButtonColor:'#3c4a45' });
     }
 }
 
@@ -429,33 +341,10 @@ window.editarProductoAdmin = async function(id) {
     const producto = productosAdminCache.find(item => Number(item.id) === Number(id));
     if (!producto) return;
 
-    try {
-        await obtenerProveedoresSCM(false);
-    } catch (error) {
-        return Swal.fire({
-            icon: 'error',
-            title: 'No se pudieron cargar los proveedores',
-            confirmButtonColor: '#3c4a45'
-        });
-    }
-
-    let opcionesProveedor = '<option value="">Sin proveedor</option>';
-
-    proveedoresSCMCache.forEach(proveedor => {
-        opcionesProveedor += `
-            <option
-                value="${proveedor.id}"
-                ${Number(producto.proveedor_id) === Number(proveedor.id) ? 'selected' : ''}
-            >
-                ${escaparHtmlSCM(proveedor.nombre)}${proveedor.estado === 'inactivo' ? ' (Inactivo)' : ''}
-            </option>
-        `;
-    });
-
-    Swal.fire({
-        title: 'Editar Producto',
-        width: '600px',
-        html: `
+    const result = await Swal.fire({
+        title:'Editar Producto',
+        width:'600px',
+        html:`
             <div style="display:flex; flex-direction:column; gap:10px; text-align:left;">
                 <label>Nombre:</label>
                 <input type="text" id="edit-producto-nombre" class="swal2-input" style="margin:0; width:100%;" value="${escaparHtmlSCM(producto.nombre)}">
@@ -464,9 +353,7 @@ window.editarProductoAdmin = async function(id) {
                 <textarea id="edit-producto-descripcion" class="swal2-textarea" style="margin:0; width:100%;">${escaparHtmlSCM(producto.descripcion || '')}</textarea>
 
                 <label>Categoría:</label>
-                <select id="edit-producto-categoria" class="swal2-select" style="margin:0; width:100%;">
-                    ${opcionesCategoriaProducto(producto.categoria || '')}
-                </select>
+                <select id="edit-producto-categoria" class="swal2-select" style="margin:0; width:100%;">${opcionesCategoriaProducto(producto.categoria || '')}</select>
 
                 <div style="display:flex; gap:10px;">
                     <div style="flex:1;">
@@ -474,32 +361,14 @@ window.editarProductoAdmin = async function(id) {
                         <input type="number" id="edit-producto-precio" class="swal2-input" min="0" step="0.01" style="margin:0; width:100%;" value="${Number(producto.precio || 0)}">
                     </div>
                     <div style="flex:1;">
-                        <label>Costo:</label>
+                        <label>Costo unitario:</label>
                         <input type="number" id="edit-producto-costo" class="swal2-input" min="0" step="0.01" style="margin:0; width:100%;" value="${Number(producto.costo_unitario || 0)}">
                     </div>
                 </div>
 
-                <div style="display:flex; gap:10px;">
-                    <div style="flex:1;">
-                        <label>Stock actual (calculado):</label>
-                        <input type="number" id="edit-producto-stock" readonly class="swal2-input" min="0" step="1" style="margin:0; width:100%;" value="${Number(producto.stock_actual || 0)}">
-                    </div>
-                    <div style="flex:1;">
-                        <label>Stock mínimo:</label>
-                        <input type="number" id="edit-producto-minimo" class="swal2-input" min="0" step="1" style="margin:0; width:100%;" value="${Number(producto.stock_minimo || 0)}">
-                    </div>
-                </div>
-
-                <label>Proveedor:</label>
-                <select id="edit-producto-proveedor" class="swal2-select" style="margin:0; width:100%;">
-                    ${opcionesProveedor}
-                </select>
-
-                <label>Estrategia:</label>
-                <select id="edit-producto-estrategia" class="swal2-select" style="margin:0; width:100%;">
-                    <option value="PULL" ${producto.estrategia_logistica === 'PULL' ? 'selected' : ''}>PULL</option>
-                    <option value="PUSH" ${producto.estrategia_logistica === 'PUSH' ? 'selected' : ''}>PUSH</option>
-                </select>
+                <label>Disponibilidad calculada por receta:</label>
+                <input type="number" readonly class="swal2-input" style="margin:0; width:100%;" value="${Number(producto.stock_actual || 0)}">
+                <small style="color:#777;">Proveedor, estrategia PUSH/PULL y reposición se administran por insumo, no por producto.</small>
 
                 <label>Estado:</label>
                 <select id="edit-producto-estado" class="swal2-select" style="margin:0; width:100%;">
@@ -507,85 +376,47 @@ window.editarProductoAdmin = async function(id) {
                     <option value="agotado" ${producto.estado === 'agotado' ? 'selected' : ''}>Agotado</option>
                     <option value="inactivo" ${producto.estado === 'inactivo' ? 'selected' : ''}>Inactivo</option>
                 </select>
-            </div>
-        `,
-        showCancelButton: true,
-        confirmButtonText: 'Actualizar',
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#3c4a45',
-        preConfirm: () => {
+            </div>`,
+        showCancelButton:true,
+        confirmButtonText:'Actualizar',
+        cancelButtonText:'Cancelar',
+        confirmButtonColor:'#3c4a45',
+        preConfirm:() => {
             const nombre = document.getElementById('edit-producto-nombre').value.trim();
-
-            if (!nombre) {
-                Swal.showValidationMessage('El nombre es obligatorio');
-                return false;
-            }
-
             const precio = Number(document.getElementById('edit-producto-precio').value);
             const costo = Number(document.getElementById('edit-producto-costo').value);
-            const stockActual = Number(document.getElementById('edit-producto-stock').value);
-            const stockMinimo = Number(document.getElementById('edit-producto-minimo').value);
-
-            if (precio < 0 || costo < 0 || stockActual < 0 || stockMinimo < 0) {
-                Swal.showValidationMessage('Precio, costo y existencias no pueden ser negativos');
-                return false;
-            }
-
+            if (!nombre) return Swal.showValidationMessage('El nombre es obligatorio');
+            if (!Number.isFinite(precio) || !Number.isFinite(costo) || precio < 0 || costo < 0) return Swal.showValidationMessage('Precio y costo deben ser números no negativos');
             return {
                 nombre,
                 descripcion: document.getElementById('edit-producto-descripcion').value.trim(),
                 categoria: document.getElementById('edit-producto-categoria').value.trim(),
                 precio,
                 costo_unitario: costo,
-                stock_actual: stockActual,
-                stock_minimo: stockMinimo,
-                proveedor_id: document.getElementById('edit-producto-proveedor').value || null,
-                estrategia_logistica: document.getElementById('edit-producto-estrategia').value,
+                stock_actual: Number(producto.stock_actual || 0),
+                stock_minimo: Number(producto.stock_minimo || 0),
+                proveedor_id: producto.proveedor_id || null,
+                estrategia_logistica: producto.estrategia_logistica || 'PULL',
                 estado: document.getElementById('edit-producto-estado').value
             };
         }
-    }).then(async result => {
-        if (!result.isConfirmed) return;
-
-        const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
-        result.value.usuario_id = usuarioActual ? usuarioActual.id : null;
-
-        try {
-            const respuesta = await fetch(`http://localhost:3000/api/productos/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(result.value)
-            });
-
-            const datos = await respuesta.json();
-
-            if (!respuesta.ok) {
-                return Swal.fire({
-                    icon: 'error',
-                    title: datos.error || 'No se pudo actualizar',
-                    confirmButtonColor: '#3c4a45'
-                });
-            }
-
-            Swal.fire({
-                toast: true,
-                position: 'top-end',
-                icon: 'success',
-                title: 'Producto actualizado',
-                showConfirmButton: false,
-                timer: 2000
-            });
-
-            cargarProductosAdmin();
-
-        } catch (error) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Error de conexión',
-                confirmButtonColor: '#3c4a45'
-            });
-        }
     });
+
+    if (!result.isConfirmed) return;
+    const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
+    result.value.usuario_id = usuarioActual ? usuarioActual.id : null;
+
+    try {
+        const respuesta = await fetch(`http://localhost:3000/api/productos/${id}`, {
+            method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(result.value)
+        });
+        const datos = await respuesta.json();
+        if (!respuesta.ok) return Swal.fire({ icon:'error', title:datos.error || 'No se pudo actualizar', confirmButtonColor:'#3c4a45' });
+        Swal.fire({ toast:true, position:'top-end', icon:'success', title:'Producto actualizado', showConfirmButton:false, timer:2000 });
+        await cargarProductosAdmin();
+    } catch (error) {
+        Swal.fire({ icon:'error', title:'Error de conexión', confirmButtonColor:'#3c4a45' });
+    }
 }
 
 window.eliminarProductoAdmin = function(id) {
@@ -1046,22 +877,6 @@ window.cargarInsumos = async function() {
                     <td>$${Number(insumo.costo_porcion || 0).toFixed(2)}</td>
                     <td>${Number(insumo.stock_actual || 0)}</td>
                     <td>${Number(insumo.stock_minimo || 0)}</td>
-                    <td>
-                        <select
-                            onchange="actualizarEstrategiaInsumo(${insumo.id}, this)"
-                            style="padding:6px; border:1px solid #ccc; border-radius:6px;"
-                        >
-                            <option value="PUSH"
-                                ${insumo.estrategia_reposicion === 'PUSH' ? 'selected' : ''}>
-                                PUSH
-                            </option>
-
-                            <option value="PULL"
-                                ${insumo.estrategia_reposicion !== 'PUSH' ? 'selected' : ''}>
-                                PULL
-                            </option>
-                        </select>
-                    </td>
                     <td><span style="background:${colorInv}; color:white; padding:3px 8px; border-radius:12px; font-size:0.8rem;">${escaparHtmlSCM(insumo.estado_inventario)}</span></td>
                     <td><span style="background:${colorEstado}; color:white; padding:3px 8px; border-radius:12px; font-size:0.8rem;">${escaparHtmlSCM(insumo.estado)}</span></td>
                     <td class="admin-actions" style="display:flex; gap:5px; flex-wrap:wrap;">
@@ -1194,31 +1009,82 @@ window.cargarInventario = async function() {
     if (!tabla) return;
 
     try {
-        const respuesta = await fetch('http://localhost:3000/api/inventario');
+        const respuesta = await fetch('http://localhost:3000/api/inventario', { cache:'no-store' });
         const resultado = await respuesta.json();
         if (!respuesta.ok) throw new Error(resultado.error || 'No se pudo cargar el inventario');
+
         inventarioSCMCache = resultado.data || [];
 
+        const total = inventarioSCMCache.filter(i => i.insumo_estado === 'activo').length;
+        const bajos = inventarioSCMCache.filter(i => i.insumo_estado === 'activo' && i.estado === 'bajo').length;
+        const agotados = inventarioSCMCache.filter(i => i.insumo_estado === 'activo' && i.estado === 'agotado').length;
+        const pedidos = inventarioSCMCache.filter(i => i.pedido_abierto_id).length;
+
+        const setKpi = (id, valor) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = valor;
+        };
+        setKpi('inventario-k-total', total);
+        setKpi('inventario-k-bajo', bajos);
+        setKpi('inventario-k-agotado', agotados);
+        setKpi('inventario-k-pedidos', pedidos);
+
         if (inventarioSCMCache.length === 0) {
-            tabla.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:#777;">No hay inventario configurado.</td></tr>';
+            tabla.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:30px; color:#777;">No hay inventario configurado.</td></tr>';
             return;
         }
 
         tabla.innerHTML = inventarioSCMCache.map(item => {
             const color = item.estado === 'agotado' ? '#b7410e' : item.estado === 'bajo' ? '#d9822b' : '#557268';
-            const texto = item.estado === 'bajo' ? 'Stock bajo' : item.estado === 'agotado' ? 'Agotado' : 'Normal';
-            return `<tr class="inventario-row" data-nombre="${escaparHtmlSCM(item.insumo_nombre).toLowerCase()}" data-estado="${item.estado}">
-                <td>${item.insumo_id}</td><td><strong>${escaparHtmlSCM(item.insumo_nombre)}</strong></td><td>${escaparHtmlSCM(item.proveedor_nombre || 'Sin proveedor')}</td>
-                <td>${Number(item.stock_actual || 0)}</td><td>${Number(item.stock_minimo || 0)}</td>
-                <td><span style="background:${color}; color:white; padding:3px 8px; border-radius:12px; font-size:0.8rem;">${texto}</span></td>
-                <td class="admin-actions"><button onclick="abrirMovimientoInventario(${item.insumo_id})">Movimiento</button><button onclick="verMovimientosInsumo(${item.insumo_id})" style="background:#557268; color:white;">Historial</button></td>
+            const textoEstado = item.estado === 'bajo' ? 'Stock bajo' : item.estado === 'agotado' ? 'Agotado' : 'Normal';
+            const estrategia = String(item.estrategia_reposicion || 'PULL').toUpperCase();
+            const colorEstrategia = estrategia === 'PUSH' ? '#6f42c1' : '#2980b9';
+
+            let pedidoHtml = '<span style="color:#777;">Sin pedido</span>';
+            let pendienteHtml = '—';
+            if (item.pedido_abierto_id) {
+                const estados = {
+                    pendiente: ['Pendiente', '#fff3cd', '#7a5b00'],
+                    enviado: ['Enviado', '#dbeafe', '#1d4ed8'],
+                    parcial: ['Parcial', '#fde68a', '#8a5d00']
+                };
+                const conf = estados[item.pedido_estado] || [item.pedido_estado, '#eee', '#444'];
+                pedidoHtml = `<strong>#${item.pedido_abierto_id}</strong><br><span style="display:inline-block; margin-top:4px; padding:3px 8px; border-radius:12px; background:${conf[1]}; color:${conf[2]}; font-size:.78rem; font-weight:bold;">${escaparHtmlSCM(conf[0])}</span>`;
+                pendienteHtml = `${Number(item.pedido_pendiente || 0)} porciones`;
+            }
+
+            return `<tr class="inventario-row"
+                        data-nombre="${escaparHtmlSCM(item.insumo_nombre).toLowerCase()}"
+                        data-estado="${item.estado}"
+                        data-estrategia="${estrategia}"
+                        data-pedido="${item.pedido_abierto_id ? 'abierto' : 'sin'}">
+                <td>${item.insumo_id}</td>
+                <td><strong>${escaparHtmlSCM(item.insumo_nombre)}</strong></td>
+                <td>${escaparHtmlSCM(item.proveedor_nombre || 'Sin proveedor')}</td>
+                <td><span style="background:${colorEstrategia}; color:white; padding:3px 8px; border-radius:12px; font-size:.8rem; font-weight:bold;">${estrategia}</span></td>
+                <td>${Number(item.stock_actual || 0)}</td>
+                <td>${Number(item.stock_minimo || 0)}</td>
+                <td>${pedidoHtml}</td>
+                <td>${pendienteHtml}</td>
+                <td><span style="background:${color}; color:white; padding:3px 8px; border-radius:12px; font-size:.8rem;">${textoEstado}</span></td>
+                <td class="admin-actions" style="display:flex; gap:5px; flex-wrap:wrap;">
+                    <button onclick="abrirMovimientoInventario(${item.insumo_id})">Movimiento</button>
+                    <button onclick="verMovimientosInsumo(${item.insumo_id})" style="background:#557268; color:white;">Historial</button>
+                    <button onclick="irLogistica(${item.insumo_id}, '${escaparHtmlSCM(item.insumo_nombre).replace(/'/g, '&#39;')}')" style="background:#6f42c1; color:white;">Logística</button>
+                </td>
             </tr>`;
         }).join('');
+
         filtrarInventario();
     } catch (error) {
         console.error(error);
-        tabla.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:#b7410e;">No se pudo cargar el inventario.</td></tr>';
+        tabla.innerHTML = '<tr><td colspan="10" style="text-align:center; padding:30px; color:#b7410e;">No se pudo cargar el inventario.</td></tr>';
     }
+}
+
+window.irLogistica = function(insumoId, nombre = '') {
+    localStorage.setItem('casaBarro_logistica_insumo', JSON.stringify({ id:Number(insumoId), nombre:String(nombre || '') }));
+    window.location.href = 'admin-logistica.html';
 }
 
 window.cargarMovimientosInventario = async function() {
@@ -1245,10 +1111,15 @@ window.cargarMovimientosInventario = async function() {
 window.filtrarInventario = function() {
     const texto = (document.getElementById('inventario-busqueda')?.value || '').toLowerCase().trim();
     const estado = document.getElementById('inventario-estado')?.value || 'todos';
+    const estrategia = document.getElementById('inventario-estrategia')?.value || 'todos';
+    const pedido = document.getElementById('inventario-pedido')?.value || 'todos';
+
     document.querySelectorAll('.inventario-row').forEach(fila => {
         const coincideTexto = (fila.dataset.nombre || '').includes(texto);
         const coincideEstado = estado === 'todos' || fila.dataset.estado === estado;
-        fila.style.display = coincideTexto && coincideEstado ? '' : 'none';
+        const coincideEstrategia = estrategia === 'todos' || fila.dataset.estrategia === estrategia;
+        const coincidePedido = pedido === 'todos' || fila.dataset.pedido === pedido;
+        fila.style.display = coincideTexto && coincideEstado && coincideEstrategia && coincidePedido ? '' : 'none';
     });
 }
 
@@ -2159,58 +2030,546 @@ window.filtrarMiActividad = function() {
     });
 }
 
-window.actualizarEstrategiaInsumo = async function(id, select) {
+// ============================================================
+// SCM: LOGÍSTICA, PUSH/PULL Y PEDIDOS A PROVEEDORES
+// ============================================================
 
-    const anterior = select.value === 'PUSH' ? 'PULL' : 'PUSH';
-    const estrategia = select.value;
+let scmSugerencias = [];
+let scmPedidos = [];
 
-    const usuario = JSON.parse(
-        localStorage.getItem('casaBarro_usuario') || 'null'
-    );
+function usuarioSCM() {
+    try {
+        return JSON.parse(localStorage.getItem('casaBarro_usuario') || 'null');
+    } catch (_) {
+        return null;
+    }
+}
+
+function escaparHtmlLogistica(valor) {
+    return String(valor ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function formatearFechaLogistica(valor) {
+    if (!valor) return '—';
+    const texto = String(valor);
+    const fechaISO = texto.includes('T') ? texto : texto.replace(' ', 'T') + 'Z';
+    const fecha = new Date(fechaISO);
+    return Number.isNaN(fecha.getTime()) ? valor : fecha.toLocaleString('es-MX');
+}
+
+async function apiLogistica(ruta, opciones = {}) {
+    const respuesta = await fetch(ruta, {
+        cache: 'no-store',
+        ...opciones,
+        headers: {
+            'Content-Type': 'application/json',
+            ...(opciones.headers || {})
+        }
+    });
+
+    let datos = {};
+    try { datos = await respuesta.json(); } catch (_) {}
+
+    if (!respuesta.ok) {
+        const error = new Error(datos.error || `Error HTTP ${respuesta.status}`);
+        error.status = respuesta.status;
+        error.data = datos;
+        throw error;
+    }
+
+    return datos;
+}
+
+function badgePedidoLogistica(estado) {
+    const nombres = {
+        pendiente: 'Pendiente',
+        enviado: 'Enviado',
+        parcial: 'Parcial',
+        recibido: 'Recibido',
+        cancelado: 'Cancelado'
+    };
+
+    const fondos = {
+        pendiente: '#fff3cd',
+        enviado: '#dbeafe',
+        parcial: '#fde68a',
+        recibido: '#dcfce7',
+        cancelado: '#fee2e2'
+    };
+
+    return `<span style="display:inline-block;padding:5px 10px;border-radius:16px;background:${fondos[estado] || '#eee'};font-weight:700;font-size:.82rem;">${nombres[estado] || escaparHtmlLogistica(estado)}</span>`;
+}
+
+window.cargarLogisticaSCM = async function() {
+    const error = document.getElementById('logistica-error');
+    if (error) error.textContent = '';
 
     try {
-        const respuesta = await fetch(
-            `/api/insumos/${id}/estrategia`,
-            {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    estrategia_reposicion: estrategia,
-                    usuario_id: usuario?.id || null
-                })
-            }
-        );
+        const [sugerenciasR, pedidosR, resumenR] = await Promise.all([
+            apiLogistica('/api/scm/sugerencias'),
+            apiLogistica('/api/scm/pedidos'),
+            apiLogistica('/api/scm/resumen')
+        ]);
 
-        const resultado = await respuesta.json();
+        scmSugerencias = sugerenciasR.data || [];
+        scmPedidos = pedidosR.data || [];
 
-        if (!respuesta.ok) {
-            throw new Error(
-                resultado.error || 'No se pudo actualizar'
-            );
+        const focoGuardado = localStorage.getItem('casaBarro_logistica_insumo');
+        if (focoGuardado) {
+            try {
+                const foco = JSON.parse(focoGuardado);
+                const encontrado = scmSugerencias.find(i => Number(i.insumo_id) === Number(foco.id));
+                const buscador = document.getElementById('logistica-buscar-insumo');
+                const filtro = document.getElementById('logistica-filtro-sugerencia');
+                if (buscador && encontrado) buscador.value = encontrado.insumo_nombre || foco.nombre || '';
+                if (filtro) filtro.value = 'todos';
+            } catch (_) {}
+            localStorage.removeItem('casaBarro_logistica_insumo');
         }
 
-        Swal.fire({
-            toast: true,
-            position: 'top-end',
+        renderResumenLogistica(resumenR.data || {});
+        renderSugerenciasLogistica();
+        renderPedidosLogistica();
+
+        const ultima = document.getElementById('logistica-actualizado');
+        if (ultima) ultima.textContent = 'Actualizado: ' + new Date().toLocaleString('es-MX');
+    } catch (e) {
+        console.error('Error cargando logística SCM:', e);
+        if (error) error.textContent = 'No se pudieron cargar los datos: ' + e.message;
+    }
+};
+
+function renderResumenLogistica(r) {
+    const valores = {
+        'logistica-k-sugerencias': r.sugerencias_reposicion ?? 0,
+        'logistica-k-pendientes': r.pedidos_pendientes ?? 0,
+        'logistica-k-transito': Number(r.pedidos_enviados || 0) + Number(r.pedidos_parciales || 0),
+        'logistica-k-recibidos': r.recibidos_hoy ?? 0
+    };
+
+    Object.entries(valores).forEach(([id, valor]) => {
+        const elemento = document.getElementById(id);
+        if (elemento) elemento.textContent = valor;
+    });
+}
+
+window.filtrarSugerenciasLogistica = function() {
+    renderSugerenciasLogistica();
+};
+
+function renderSugerenciasLogistica() {
+    const tbody = document.getElementById('logistica-tabla-sugerencias');
+    if (!tbody) return;
+
+    const texto = (document.getElementById('logistica-buscar-insumo')?.value || '').trim().toLowerCase();
+    const filtro = document.getElementById('logistica-filtro-sugerencia')?.value || 'todos';
+
+    const filas = scmSugerencias.filter(i => {
+        const buscar = `${i.insumo_nombre || ''} ${i.proveedor_nombre || ''}`.toLowerCase();
+        const coincideTexto = !texto || buscar.includes(texto);
+        let coincideFiltro = true;
+
+        if (filtro === 'reponer') coincideFiltro = !!i.necesita_reposicion;
+        if (filtro === 'configurar') coincideFiltro = !!i.configuracion_pendiente;
+        if (filtro === 'PUSH' || filtro === 'PULL') coincideFiltro = i.estrategia_reposicion === filtro;
+
+        return coincideTexto && coincideFiltro;
+    });
+
+    if (!filas.length) {
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:25px;color:#777;">No hay insumos que coincidan con el filtro.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = filas.map(i => {
+        let estado;
+
+        if (i.necesita_reposicion) {
+            estado = `<span style="color:#b7410e;font-weight:700;">Reponer</span>`;
+        } else if (i.configuracion_pendiente) {
+            estado = `<span style="color:#9a6700;font-weight:700;">Configurar</span>`;
+        } else {
+            estado = `<span style="color:#2f6b46;font-weight:700;">Correcto</span>`;
+        }
+
+        return `
+            <tr>
+                <td><strong>${escaparHtmlLogistica(i.insumo_nombre)}</strong></td>
+                <td>${escaparHtmlLogistica(i.proveedor_nombre || 'Sin proveedor')}</td>
+                <td><strong>${escaparHtmlLogistica(i.estrategia_reposicion)}</strong></td>
+                <td>${Number(i.stock_actual)}</td>
+                <td>${Number(i.stock_minimo)}</td>
+                <td>${Number(i.consumo_30d)}</td>
+                <td>${Number(i.dias_cobertura)} días</td>
+                <td>${Number(i.cantidad_sugerida)}</td>
+                <td title="${escaparHtmlLogistica(i.motivo_sugerencia)}">${estado}</td>
+                <td style="white-space:nowrap;">
+                    <button onclick="configurarReposicionInsumo(${i.insumo_id})">Configurar</button>
+                    <button onclick="crearPedidoReposicion(${i.insumo_id})" ${!i.proveedor_id ? 'disabled' : ''}>Pedido</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+window.configurarReposicionInsumo = async function(insumoId) {
+    const i = scmSugerencias.find(x => Number(x.insumo_id) === Number(insumoId));
+    if (!i) return;
+
+    const resultado = await Swal.fire({
+        title: `Reposición: ${i.insumo_nombre}`,
+        html: `
+            <div style="text-align:left;display:grid;gap:10px;">
+                <label>Estrategia
+                    <select id="logistica-estrategia" class="swal2-select" style="width:100%;margin:4px 0 0 0;">
+                        <option value="PULL" ${i.estrategia_reposicion === 'PULL' ? 'selected' : ''}>PULL - punto mínimo</option>
+                        <option value="PUSH" ${i.estrategia_reposicion === 'PUSH' ? 'selected' : ''}>PUSH - consumo planificado</option>
+                    </select>
+                </label>
+
+                <label>Stock mínimo
+                    <input id="logistica-minimo" type="number" min="0" step="1" class="swal2-input" value="${Number(i.stock_minimo)}" style="width:100%;margin:4px 0 0 0;">
+                </label>
+
+                <label>Días de cobertura para PUSH
+                    <input id="logistica-dias" type="number" min="1" max="90" step="1" class="swal2-input" value="${Number(i.dias_cobertura || 7)}" style="width:100%;margin:4px 0 0 0;">
+                </label>
+
+                <small style="color:#777;">PULL se activa al llegar al stock mínimo. PUSH utiliza las salidas registradas durante los últimos 30 días.</small>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Guardar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#3c4a45',
+        preConfirm: () => {
+            const estrategia = document.getElementById('logistica-estrategia').value;
+            const stock_minimo = Number(document.getElementById('logistica-minimo').value);
+            const dias_cobertura = Number(document.getElementById('logistica-dias').value);
+
+            if (!Number.isInteger(stock_minimo) || stock_minimo < 0) {
+                Swal.showValidationMessage('El stock mínimo debe ser un entero mayor o igual que cero.');
+                return false;
+            }
+
+            if (!Number.isInteger(dias_cobertura) || dias_cobertura < 1 || dias_cobertura > 90) {
+                Swal.showValidationMessage('Los días deben estar entre 1 y 90.');
+                return false;
+            }
+
+            return { estrategia_reposicion: estrategia, stock_minimo, dias_cobertura };
+        }
+    });
+
+    if (!resultado.isConfirmed) return;
+
+    try {
+        await apiLogistica(`/api/scm/insumos/${insumoId}/configuracion`, {
+            method: 'PUT',
+            body: JSON.stringify({
+                ...resultado.value,
+                usuario_id: usuarioSCM()?.id || null
+            })
+        });
+
+        await Swal.fire({
             icon: 'success',
-            title: `Estrategia: ${estrategia}`,
-            timer: 1700,
+            title: 'Configuración guardada',
+            timer: 1200,
             showConfirmButton: false
         });
 
-        await cargarInsumos();
-
-    } catch (error) {
-
-        select.value = anterior;
-
+        await cargarLogisticaSCM();
+    } catch (e) {
         Swal.fire({
             icon: 'error',
             title: 'No se pudo guardar',
-            text: error.message,
+            text: e.message,
             confirmButtonColor: '#3c4a45'
         });
     }
 };
+
+window.crearPedidoReposicion = async function(insumoId) {
+    const i = scmSugerencias.find(x => Number(x.insumo_id) === Number(insumoId));
+    if (!i) return;
+
+    if (!i.proveedor_id) {
+        return Swal.fire({
+            icon: 'warning',
+            title: 'Sin proveedor',
+            text: 'Asigna un proveedor antes de crear el pedido.'
+        });
+    }
+
+    const sugerida = Math.max(1, Number(i.cantidad_sugerida || 1));
+
+    const resultado = await Swal.fire({
+        title: `Pedido: ${i.insumo_nombre}`,
+        html: `
+            <div style="text-align:left;line-height:1.6;">
+                <p><strong>Proveedor:</strong> ${escaparHtmlLogistica(i.proveedor_nombre)}</p>
+                <p><strong>Estrategia:</strong> ${escaparHtmlLogistica(i.estrategia_reposicion)}</p>
+                <p><strong>Stock:</strong> ${Number(i.stock_actual)} · <strong>Mínimo:</strong> ${Number(i.stock_minimo)}</p>
+                <p><strong>Sugerencia:</strong> ${Number(i.cantidad_sugerida)} porciones</p>
+
+                <label>Cantidad a solicitar
+                    <input id="logistica-cantidad-pedido" type="number" min="1" step="1" class="swal2-input" value="${sugerida}" style="width:100%;margin:4px 0 10px 0;">
+                </label>
+
+                <label>Observaciones
+                    <textarea id="logistica-observaciones" class="swal2-textarea" placeholder="Opcional" style="width:100%;margin:4px 0 0 0;"></textarea>
+                </label>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Crear pedido',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#3c4a45',
+        preConfirm: () => {
+            const cantidad = Number(document.getElementById('logistica-cantidad-pedido').value);
+            if (!Number.isInteger(cantidad) || cantidad <= 0) {
+                Swal.showValidationMessage('La cantidad debe ser un entero mayor que cero.');
+                return false;
+            }
+
+            return {
+                cantidad,
+                observaciones: document.getElementById('logistica-observaciones').value.trim()
+            };
+        }
+    });
+
+    if (!resultado.isConfirmed) return;
+
+    try {
+        await apiLogistica('/api/scm/pedidos', {
+            method: 'POST',
+            body: JSON.stringify({
+                insumo_id: insumoId,
+                cantidad: resultado.value.cantidad,
+                observaciones: resultado.value.observaciones,
+                origen: Number(i.cantidad_sugerida) > 0 ? 'SUGERENCIA' : 'MANUAL',
+                usuario_id: usuarioSCM()?.id || null
+            })
+        });
+
+        await Swal.fire({
+            icon: 'success',
+            title: 'Pedido creado',
+            timer: 1300,
+            showConfirmButton: false
+        });
+
+        await cargarLogisticaSCM();
+    } catch (e) {
+        Swal.fire({
+            icon: e.status === 409 ? 'info' : 'error',
+            title: e.status === 409 ? 'Pedido ya abierto' : 'No se pudo crear',
+            text: e.message,
+            confirmButtonColor: '#3c4a45'
+        });
+    }
+};
+
+window.filtrarPedidosLogistica = function() {
+    renderPedidosLogistica();
+};
+
+function renderPedidosLogistica() {
+    const tbody = document.getElementById('logistica-tabla-pedidos');
+    if (!tbody) return;
+
+    const filtro = document.getElementById('logistica-filtro-pedidos')?.value || 'todos';
+    const texto = (document.getElementById('logistica-buscar-pedido')?.value || '').trim().toLowerCase();
+
+    const filas = scmPedidos.filter(p => {
+        const coincideEstado = filtro === 'todos' || p.estado === filtro;
+        const buscar = `#${p.id} ${p.insumo_nombre || ''} ${p.proveedor_nombre || ''}`.toLowerCase();
+        const coincideTexto = !texto || buscar.includes(texto);
+        return coincideEstado && coincideTexto;
+    });
+
+    if (!filas.length) {
+        tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:25px;color:#777;">No hay pedidos que coincidan con el filtro.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = filas.map(p => {
+        const restante = Number(
+            p.cantidad_restante ?? (Number(p.cantidad) - Number(p.cantidad_recibida || 0))
+        );
+
+        const acciones = [];
+
+        if (p.estado === 'pendiente') {
+            acciones.push(`<button onclick="enviarPedidoReposicion(${p.id})">Enviar</button>`);
+        }
+
+        if (['enviado', 'parcial'].includes(p.estado) && restante > 0) {
+            acciones.push(`<button onclick="recibirPedidoReposicion(${p.id})">Recibir</button>`);
+        }
+
+        if (['pendiente', 'enviado'].includes(p.estado)) {
+            acciones.push(`<button onclick="cancelarPedidoReposicion(${p.id})" class="btn-eliminar-admin">Cancelar</button>`);
+        }
+
+        acciones.push(`<button onclick="historialPedidoReposicion(${p.id})">Historial</button>`);
+
+        return `
+            <tr>
+                <td>#${p.id}</td>
+                <td><strong>${escaparHtmlLogistica(p.insumo_nombre || '—')}</strong></td>
+                <td>${escaparHtmlLogistica(p.proveedor_nombre || '—')}</td>
+                <td>${escaparHtmlLogistica(p.tipo || '—')}</td>
+                <td>${Number(p.cantidad)}</td>
+                <td>${Number(p.cantidad_recibida || 0)}</td>
+                <td>${restante}</td>
+                <td>$${Number(p.total_estimado || 0).toFixed(2)}</td>
+                <td>${badgePedidoLogistica(p.estado)}</td>
+                <td>${formatearFechaLogistica(p.fecha_creacion)}</td>
+                <td style="white-space:nowrap;">${acciones.join(' ')}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+window.enviarPedidoReposicion = async function(pedidoId) {
+    const r = await Swal.fire({
+        icon: 'question',
+        title: `Enviar pedido #${pedidoId}`,
+        text: 'Se marcará como enviado al proveedor.',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, enviar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#3c4a45'
+    });
+
+    if (!r.isConfirmed) return;
+
+    try {
+        await apiLogistica(`/api/scm/pedidos/${pedidoId}/enviar`, {
+            method: 'PUT',
+            body: JSON.stringify({ usuario_id: usuarioSCM()?.id || null })
+        });
+
+        await cargarLogisticaSCM();
+    } catch (e) {
+        Swal.fire({ icon: 'error', title: 'Error', text: e.message });
+    }
+};
+
+window.recibirPedidoReposicion = async function(pedidoId) {
+    const p = scmPedidos.find(x => Number(x.id) === Number(pedidoId));
+    if (!p) return;
+
+    const restante = Number(
+        p.cantidad_restante ?? (Number(p.cantidad) - Number(p.cantidad_recibida || 0))
+    );
+
+    const r = await Swal.fire({
+        title: `Recibir pedido #${pedidoId}`,
+        html: `
+            <p style="text-align:left;"><strong>${escaparHtmlLogistica(p.insumo_nombre)}</strong></p>
+            <p style="text-align:left;">Pendiente por recibir: <strong>${restante}</strong> porciones.</p>
+            <input id="logistica-recibir-cantidad" class="swal2-input" type="number" min="1" max="${restante}" step="1" value="${restante}" style="width:100%;margin:5px 0 0 0;">
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Registrar recepción',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#3c4a45',
+        preConfirm: () => {
+            const cantidad = Number(document.getElementById('logistica-recibir-cantidad').value);
+            if (!Number.isInteger(cantidad) || cantidad <= 0 || cantidad > restante) {
+                Swal.showValidationMessage(`Ingresa un entero entre 1 y ${restante}.`);
+                return false;
+            }
+            return cantidad;
+        }
+    });
+
+    if (!r.isConfirmed) return;
+
+    try {
+        const respuesta = await apiLogistica(`/api/scm/pedidos/${pedidoId}/recibir`, {
+            method: 'PUT',
+            body: JSON.stringify({
+                cantidad_recibida: r.value,
+                usuario_id: usuarioSCM()?.id || null
+            })
+        });
+
+        await Swal.fire({
+            icon: 'success',
+            title: respuesta.estado === 'recibido' ? 'Pedido recibido' : 'Recepción parcial',
+            text: `Inventario actualizado. Restante: ${respuesta.cantidad_restante}.`,
+            confirmButtonColor: '#3c4a45'
+        });
+
+        await cargarLogisticaSCM();
+    } catch (e) {
+        Swal.fire({ icon: 'error', title: 'No se pudo recibir', text: e.message });
+    }
+};
+
+window.cancelarPedidoReposicion = async function(pedidoId) {
+    const r = await Swal.fire({
+        icon: 'warning',
+        title: `Cancelar pedido #${pedidoId}`,
+        text: 'El pedido quedará registrado como cancelado.',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, cancelar',
+        cancelButtonText: 'Volver',
+        confirmButtonColor: '#b7410e'
+    });
+
+    if (!r.isConfirmed) return;
+
+    try {
+        await apiLogistica(`/api/scm/pedidos/${pedidoId}/cancelar`, {
+            method: 'PUT',
+            body: JSON.stringify({ usuario_id: usuarioSCM()?.id || null })
+        });
+        await cargarLogisticaSCM();
+    } catch (e) {
+        Swal.fire({ icon: 'error', title: 'No se pudo cancelar', text: e.message });
+    }
+};
+
+window.historialPedidoReposicion = async function(pedidoId) {
+    try {
+        const r = await apiLogistica(`/api/scm/pedidos/${pedidoId}/movimientos`);
+        const filas = r.data || [];
+
+        const html = filas.length
+            ? filas.map(m => `
+                <div style="text-align:left;border-bottom:1px solid #eee;padding:10px 0;">
+                    <strong>${escaparHtmlLogistica(m.tipo || 'Movimiento')}</strong>
+                    <div>${escaparHtmlLogistica(m.descripcion || '')}</div>
+                    <small style="color:#777;">${formatearFechaLogistica(m.fecha)}${m.usuario_nombre ? ` · ${escaparHtmlLogistica(m.usuario_nombre)}` : ''}</small>
+                </div>
+            `).join('')
+            : '<p>No hay movimientos.</p>';
+
+        Swal.fire({
+            title: `Historial pedido #${pedidoId}`,
+            html,
+            width: 650,
+            confirmButtonColor: '#3c4a45'
+        });
+    } catch (e) {
+        Swal.fire({ icon: 'error', title: 'Error', text: e.message });
+    }
+};
+
+// La logística SCM se activa únicamente si existe su tabla en la página actual.
+document.addEventListener('DOMContentLoaded', () => {
+    if (document.getElementById('logistica-tabla-sugerencias')) {
+        cargarLogisticaSCM();
+    }
+});

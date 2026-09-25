@@ -61,6 +61,14 @@ function inicializarTablas() {
     db.run(`CREATE TABLE IF NOT EXISTS scm_config (id INTEGER PRIMARY KEY, nivel_scm TEXT DEFAULT 'Inicial', fecha_actualizacion DATETIME DEFAULT CURRENT_TIMESTAMP)`);
     db.run(`INSERT OR IGNORE INTO scm_config (id, nivel_scm) VALUES (1, 'Inicial')`);
 
+    // SCM - Reposición por insumo y recepción de pedidos
+    asegurarColumna('insumos', 'estrategia_reposicion', "TEXT NOT NULL DEFAULT 'PULL'");
+    asegurarColumna('insumos', 'dias_cobertura', 'INTEGER NOT NULL DEFAULT 7');
+    asegurarColumna('pedidos', 'cantidad_recibida', 'INTEGER NOT NULL DEFAULT 0');
+    asegurarColumna('pedidos', 'costo_unitario', 'REAL NOT NULL DEFAULT 0');
+    asegurarColumna('pedidos', 'observaciones', 'TEXT');
+    asegurarColumna('pedidos', 'fecha_pedido', 'DATETIME');
+
     db.get(`SELECT * FROM usuarios WHERE correo = ?`, ['admin@casabarro.com'], (err, row) => {
         if (err) return console.error('Error verificando admin inicial:', err.message);
         if (!row) {
@@ -661,16 +669,42 @@ app.delete('/api/insumos/:id', (req, res) => {
 // -------------------- INVENTARIO --------------------
 app.get('/api/inventario', (req, res) => {
     const sql = `
-        SELECT inv.id, inv.insumo_id, i.nombre AS insumo_nombre, i.estado AS insumo_estado,
-               p.nombre AS proveedor_nombre, inv.stock_actual, inv.stock_minimo, inv.fecha_actualizacion,
-               CASE
-                   WHEN inv.stock_actual <= 0 THEN 'agotado'
-                   WHEN inv.stock_actual <= inv.stock_minimo THEN 'bajo'
-                   ELSE 'normal'
-               END AS estado
+        SELECT
+            inv.id,
+            inv.insumo_id,
+            i.nombre AS insumo_nombre,
+            i.estado AS insumo_estado,
+            i.proveedor_id,
+            p.nombre AS proveedor_nombre,
+            COALESCE(NULLIF(UPPER(i.estrategia_reposicion), ''), 'PULL') AS estrategia_reposicion,
+            COALESCE(i.dias_cobertura, 7) AS dias_cobertura,
+            inv.stock_actual,
+            inv.stock_minimo,
+            inv.fecha_actualizacion,
+            pe.id AS pedido_abierto_id,
+            pe.estado AS pedido_estado,
+            pe.cantidad AS pedido_solicitado,
+            COALESCE(pe.cantidad_recibida, 0) AS pedido_recibido,
+            CASE
+                WHEN pe.id IS NULL THEN 0
+                ELSE MAX(pe.cantidad - COALESCE(pe.cantidad_recibida, 0), 0)
+            END AS pedido_pendiente,
+            CASE
+                WHEN inv.stock_actual <= 0 THEN 'agotado'
+                WHEN inv.stock_actual <= inv.stock_minimo THEN 'bajo'
+                ELSE 'normal'
+            END AS estado
         FROM inventario inv
         INNER JOIN insumos i ON i.id = inv.insumo_id
         LEFT JOIN proveedores p ON p.id = i.proveedor_id
+        LEFT JOIN pedidos pe ON pe.id = (
+            SELECT p2.id
+            FROM pedidos p2
+            WHERE p2.insumo_id = i.id
+              AND p2.estado IN ('pendiente', 'enviado', 'parcial')
+            ORDER BY p2.id DESC
+            LIMIT 1
+        )
         ORDER BY i.nombre ASC
     `;
 
@@ -914,60 +948,584 @@ app.get('/api/productos/:id/disponibilidad', (req, res) => {
     });
 });
 
-app.put('/api/insumos/:id/estrategia', (req, res) => {
+// ============================================================
+// SCM: REPOSICIÓN PUSH/PULL Y PEDIDOS A PROVEEDORES
+// ============================================================
 
-    const id = Number(req.params.id);
-
-    const estrategia = String(
-        req.body?.estrategia_reposicion || ''
-    ).toUpperCase();
-
-    if (!Number.isInteger(id) || id <= 0) {
-        return res.status(400).json({
-            error: 'ID de insumo no válido.'
+// Helpers SQLite con Promesas para las rutas de logística SCM.
+function dbRunSCM(sql, params = []) {
+    return new Promise((resolve, reject) => {
+        db.run(sql, params, function(err) {
+            if (err) return reject(err);
+            resolve({ lastID: this.lastID, changes: this.changes });
         });
-    }
+    });
+}
 
-    if (!['PUSH', 'PULL'].includes(estrategia)) {
-        return res.status(400).json({
-            error: 'Estrategia no válida.'
+function dbGetSCM(sql, params = []) {
+    return new Promise((resolve, reject) => {
+        db.get(sql, params, (err, row) => {
+            if (err) return reject(err);
+            resolve(row || null);
         });
+    });
+}
+
+function dbAllSCM(sql, params = []) {
+    return new Promise((resolve, reject) => {
+        db.all(sql, params, (err, rows) => {
+            if (err) return reject(err);
+            resolve(rows || []);
+        });
+    });
+}
+
+function enteroPositivoSCM(valor) {
+    const numero = Number(valor);
+    return Number.isInteger(numero) && numero > 0 ? numero : null;
+}
+
+function usuarioIdSCM(req) {
+    const numero = Number(req.body?.usuario_id);
+    return Number.isInteger(numero) && numero > 0 ? numero : null;
+}
+
+async function obtenerSugerenciasReposicion() {
+    const filas = await dbAllSCM(`
+        SELECT
+            i.id AS insumo_id,
+            i.nombre AS insumo_nombre,
+            i.estado AS insumo_estado,
+            i.proveedor_id,
+            p.nombre AS proveedor_nombre,
+            p.estado AS proveedor_estado,
+            COALESCE(i.costo_porcion, 0) AS costo_porcion,
+            COALESCE(NULLIF(UPPER(i.estrategia_reposicion), ''), 'PULL') AS estrategia_reposicion,
+            COALESCE(i.dias_cobertura, 7) AS dias_cobertura,
+            COALESCE(inv.stock_actual, 0) AS stock_actual,
+            COALESCE(inv.stock_minimo, 0) AS stock_minimo,
+            COALESCE(SUM(
+                CASE
+                    WHEN m.tipo = 'salida'
+                     AND datetime(m.fecha) >= datetime('now', '-30 days')
+                    THEN m.cantidad
+                    ELSE 0
+                END
+            ), 0) AS consumo_30d
+        FROM insumos i
+        LEFT JOIN proveedores p ON p.id = i.proveedor_id
+        LEFT JOIN inventario inv ON inv.insumo_id = i.id
+        LEFT JOIN movimientos_inventario m ON m.insumo_id = i.id
+        WHERE i.estado = 'activo'
+        GROUP BY
+            i.id, i.nombre, i.estado, i.proveedor_id,
+            p.nombre, p.estado, i.costo_porcion,
+            i.estrategia_reposicion, i.dias_cobertura,
+            inv.stock_actual, inv.stock_minimo
+        ORDER BY i.nombre ASC
+    `);
+
+    return filas.map(fila => {
+        let estrategia = String(fila.estrategia_reposicion || 'PULL').toUpperCase();
+        if (!['PUSH', 'PULL'].includes(estrategia)) estrategia = 'PULL';
+
+        const stockActual = Number(fila.stock_actual || 0);
+        const stockMinimo = Number(fila.stock_minimo || 0);
+        const consumo30 = Number(fila.consumo_30d || 0);
+        const diasCobertura = Math.max(1, Number(fila.dias_cobertura || 7));
+        const promedioDiario = consumo30 / 30;
+
+        let objetivoStock = 0;
+        let cantidadSugerida = 0;
+        let necesitaReposicion = false;
+        let configuracionPendiente = false;
+        let motivoSugerencia = '';
+
+        if (estrategia === 'PULL') {
+            // PULL: cuando llega al mínimo, se propone recuperar hasta 2 veces el mínimo.
+            if (stockMinimo <= 0) {
+                configuracionPendiente = true;
+                motivoSugerencia = 'Configura un stock mínimo mayor que cero.';
+            } else {
+                objetivoStock = stockMinimo * 2;
+                if (stockActual <= stockMinimo) {
+                    cantidadSugerida = Math.max(1, Math.ceil(objetivoStock - stockActual));
+                    necesitaReposicion = true;
+                    motivoSugerencia = `Stock actual (${stockActual}) alcanzó el mínimo (${stockMinimo}).`;
+                } else {
+                    motivoSugerencia = 'Existencia por encima del punto de reposición.';
+                }
+            }
+        } else {
+            // PUSH: usa las salidas reales registradas durante los últimos 30 días.
+            if (consumo30 <= 0) {
+                configuracionPendiente = true;
+                motivoSugerencia = 'No hay salidas registradas en los últimos 30 días.';
+            } else {
+                objetivoStock = Math.max(stockMinimo, Math.ceil(promedioDiario * diasCobertura));
+                cantidadSugerida = Math.max(0, Math.ceil(objetivoStock - stockActual));
+                necesitaReposicion = cantidadSugerida > 0;
+                motivoSugerencia = necesitaReposicion
+                    ? `Cobertura objetivo de ${diasCobertura} días.`
+                    : `Stock suficiente para ${diasCobertura} días.`;
+            }
+        }
+
+        return {
+            ...fila,
+            estrategia_reposicion: estrategia,
+            stock_actual: stockActual,
+            stock_minimo: stockMinimo,
+            consumo_30d: consumo30,
+            promedio_diario: Number(promedioDiario.toFixed(2)),
+            dias_cobertura: diasCobertura,
+            objetivo_stock: objetivoStock,
+            cantidad_sugerida: cantidadSugerida,
+            necesita_reposicion: necesitaReposicion,
+            configuracion_pendiente: configuracionPendiente,
+            motivo_sugerencia: motivoSugerencia
+        };
+    });
+}
+
+// -------------------- SUGERENCIAS PUSH/PULL --------------------
+app.get('/api/scm/sugerencias', async (req, res) => {
+    try {
+        const datos = await obtenerSugerenciasReposicion();
+        res.json({ mensaje: 'Éxito', data: datos });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
+});
 
-    db.run(
-        `UPDATE insumos
-         SET estrategia_reposicion = ?
-         WHERE id = ?`,
-        [estrategia, id],
-        function(error) {
+// -------------------- CONFIGURAR ESTRATEGIA DEL INSUMO --------------------
+app.put('/api/scm/insumos/:id/configuracion', async (req, res) => {
+    try {
+        const insumoId = enteroPositivoSCM(req.params.id);
+        if (!insumoId) return res.status(400).json({ error: 'ID de insumo no válido.' });
 
-            if (error) {
-                return res.status(500).json({
-                    error: error.message
-                });
-            }
+        const estrategia = String(req.body?.estrategia_reposicion || '').toUpperCase();
+        const diasCobertura = Number(req.body?.dias_cobertura);
+        const stockMinimo = Number(req.body?.stock_minimo);
+        const usuarioId = usuarioIdSCM(req);
 
-            if (this.changes === 0) {
-                return res.status(404).json({
-                    error: 'Insumo no encontrado.'
-                });
-            }
+        if (!['PUSH', 'PULL'].includes(estrategia)) {
+            return res.status(400).json({ error: 'La estrategia debe ser PUSH o PULL.' });
+        }
+        if (!Number.isInteger(diasCobertura) || diasCobertura < 1 || diasCobertura > 90) {
+            return res.status(400).json({ error: 'Los días de cobertura deben ser un entero entre 1 y 90.' });
+        }
+        if (!Number.isInteger(stockMinimo) || stockMinimo < 0) {
+            return res.status(400).json({ error: 'El stock mínimo debe ser un entero no negativo.' });
+        }
 
-            registrarActividad(
-                req.body?.usuario_id,
-                'EDICION',
-                'Insumos',
-                `Cambió estrategia de reposición a ${estrategia}`,
-                'insumo',
-                id
-            );
+        const insumo = await dbGetSCM(`SELECT id, nombre FROM insumos WHERE id = ?`, [insumoId]);
+        if (!insumo) return res.status(404).json({ error: 'Insumo no encontrado.' });
 
-            res.json({
-                mensaje: 'Estrategia actualizada',
-                estrategia_reposicion: estrategia
+        await dbRunSCM(
+            `UPDATE insumos SET estrategia_reposicion = ?, dias_cobertura = ? WHERE id = ?`,
+            [estrategia, diasCobertura, insumoId]
+        );
+
+        await dbRunSCM(`
+            INSERT INTO inventario (insumo_id, stock_actual, stock_minimo, fecha_actualizacion)
+            VALUES (?, 0, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(insumo_id) DO UPDATE SET
+                stock_minimo = excluded.stock_minimo,
+                fecha_actualizacion = CURRENT_TIMESTAMP
+        `, [insumoId, stockMinimo]);
+
+        registrarActividad(
+            usuarioId,
+            'EDICION',
+            'Logística',
+            `Configuró ${insumo.nombre}: ${estrategia}, stock mínimo ${stockMinimo}, cobertura ${diasCobertura} días`,
+            'insumo',
+            insumoId
+        );
+
+        res.json({ mensaje: 'Configuración de reposición actualizada correctamente.' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// -------------------- LISTAR PEDIDOS A PROVEEDORES --------------------
+app.get('/api/scm/pedidos', async (req, res) => {
+    try {
+        const estado = String(req.query.estado || 'todos').toLowerCase();
+        const permitidos = ['todos', 'pendiente', 'enviado', 'parcial', 'recibido', 'cancelado'];
+        if (!permitidos.includes(estado)) return res.status(400).json({ error: 'Filtro de estado no válido.' });
+
+        const where = estado === 'todos' ? '' : 'WHERE pe.estado = ?';
+        const params = estado === 'todos' ? [] : [estado];
+
+        const filas = await dbAllSCM(`
+            SELECT
+                pe.*,
+                i.nombre AS insumo_nombre,
+                pr.nombre AS proveedor_nombre,
+                u.nombre AS usuario_nombre,
+                COALESCE(inv.stock_actual, 0) AS stock_actual,
+                (pe.cantidad - COALESCE(pe.cantidad_recibida, 0)) AS cantidad_restante,
+                ROUND(pe.cantidad * COALESCE(pe.costo_unitario, 0), 2) AS total_estimado
+            FROM pedidos pe
+            LEFT JOIN insumos i ON i.id = pe.insumo_id
+            LEFT JOIN proveedores pr ON pr.id = pe.proveedor_id
+            LEFT JOIN usuarios u ON u.id = pe.usuario_id
+            LEFT JOIN inventario inv ON inv.insumo_id = pe.insumo_id
+            ${where}
+            ORDER BY pe.fecha_creacion DESC, pe.id DESC
+        `, params);
+
+        res.json({ mensaje: 'Éxito', data: filas });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// -------------------- CREAR PEDIDO A PROVEEDOR --------------------
+app.post('/api/scm/pedidos', async (req, res) => {
+    try {
+        const insumoId = enteroPositivoSCM(req.body?.insumo_id);
+        const cantidad = enteroPositivoSCM(req.body?.cantidad);
+        const usuarioId = usuarioIdSCM(req);
+        const observaciones = String(req.body?.observaciones || '').trim() || null;
+        const origen = String(req.body?.origen || 'MANUAL').toUpperCase();
+
+        if (!insumoId) return res.status(400).json({ error: 'Insumo no válido.' });
+        if (!cantidad) return res.status(400).json({ error: 'La cantidad debe ser un entero mayor que cero.' });
+        if (!['MANUAL', 'SUGERENCIA'].includes(origen)) {
+            return res.status(400).json({ error: 'Origen del pedido no válido.' });
+        }
+
+        const insumo = await dbGetSCM(`
+            SELECT
+                i.id, i.nombre, i.proveedor_id, i.costo_porcion,
+                COALESCE(NULLIF(UPPER(i.estrategia_reposicion), ''), 'PULL') AS estrategia_reposicion,
+                p.nombre AS proveedor_nombre,
+                p.estado AS proveedor_estado
+            FROM insumos i
+            LEFT JOIN proveedores p ON p.id = i.proveedor_id
+            WHERE i.id = ? AND i.estado = 'activo'
+        `, [insumoId]);
+
+        if (!insumo) return res.status(404).json({ error: 'Insumo activo no encontrado.' });
+        if (!insumo.proveedor_id || !insumo.proveedor_nombre) {
+            return res.status(400).json({ error: 'El insumo no tiene proveedor asignado.' });
+        }
+        if (insumo.proveedor_estado !== 'activo') {
+            return res.status(400).json({ error: 'El proveedor asignado está inactivo.' });
+        }
+
+        const pedidoAbierto = await dbGetSCM(`
+            SELECT id, estado
+            FROM pedidos
+            WHERE insumo_id = ? AND estado IN ('pendiente', 'enviado', 'parcial')
+            ORDER BY id DESC
+            LIMIT 1
+        `, [insumoId]);
+
+        if (pedidoAbierto) {
+            return res.status(409).json({
+                error: `Ya existe el pedido #${pedidoAbierto.id} en estado ${pedidoAbierto.estado}.`,
+                pedido_id: pedidoAbierto.id
             });
         }
-    );
+
+        let estrategia = String(insumo.estrategia_reposicion || 'PULL').toUpperCase();
+        if (!['PUSH', 'PULL'].includes(estrategia)) estrategia = 'PULL';
+
+        const resultado = await dbRunSCM(`
+            INSERT INTO pedidos (
+                producto_id, insumo_id, proveedor_id, cantidad, tipo, estado,
+                origen, usuario_id, cantidad_recibida, costo_unitario, observaciones
+            ) VALUES (NULL, ?, ?, ?, ?, 'pendiente', ?, ?, 0, ?, ?)
+        `, [
+            insumoId,
+            insumo.proveedor_id,
+            cantidad,
+            estrategia,
+            origen,
+            usuarioId,
+            Number(insumo.costo_porcion || 0),
+            observaciones
+        ]);
+
+        await dbRunSCM(`
+            INSERT INTO movimientos_logisticos (pedido_id, tipo, descripcion, estado, usuario_id)
+            VALUES (?, 'CREACION', ?, 'pendiente', ?)
+        `, [
+            resultado.lastID,
+            `Pedido creado para ${cantidad} porciones de ${insumo.nombre} mediante ${estrategia}.`,
+            usuarioId
+        ]);
+
+        registrarActividad(
+            usuarioId,
+            'ALTA',
+            'Logística',
+            `Creó pedido #${resultado.lastID} de ${cantidad} porciones de ${insumo.nombre} (${estrategia})`,
+            'pedido',
+            resultado.lastID
+        );
+
+        res.status(201).json({ mensaje: 'Pedido creado correctamente.', id: resultado.lastID });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// -------------------- MARCAR PEDIDO COMO ENVIADO --------------------
+app.put('/api/scm/pedidos/:id/enviar', async (req, res) => {
+    try {
+        const pedidoId = enteroPositivoSCM(req.params.id);
+        const usuarioId = usuarioIdSCM(req);
+        if (!pedidoId) return res.status(400).json({ error: 'ID de pedido no válido.' });
+
+        const pedido = await dbGetSCM(`
+            SELECT pe.*, i.nombre AS insumo_nombre
+            FROM pedidos pe
+            LEFT JOIN insumos i ON i.id = pe.insumo_id
+            WHERE pe.id = ?
+        `, [pedidoId]);
+
+        if (!pedido) return res.status(404).json({ error: 'Pedido no encontrado.' });
+        if (pedido.estado !== 'pendiente') {
+            return res.status(400).json({ error: 'Solo un pedido pendiente puede marcarse como enviado.' });
+        }
+
+        await dbRunSCM(`
+            UPDATE pedidos
+            SET estado = 'enviado', fecha_pedido = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `, [pedidoId]);
+
+        await dbRunSCM(`
+            INSERT INTO movimientos_logisticos (pedido_id, tipo, descripcion, estado, usuario_id)
+            VALUES (?, 'ENVIO', ?, 'enviado', ?)
+        `, [pedidoId, `Pedido #${pedidoId} enviado al proveedor.`, usuarioId]);
+
+        registrarActividad(
+            usuarioId,
+            'PEDIDO',
+            'Logística',
+            `Marcó como enviado el pedido #${pedidoId} de ${pedido.insumo_nombre || 'insumo'}`,
+            'pedido',
+            pedidoId
+        );
+
+        res.json({ mensaje: 'Pedido marcado como enviado.' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// -------------------- RECIBIR PEDIDO --------------------
+app.put('/api/scm/pedidos/:id/recibir', async (req, res) => {
+    try {
+        const pedidoId = enteroPositivoSCM(req.params.id);
+        const cantidadRecibida = enteroPositivoSCM(req.body?.cantidad_recibida);
+        const usuarioId = usuarioIdSCM(req);
+
+        if (!pedidoId) return res.status(400).json({ error: 'ID de pedido no válido.' });
+        if (!cantidadRecibida) {
+            return res.status(400).json({ error: 'La cantidad recibida debe ser un entero mayor que cero.' });
+        }
+
+        const pedido = await dbGetSCM(`
+            SELECT
+                pe.*,
+                i.nombre AS insumo_nombre,
+                COALESCE(inv.stock_actual, 0) AS stock_actual
+            FROM pedidos pe
+            LEFT JOIN insumos i ON i.id = pe.insumo_id
+            LEFT JOIN inventario inv ON inv.insumo_id = pe.insumo_id
+            WHERE pe.id = ?
+        `, [pedidoId]);
+
+        if (!pedido) return res.status(404).json({ error: 'Pedido no encontrado.' });
+        if (!['enviado', 'parcial'].includes(pedido.estado)) {
+            return res.status(400).json({ error: 'Primero debes marcar el pedido como enviado.' });
+        }
+
+        const recibidasAntes = Number(pedido.cantidad_recibida || 0);
+        const restante = Number(pedido.cantidad) - recibidasAntes;
+        if (cantidadRecibida > restante) {
+            return res.status(400).json({ error: `Solo faltan ${restante} porciones por recibir.` });
+        }
+
+        const recibidasTotal = recibidasAntes + cantidadRecibida;
+        const estadoNuevo = recibidasTotal >= Number(pedido.cantidad) ? 'recibido' : 'parcial';
+        const nuevoStock = Number(pedido.stock_actual || 0) + cantidadRecibida;
+
+        await dbRunSCM('BEGIN IMMEDIATE TRANSACTION');
+
+        try {
+            await dbRunSCM(`
+                INSERT INTO inventario (insumo_id, stock_actual, stock_minimo, fecha_actualizacion)
+                VALUES (?, ?, 0, CURRENT_TIMESTAMP)
+                ON CONFLICT(insumo_id) DO UPDATE SET
+                    stock_actual = stock_actual + excluded.stock_actual,
+                    fecha_actualizacion = CURRENT_TIMESTAMP
+            `, [pedido.insumo_id, cantidadRecibida]);
+
+            await dbRunSCM(`
+                INSERT INTO movimientos_inventario (
+                    producto_id, insumo_id, tipo, cantidad, motivo, usuario_id
+                ) VALUES (NULL, ?, 'entrada', ?, ?, ?)
+            `, [pedido.insumo_id, cantidadRecibida, `recepcion pedido #${pedidoId}`, usuarioId]);
+
+            await dbRunSCM(`
+                UPDATE pedidos
+                SET
+                    cantidad_recibida = ?,
+                    estado = ?,
+                    fecha_surtido = CASE
+                        WHEN ? = 'recibido' THEN CURRENT_TIMESTAMP
+                        ELSE fecha_surtido
+                    END
+                WHERE id = ?
+            `, [recibidasTotal, estadoNuevo, estadoNuevo, pedidoId]);
+
+            await dbRunSCM(`
+                INSERT INTO movimientos_logisticos (pedido_id, tipo, descripcion, estado, usuario_id)
+                VALUES (?, 'RECEPCION', ?, ?, ?)
+            `, [
+                pedidoId,
+                `Recepción de ${cantidadRecibida} porciones. Acumulado ${recibidasTotal}/${pedido.cantidad}.`,
+                estadoNuevo,
+                usuarioId
+            ]);
+
+            await dbRunSCM('COMMIT');
+        } catch (errorInterno) {
+            try { await dbRunSCM('ROLLBACK'); } catch (_) {}
+            throw errorInterno;
+        }
+
+        recalcularProductosPorInsumo(pedido.insumo_id);
+
+        registrarActividad(
+            usuarioId,
+            'INVENTARIO',
+            'Logística',
+            `Recibió ${cantidadRecibida} porciones del pedido #${pedidoId} de ${pedido.insumo_nombre || 'insumo'}`,
+            'pedido',
+            pedidoId
+        );
+
+        res.json({
+            mensaje: estadoNuevo === 'recibido'
+                ? 'Pedido recibido completamente e inventario actualizado.'
+                : 'Recepción parcial registrada e inventario actualizado.',
+            estado: estadoNuevo,
+            cantidad_recibida_total: recibidasTotal,
+            cantidad_restante: Number(pedido.cantidad) - recibidasTotal,
+            stock_anterior: Number(pedido.stock_actual || 0),
+            stock_actual: nuevoStock
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// -------------------- CANCELAR PEDIDO --------------------
+app.put('/api/scm/pedidos/:id/cancelar', async (req, res) => {
+    try {
+        const pedidoId = enteroPositivoSCM(req.params.id);
+        const usuarioId = usuarioIdSCM(req);
+        if (!pedidoId) return res.status(400).json({ error: 'ID de pedido no válido.' });
+
+        const pedido = await dbGetSCM(`SELECT * FROM pedidos WHERE id = ?`, [pedidoId]);
+        if (!pedido) return res.status(404).json({ error: 'Pedido no encontrado.' });
+        if (!['pendiente', 'enviado'].includes(pedido.estado)) {
+            return res.status(400).json({ error: 'Solo pedidos pendientes o enviados pueden cancelarse.' });
+        }
+
+        await dbRunSCM(`UPDATE pedidos SET estado = 'cancelado' WHERE id = ?`, [pedidoId]);
+
+        await dbRunSCM(`
+            INSERT INTO movimientos_logisticos (pedido_id, tipo, descripcion, estado, usuario_id)
+            VALUES (?, 'CANCELACION', ?, 'cancelado', ?)
+        `, [pedidoId, `Pedido #${pedidoId} cancelado.`, usuarioId]);
+
+        registrarActividad(
+            usuarioId,
+            'BAJA',
+            'Logística',
+            `Canceló el pedido #${pedidoId}`,
+            'pedido',
+            pedidoId
+        );
+
+        res.json({ mensaje: 'Pedido cancelado.' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// -------------------- HISTORIAL DEL PEDIDO --------------------
+app.get('/api/scm/pedidos/:id/movimientos', async (req, res) => {
+    try {
+        const pedidoId = enteroPositivoSCM(req.params.id);
+        if (!pedidoId) return res.status(400).json({ error: 'ID de pedido no válido.' });
+
+        const filas = await dbAllSCM(`
+            SELECT ml.*, u.nombre AS usuario_nombre
+            FROM movimientos_logisticos ml
+            LEFT JOIN usuarios u ON u.id = ml.usuario_id
+            WHERE ml.pedido_id = ?
+            ORDER BY ml.fecha DESC, ml.id DESC
+        `, [pedidoId]);
+
+        res.json({ mensaje: 'Éxito', data: filas });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// -------------------- RESUMEN SCM --------------------
+app.get('/api/scm/resumen', async (req, res) => {
+    try {
+        const sugerencias = await obtenerSugerenciasReposicion();
+
+        const conteos = await dbGetSCM(`
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN estado = 'pendiente' THEN 1 ELSE 0 END) AS pendientes,
+                SUM(CASE WHEN estado = 'enviado' THEN 1 ELSE 0 END) AS enviados,
+                SUM(CASE WHEN estado = 'parcial' THEN 1 ELSE 0 END) AS parciales,
+                SUM(CASE WHEN estado = 'recibido' THEN 1 ELSE 0 END) AS recibidos,
+                SUM(CASE WHEN estado = 'cancelado' THEN 1 ELSE 0 END) AS cancelados
+            FROM pedidos
+        `);
+
+        const recibidosHoy = await dbGetSCM(`
+            SELECT COUNT(*) AS total
+            FROM pedidos
+            WHERE estado = 'recibido'
+              AND date(fecha_surtido, 'localtime') = date('now', 'localtime')
+        `);
+
+        res.json({
+            mensaje: 'Éxito',
+            data: {
+                insumos_activos: sugerencias.length,
+                sugerencias_reposicion: sugerencias.filter(s => s.necesita_reposicion).length,
+                configuraciones_pendientes: sugerencias.filter(s => s.configuracion_pendiente).length,
+                pedidos_total: Number(conteos?.total || 0),
+                pedidos_pendientes: Number(conteos?.pendientes || 0),
+                pedidos_enviados: Number(conteos?.enviados || 0),
+                pedidos_parciales: Number(conteos?.parciales || 0),
+                pedidos_recibidos: Number(conteos?.recibidos || 0),
+                pedidos_cancelados: Number(conteos?.cancelados || 0),
+                recibidos_hoy: Number(recibidosHoy?.total || 0)
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // ============================================================
