@@ -1528,6 +1528,354 @@ app.get('/api/scm/resumen', async (req, res) => {
     }
 });
 
+
+// ============================================================
+// SCM: ANALÍTICA OPERATIVA Y MADUREZ
+// ============================================================
+
+function porcentajeSCM(parte, total) {
+    const t = Number(total || 0);
+    const p = Number(parte || 0);
+    if (t <= 0) return 0;
+    return Math.max(0, Math.min(100, Number(((p / t) * 100).toFixed(1))));
+}
+
+function nivelMadurezSCM(puntaje) {
+    const n = Number(puntaje || 0);
+    if (n >= 80) return 'Optimizado';
+    if (n >= 60) return 'Integrado';
+    if (n >= 40) return 'Básico';
+    return 'Inicial';
+}
+
+app.get('/api/scm/analitica', async (req, res) => {
+    try {
+        const [
+            catalogo,
+            cobertura,
+            movimientos,
+            ordenes,
+            estrategias,
+            topConsumo,
+            proveedores,
+            sugerencias
+        ] = await Promise.all([
+            dbGetSCM(`
+                SELECT
+                    (SELECT COUNT(*) FROM productos) AS productos_total,
+                    (SELECT COUNT(*) FROM productos p
+                        WHERE EXISTS (
+                            SELECT 1 FROM producto_insumo pi
+                            WHERE pi.producto_id = p.id
+                        )
+                    ) AS productos_con_receta,
+                    (SELECT COUNT(*) FROM insumos WHERE estado = 'activo') AS insumos_activos,
+                    (SELECT COUNT(*) FROM proveedores WHERE estado = 'activo') AS proveedores_activos
+            `),
+
+            dbGetSCM(`
+                SELECT
+                    COUNT(*) AS total,
+                    SUM(CASE WHEN i.proveedor_id IS NOT NULL THEN 1 ELSE 0 END) AS con_proveedor,
+                    SUM(CASE WHEN COALESCE(inv.stock_minimo, 0) > 0 THEN 1 ELSE 0 END) AS con_minimo,
+                    SUM(CASE WHEN COALESCE(inv.stock_actual, 0) > 0 THEN 1 ELSE 0 END) AS con_stock,
+                    SUM(CASE WHEN UPPER(COALESCE(i.estrategia_reposicion, '')) IN ('PUSH','PULL') THEN 1 ELSE 0 END) AS con_estrategia,
+                    SUM(CASE WHEN COALESCE(inv.stock_actual, 0) <= 0 THEN 1 ELSE 0 END) AS agotados,
+                    SUM(CASE WHEN COALESCE(inv.stock_actual, 0) > 0
+                                   AND COALESCE(inv.stock_actual, 0) <= COALESCE(inv.stock_minimo, 0)
+                             THEN 1 ELSE 0 END) AS bajos,
+                    SUM(CASE WHEN COALESCE(inv.stock_actual, 0) > COALESCE(inv.stock_minimo, 0)
+                             THEN 1 ELSE 0 END) AS normales,
+                    ROUND(SUM(COALESCE(inv.stock_actual, 0) * COALESCE(i.costo_porcion, 0)), 2) AS valor_inventario
+                FROM insumos i
+                LEFT JOIN inventario inv ON inv.insumo_id = i.id
+                WHERE i.estado = 'activo'
+            `),
+
+            dbGetSCM(`
+                SELECT
+                    COUNT(*) AS movimientos_30d,
+                    COALESCE(SUM(CASE WHEN tipo = 'entrada' THEN cantidad ELSE 0 END), 0) AS entradas_30d,
+                    COALESCE(SUM(CASE WHEN tipo = 'salida' THEN cantidad ELSE 0 END), 0) AS salidas_30d
+                FROM movimientos_inventario
+                WHERE datetime(fecha) >= datetime('now', '-30 days')
+            `),
+
+            dbGetSCM(`
+                SELECT
+                    COUNT(*) AS pedidos_total,
+                    SUM(CASE WHEN estado = 'pendiente' THEN 1 ELSE 0 END) AS pendientes,
+                    SUM(CASE WHEN estado = 'enviado' THEN 1 ELSE 0 END) AS enviados,
+                    SUM(CASE WHEN estado = 'parcial' THEN 1 ELSE 0 END) AS parciales,
+                    SUM(CASE WHEN estado = 'recibido' THEN 1 ELSE 0 END) AS recibidos,
+                    SUM(CASE WHEN estado = 'cancelado' THEN 1 ELSE 0 END) AS cancelados,
+                    ROUND(COALESCE(SUM(
+                        CASE WHEN estado IN ('pendiente','enviado','parcial')
+                             THEN (cantidad - COALESCE(cantidad_recibida, 0)) * COALESCE(costo_unitario, 0)
+                             ELSE 0 END
+                    ), 0), 2) AS valor_pendiente,
+                    ROUND(COALESCE(SUM(
+                        CASE WHEN datetime(COALESCE(fecha_surtido, fecha_creacion)) >= datetime('now', '-30 days')
+                                  AND COALESCE(cantidad_recibida, 0) > 0
+                             THEN COALESCE(cantidad_recibida, 0) * COALESCE(costo_unitario, 0)
+                             ELSE 0 END
+                    ), 0), 2) AS compras_recibidas_30d,
+                    SUM(CASE WHEN estado = 'recibido'
+                                  AND datetime(fecha_surtido) >= datetime('now', '-30 days')
+                             THEN 1 ELSE 0 END) AS recibidos_30d
+                FROM pedidos
+            `),
+
+            dbGetSCM(`
+                SELECT
+                    SUM(CASE WHEN UPPER(COALESCE(estrategia_reposicion, 'PULL')) = 'PUSH' THEN 1 ELSE 0 END) AS push,
+                    SUM(CASE WHEN UPPER(COALESCE(estrategia_reposicion, 'PULL')) = 'PULL' THEN 1 ELSE 0 END) AS pull
+                FROM insumos
+                WHERE estado = 'activo'
+            `),
+
+            dbAllSCM(`
+                SELECT
+                    i.id AS insumo_id,
+                    i.nombre AS insumo_nombre,
+                    COALESCE(SUM(m.cantidad), 0) AS consumo_30d,
+                    COALESCE(inv.stock_actual, 0) AS stock_actual,
+                    COALESCE(inv.stock_minimo, 0) AS stock_minimo
+                FROM movimientos_inventario m
+                INNER JOIN insumos i ON i.id = m.insumo_id
+                LEFT JOIN inventario inv ON inv.insumo_id = i.id
+                WHERE m.tipo = 'salida'
+                  AND datetime(m.fecha) >= datetime('now', '-30 days')
+                  AND i.estado = 'activo'
+                GROUP BY i.id, i.nombre, inv.stock_actual, inv.stock_minimo
+                ORDER BY consumo_30d DESC, i.nombre ASC
+                LIMIT 10
+            `),
+
+            dbAllSCM(`
+                SELECT
+                    p.id,
+                    p.nombre,
+                    COUNT(DISTINCT i.id) AS insumos_asignados,
+                    COUNT(DISTINCT CASE WHEN pe.estado IN ('pendiente','enviado','parcial') THEN pe.id END) AS pedidos_abiertos,
+                    COALESCE(SUM(
+                        CASE WHEN pe.estado IN ('pendiente','enviado','parcial')
+                             THEN pe.cantidad - COALESCE(pe.cantidad_recibida, 0)
+                             ELSE 0 END
+                    ), 0) AS porciones_pendientes
+                FROM proveedores p
+                LEFT JOIN insumos i ON i.proveedor_id = p.id AND i.estado = 'activo'
+                LEFT JOIN pedidos pe ON pe.proveedor_id = p.id
+                WHERE p.estado = 'activo'
+                GROUP BY p.id, p.nombre
+                ORDER BY insumos_asignados DESC, p.nombre ASC
+            `),
+
+            obtenerSugerenciasReposicion()
+        ]);
+
+        const insumosActivos = Number(catalogo?.insumos_activos || 0);
+        const productosTotal = Number(catalogo?.productos_total || 0);
+
+        const coberturaProveedor = porcentajeSCM(cobertura?.con_proveedor, insumosActivos);
+        const coberturaMinimo = porcentajeSCM(cobertura?.con_minimo, insumosActivos);
+        const coberturaStock = porcentajeSCM(cobertura?.con_stock, insumosActivos);
+        const coberturaEstrategia = porcentajeSCM(cobertura?.con_estrategia, insumosActivos);
+        const coberturaRecetas = porcentajeSCM(catalogo?.productos_con_receta, productosTotal);
+
+        const movimientos30 = Number(movimientos?.movimientos_30d || 0);
+        const pedidosTotal = Number(ordenes?.pedidos_total || 0);
+        const pedidosRecibidos = Number(ordenes?.recibidos || 0);
+
+        const criterios = [
+            {
+                clave: 'proveedores',
+                nombre: 'Insumos con proveedor',
+                porcentaje: coberturaProveedor,
+                peso: 15,
+                puntos: Number((coberturaProveedor * 0.15).toFixed(1))
+            },
+            {
+                clave: 'minimos',
+                nombre: 'Stocks mínimos configurados',
+                porcentaje: coberturaMinimo,
+                peso: 20,
+                puntos: Number((coberturaMinimo * 0.20).toFixed(1))
+            },
+            {
+                clave: 'recetas',
+                nombre: 'Productos con receta base',
+                porcentaje: coberturaRecetas,
+                peso: 20,
+                puntos: Number((coberturaRecetas * 0.20).toFixed(1))
+            },
+            {
+                clave: 'existencias',
+                nombre: 'Insumos con existencia registrada',
+                porcentaje: coberturaStock,
+                peso: 15,
+                puntos: Number((coberturaStock * 0.15).toFixed(1))
+            },
+            {
+                clave: 'estrategias',
+                nombre: 'Estrategias PUSH/PULL configuradas',
+                porcentaje: coberturaEstrategia,
+                peso: 10,
+                puntos: Number((coberturaEstrategia * 0.10).toFixed(1))
+            },
+            {
+                clave: 'movimientos',
+                nombre: 'Trazabilidad de inventario',
+                porcentaje: Math.min(100, movimientos30 * 10),
+                peso: 10,
+                puntos: Number(Math.min(10, movimientos30).toFixed(1))
+            },
+            {
+                clave: 'pedidos',
+                nombre: 'Uso del proceso de pedidos',
+                porcentaje: pedidosTotal > 0 ? 100 : 0,
+                peso: 5,
+                puntos: pedidosTotal > 0 ? 5 : 0
+            },
+            {
+                clave: 'recepciones',
+                nombre: 'Ciclo de reposición completado',
+                porcentaje: pedidosRecibidos > 0 ? 100 : 0,
+                peso: 5,
+                puntos: pedidosRecibidos > 0 ? 5 : 0
+            }
+        ];
+
+        const puntaje = Math.round(
+            criterios.reduce((total, criterio) => total + Number(criterio.puntos || 0), 0)
+        );
+        const nivel = nivelMadurezSCM(puntaje);
+
+        const recomendaciones = [];
+        if (coberturaProveedor < 100) {
+            recomendaciones.push(`Asigna proveedor a ${Math.max(0, insumosActivos - Number(cobertura?.con_proveedor || 0))} insumos activos.`);
+        }
+        if (coberturaMinimo < 100) {
+            recomendaciones.push(`Configura el stock mínimo de ${Math.max(0, insumosActivos - Number(cobertura?.con_minimo || 0))} insumos.`);
+        }
+        if (coberturaRecetas < 100) {
+            recomendaciones.push(`Completa la receta base de ${Math.max(0, productosTotal - Number(catalogo?.productos_con_receta || 0))} productos.`);
+        }
+        if (coberturaStock < 70) {
+            recomendaciones.push('Registra las existencias reales de los insumos para que las alertas y sugerencias representen la operación actual.');
+        }
+        if (movimientos30 < 10) {
+            recomendaciones.push('Registra entradas y salidas de inventario de forma continua para fortalecer la trazabilidad y el cálculo PUSH.');
+        }
+        if (pedidosTotal === 0) {
+            recomendaciones.push('Genera al menos un pedido de reposición desde Estrategia Logística para probar el flujo completo.');
+        } else if (pedidosRecibidos === 0) {
+            recomendaciones.push('Completa la recepción de un pedido para cerrar el ciclo pedido → inventario.');
+        }
+        if (Number(cobertura?.agotados || 0) > 0) {
+            recomendaciones.push(`Revisa ${Number(cobertura?.agotados || 0)} insumos agotados y prioriza los que afectan más productos.`);
+        }
+        if (!recomendaciones.length) {
+            recomendaciones.push('La configuración principal está completa. Mantén actualizados movimientos, mínimos y tiempos de reposición.');
+        }
+
+        const pedidosAbiertosPorInsumo = await dbAllSCM(`
+            SELECT
+                pe.id,
+                pe.insumo_id,
+                pe.estado,
+                pe.cantidad,
+                COALESCE(pe.cantidad_recibida, 0) AS cantidad_recibida
+            FROM pedidos pe
+            WHERE pe.estado IN ('pendiente','enviado','parcial')
+            ORDER BY pe.id DESC
+        `);
+
+        const pedidoPorInsumo = new Map();
+        for (const pedido of pedidosAbiertosPorInsumo) {
+            if (!pedidoPorInsumo.has(Number(pedido.insumo_id))) {
+                pedidoPorInsumo.set(Number(pedido.insumo_id), pedido);
+            }
+        }
+
+        const atencion = sugerencias
+            .filter(item => item.necesita_reposicion || item.configuracion_pendiente || Number(item.stock_actual) <= Number(item.stock_minimo))
+            .map(item => {
+                const pedido = pedidoPorInsumo.get(Number(item.insumo_id));
+                return {
+                    ...item,
+                    pedido_abierto_id: pedido?.id || null,
+                    pedido_estado: pedido?.estado || null,
+                    pedido_pendiente: pedido
+                        ? Math.max(0, Number(pedido.cantidad || 0) - Number(pedido.cantidad_recibida || 0))
+                        : 0
+                };
+            })
+            .sort((a, b) => {
+                const aAgotado = Number(a.stock_actual) <= 0 ? 0 : 1;
+                const bAgotado = Number(b.stock_actual) <= 0 ? 0 : 1;
+                if (aAgotado !== bAgotado) return aAgotado - bAgotado;
+                return Number(a.stock_actual) - Number(b.stock_actual);
+            });
+
+        await dbRunSCM(`
+            UPDATE scm_config
+            SET nivel_scm = ?, fecha_actualizacion = CURRENT_TIMESTAMP
+            WHERE id = 1
+        `, [nivel]);
+
+        res.json({
+            mensaje: 'Éxito',
+            data: {
+                kpis: {
+                    productos_total: productosTotal,
+                    productos_con_receta: Number(catalogo?.productos_con_receta || 0),
+                    insumos_activos: insumosActivos,
+                    proveedores_activos: Number(catalogo?.proveedores_activos || 0),
+                    valor_inventario: Number(cobertura?.valor_inventario || 0),
+                    agotados: Number(cobertura?.agotados || 0),
+                    bajos: Number(cobertura?.bajos || 0),
+                    normales: Number(cobertura?.normales || 0),
+                    sugerencias_reposicion: sugerencias.filter(s => s.necesita_reposicion).length,
+                    configuraciones_pendientes: sugerencias.filter(s => s.configuracion_pendiente).length,
+                    pedidos_pendientes: Number(ordenes?.pendientes || 0),
+                    pedidos_enviados: Number(ordenes?.enviados || 0),
+                    pedidos_parciales: Number(ordenes?.parciales || 0),
+                    pedidos_recibidos: Number(ordenes?.recibidos || 0),
+                    pedidos_cancelados: Number(ordenes?.cancelados || 0),
+                    valor_pendiente: Number(ordenes?.valor_pendiente || 0),
+                    compras_recibidas_30d: Number(ordenes?.compras_recibidas_30d || 0),
+                    recibidos_30d: Number(ordenes?.recibidos_30d || 0),
+                    movimientos_30d: movimientos30,
+                    entradas_30d: Number(movimientos?.entradas_30d || 0),
+                    salidas_30d: Number(movimientos?.salidas_30d || 0)
+                },
+                madurez: {
+                    puntaje,
+                    nivel,
+                    aclaracion: 'Diagnóstico interno del proyecto; no corresponde a una certificación externa.',
+                    criterios,
+                    recomendaciones
+                },
+                estrategias: {
+                    push: Number(estrategias?.push || 0),
+                    pull: Number(estrategias?.pull || 0)
+                },
+                stock: {
+                    agotados: Number(cobertura?.agotados || 0),
+                    bajos: Number(cobertura?.bajos || 0),
+                    normales: Number(cobertura?.normales || 0)
+                },
+                top_consumo: topConsumo,
+                proveedores,
+                atencion
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ============================================================
 // INICIAR SERVIDOR
 // ============================================================
