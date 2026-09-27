@@ -8,31 +8,216 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <style>
+        .scm-dashboard {
+            display: grid;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
         .scm-kpis {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
             gap: 16px;
-            margin: 20px 0;
         }
 
-        .scm-num {
+        .scm-kpi-num {
             font-size: 2rem;
-            font-weight: bold;
-            color: #3c4a45;
-            margin: 8px 0;
+            font-weight: 800;
+            color: var(--verde-logo);
+            margin: 8px 0 4px;
         }
 
-        .scm-link {
-            display: inline-block;
-            margin: 5px 10px 5px 0;
-            color: #3c4a45;
-            font-weight: bold;
+        .scm-kpi small {
+            color: #777;
+            line-height: 1.35;
+        }
+
+        .scm-grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 20px;
+        }
+
+        .scm-grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .scm-section-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        .scm-section-head h2 {
+            margin: 0;
+        }
+
+        .scm-progress {
+            height: 14px;
+            background: #e7e3dc;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .scm-progress > span {
+            display: block;
+            height: 100%;
+            width: 0;
+            background: var(--verde-logo);
+            border-radius: inherit;
+            transition: width .35s ease;
+        }
+
+        .scm-mini-barra {
+            width: 100%;
+            min-width: 110px;
+            height: 9px;
+            background: #ece8e0;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .scm-mini-barra span {
+            display: block;
+            height: 100%;
+            background: var(--verde-logo);
+            border-radius: inherit;
+        }
+
+        .scm-madurez-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+
+        .scm-nivel {
+            font-size: 1.7rem;
+            font-weight: 800;
+            color: var(--verde-logo);
+        }
+
+        .scm-puntaje {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #333;
+        }
+
+        .scm-distribucion-item {
+            padding: 14px;
+            border: 1px solid #ebe5dc;
+            border-radius: 12px;
+            background: #fff;
+        }
+
+        .scm-distribucion-item strong {
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .scm-distribucion-num {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--verde-logo);
+        }
+
+        .scm-lista-recomendaciones {
+            margin: 0;
+            padding-left: 20px;
+            color: #555;
+            line-height: 1.6;
+        }
+
+        .scm-lista-recomendaciones li + li {
+            margin-top: 7px;
+        }
+
+        .scm-toolbar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .scm-toolbar button {
+            border: none;
+            border-radius: 18px;
+            padding: 9px 15px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .scm-btn-principal {
+            background: var(--verde-logo);
+            color: white;
+        }
+
+        .scm-btn-secundario {
+            background: #9b5f43;
+            color: white;
         }
 
         .scm-error {
             color: #a83c21;
-            padding: 12px 0;
             font-weight: 700;
+            margin-top: 10px;
+        }
+
+        .scm-resumen-operativo {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+            gap: 12px;
+        }
+
+        .scm-mini-kpi {
+            padding: 13px;
+            border-radius: 10px;
+            background: #f8f6f1;
+            border: 1px solid #ebe5dc;
+        }
+
+        .scm-mini-kpi span {
+            display: block;
+            color: #777;
+            font-size: .85rem;
+            margin-bottom: 5px;
+        }
+
+        .scm-mini-kpi strong {
+            font-size: 1.15rem;
+            color: #333;
+        }
+
+        @media (max-width: 980px) {
+            .scm-grid-2,
+            .scm-grid-3 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media print {
+            #admin-sidebar-container,
+            .scm-toolbar,
+            .admin-user {
+                display: none !important;
+            }
+
+            .admin-main {
+                margin-left: 0 !important;
+                width: 100% !important;
+            }
+
+            .crm-card {
+                break-inside: avoid;
+                box-shadow: none !important;
+            }
         }
     </style>
 </head>
@@ -41,11 +226,11 @@
     <div class="admin-layout">
         <div id="admin-sidebar-container"></div>
 
-        <main class="admin-main crm-main-bg">
+        <main class="admin-main crm-main-bg" id="scm-panel-analitica">
             <header class="admin-header">
                 <div>
                     <h1>Resumen SCM</h1>
-                    <p>Datos reales de productos, insumos, inventario y logística.</p>
+                    <p style="color:#777;">Indicadores reales de inventario, reposición, proveedores y madurez operativa.</p>
                 </div>
 
                 <div class="admin-user">
@@ -54,220 +239,294 @@
             </header>
 
             <div class="crm-card" style="margin-top:20px;">
-                <button
-                    type="button"
-                    class="btn-primary"
-                    style="padding:8px 16px; font-size:0.9rem; border-radius:16px;"
-                    font-size:0.9rem;border-radius:16px;
-                    onclick="cargarResumenSCM()"
-                >
-                    Actualizar datos
-                </button>
+                <div class="scm-section-head" style="margin-bottom:0;">
+                    <div>
+                        <strong>Panel de control SCM</strong>
+                        <div id="analitica-scm-actualizado" style="color:#777;margin-top:5px;">Consultando base de datos...</div>
+                        <div id="analitica-scm-error" class="scm-error"></div>
+                    </div>
 
-                <span id="scm-actualizado" style="margin-left:12px;color:#777;">
-                    Consultando base de datos...
-                </span>
-
-                <div id="scm-error" class="scm-error" role="alert"></div>
+                    <div class="scm-toolbar">
+                        <button class="scm-btn-principal" onclick="cargarAnaliticaSCM()">Actualizar</button>
+                        <button class="scm-btn-secundario" onclick="imprimirResumenSCM()">Imprimir / PDF</button>
+                    </div>
+                </div>
             </div>
 
-            <section class="scm-kpis">
-                <div class="crm-card">
-                    <h3>Productos registrados</h3>
-                    <div class="scm-num" id="k-productos">—</div>
-                    <small>Incluye productos agotados e inactivos.</small>
-                </div>
+            <div class="scm-dashboard">
+                <section class="scm-kpis">
+                    <div class="crm-card scm-kpi">
+                        <h3>Productos</h3>
+                        <div class="scm-kpi-num" id="scm-k-productos">—</div>
+                        <small>Productos registrados en el menú.</small>
+                    </div>
 
-                <div class="crm-card">
-                    <h3>Insumos activos</h3>
-                    <div class="scm-num" id="k-insumos">—</div>
-                    <small>Catálogo de ingredientes.</small>
-                </div>
+                    <div class="crm-card scm-kpi">
+                        <h3>Insumos activos</h3>
+                        <div class="scm-kpi-num" id="scm-k-insumos">—</div>
+                        <small>Ingredientes disponibles para operación.</small>
+                    </div>
 
-                <div class="crm-card">
-                    <h3>Proveedores activos</h3>
-                    <div class="scm-num" id="k-proveedores">—</div>
-                    <small>Proveedores externos e internos.</small>
-                </div>
+                    <div class="crm-card scm-kpi">
+                        <h3>Valor inventario</h3>
+                        <div class="scm-kpi-num" id="scm-k-valor">—</div>
+                        <small>Stock actual × costo por porción.</small>
+                    </div>
 
-                <div class="crm-card">
-                    <h3>Insumos agotados</h3>
-                    <div class="scm-num" id="k-agotados">—</div>
-                    <small>Existencia igual a cero.</small>
-                </div>
+                    <div class="crm-card scm-kpi">
+                        <h3>Agotados</h3>
+                        <div class="scm-kpi-num" id="scm-k-agotados">—</div>
+                        <small>Insumos con existencia igual a cero.</small>
+                    </div>
 
-                <div class="crm-card">
-                    <h3>Stock bajo</h3>
-                    <div class="scm-num" id="k-bajos">—</div>
-                    <small>Stock mayor que cero y hasta el mínimo.</small>
-                </div>
+                    <div class="crm-card scm-kpi">
+                        <h3>Stock bajo</h3>
+                        <div class="scm-kpi-num" id="scm-k-bajos">—</div>
+                        <small>Existencia por debajo o igual al mínimo.</small>
+                    </div>
 
-                <div class="crm-card">
-                    <h3>Sin proveedor</h3>
-                    <div class="scm-num" id="k-sin-proveedor">—</div>
-                    <small>Insumos activos pendientes de asignación.</small>
-                </div>
+                    <div class="crm-card scm-kpi">
+                        <h3>Reposiciones</h3>
+                        <div class="scm-kpi-num" id="scm-k-reposiciones">—</div>
+                        <small>Sugerencias activas de abastecimiento.</small>
+                    </div>
 
-                <div class="crm-card">
-                    <h3>Reposiciones sugeridas</h3>
-                    <div class="scm-num" id="k-reposiciones">—</div>
-                    <small>Insumos que actualmente requieren reposición.</small>
-                </div>
+                    <div class="crm-card scm-kpi">
+                        <h3>En tránsito</h3>
+                        <div class="scm-kpi-num" id="scm-k-transito">—</div>
+                        <small>Pedidos enviados o parcialmente recibidos.</small>
+                    </div>
 
-                <div class="crm-card">
-                    <h3>Pedidos pendientes</h3>
-                    <div class="scm-num" id="k-pedidos-pendientes">—</div>
-                    <small>Pedidos creados todavía no enviados.</small>
-                </div>
+                    <div class="crm-card scm-kpi">
+                        <h3>Madurez SCM</h3>
+                        <div class="scm-kpi-num" id="scm-k-madurez">—</div>
+                        <small>Diagnóstico interno calculado con datos del sistema.</small>
+                    </div>
+                </section>
 
-                <div class="crm-card">
-                    <h3>En tránsito</h3>
-                    <div class="scm-num" id="k-en-transito">—</div>
-                    <small>Pedidos enviados o recibidos parcialmente.</small>
-                </div>
+                <section class="crm-card">
+                    <div class="scm-section-head">
+                        <div>
+                            <h2>Madurez operativa SCM</h2>
+                            <p style="color:#777;margin:5px 0 0;">Evalúa cobertura de proveedores, mínimos, recetas, existencias, trazabilidad y uso del flujo de reposición.</p>
+                        </div>
+                    </div>
 
-                <div class="crm-card">
-                    <h3>Recibidos hoy</h3>
-                    <div class="scm-num" id="k-recibidos-hoy">—</div>
-                    <small>Pedidos completados durante el día.</small>
-                </div>
-            </section>
+                    <div class="scm-madurez-top">
+                        <div>
+                            <div style="color:#777;font-size:.9rem;">Nivel actual</div>
+                            <div class="scm-nivel" id="scm-madurez-nivel">—</div>
+                        </div>
 
-            <div class="crm-card">
-                <h2>Accesos SCM</h2>
-                <a class="scm-link" href="admin-productos.html">Productos</a>
-                <a class="scm-link" href="admin-insumos.html">Insumos</a>
-                <a class="scm-link" href="admin-inventario.html">Inventario</a>
-                <a class="scm-link" href="admin-proveedores.html">Proveedores</a>
-                <a class="scm-link" href="admin-logistica.html">Estrategia Logística</a>
+                        <div style="text-align:right;">
+                            <div style="color:#777;font-size:.9rem;">Puntaje</div>
+                            <div class="scm-puntaje" id="scm-madurez-puntaje">—</div>
+                        </div>
+                    </div>
 
-                <p style="color:#777;">
-                    La estrategia PUSH/PULL pertenece a cada insumo. Crear un pedido no aumenta el inventario; el stock cambia cuando se registra la recepción.
-                </p>
-            </div>
+                    <div class="scm-progress">
+                        <span id="scm-madurez-barra"></span>
+                    </div>
 
-            <div class="crm-card">
-                <h2>Insumos que requieren atención</h2>
+                    <p id="scm-madurez-aclaracion" style="color:#777;font-size:.85rem;margin-top:8px;"></p>
 
-                <div class="admin-table-container">
-                    <table class="admin-table">
-                        <thead>
-                            <tr>
-                                <th>Insumo</th>
-                                <th>Proveedor</th>
-                                <th>Estrategia</th>
-                                <th>Actual</th>
-                                <th>Mínimo</th>
-                                <th>Pedido</th>
-                                <th>Estado</th>
-                            </tr>
-                        </thead>
+                    <div class="admin-table-container" style="margin-top:18px;">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Criterio</th>
+                                    <th>Cobertura</th>
+                                    <th>Peso</th>
+                                    <th>Puntos</th>
+                                    <th>Avance</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scm-tabla-criterios">
+                                <tr><td colspan="5">Cargando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
 
-                        <tbody id="scm-tabla-alertas">
-                            <tr>
-                                <td colspan="7">Cargando...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+                <section class="scm-grid-2">
+                    <div class="crm-card">
+                        <h2>Recomendaciones</h2>
+                        <ul class="scm-lista-recomendaciones" id="scm-recomendaciones">
+                            <li>Cargando recomendaciones...</li>
+                        </ul>
+                    </div>
+
+                    <div class="crm-card">
+                        <h2>Actividad de los últimos 30 días</h2>
+                        <div class="scm-resumen-operativo" style="margin-top:15px;">
+                            <div class="scm-mini-kpi">
+                                <span>Movimientos</span>
+                                <strong id="scm-movimientos-30d">—</strong>
+                            </div>
+                            <div class="scm-mini-kpi">
+                                <span>Entradas</span>
+                                <strong id="scm-entradas-30d">—</strong>
+                            </div>
+                            <div class="scm-mini-kpi">
+                                <span>Salidas</span>
+                                <strong id="scm-salidas-30d">—</strong>
+                            </div>
+                            <div class="scm-mini-kpi">
+                                <span>Pedidos pendientes</span>
+                                <strong id="scm-pedidos-pendientes">—</strong>
+                            </div>
+                            <div class="scm-mini-kpi">
+                                <span>Recibidos</span>
+                                <strong id="scm-recibidos-30d">—</strong>
+                            </div>
+                            <div class="scm-mini-kpi">
+                                <span>Valor pendiente</span>
+                                <strong id="scm-valor-pendiente">—</strong>
+                            </div>
+                            <div class="scm-mini-kpi">
+                                <span>Compras recibidas</span>
+                                <strong id="scm-compras-30d">—</strong>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="scm-grid-2">
+                    <div class="crm-card">
+                        <h2>Estrategias de reposición</h2>
+
+                        <div class="scm-grid-2" style="margin-top:15px;">
+                            <div class="scm-distribucion-item">
+                                <strong>PUSH</strong>
+                                <div class="scm-distribucion-num" id="scm-push-total">—</div>
+                                <div style="color:#777;margin:4px 0 8px;" id="scm-push-pct">—</div>
+                                <div class="scm-progress"><span id="scm-push-barra"></span></div>
+                            </div>
+
+                            <div class="scm-distribucion-item">
+                                <strong>PULL</strong>
+                                <div class="scm-distribucion-num" id="scm-pull-total">—</div>
+                                <div style="color:#777;margin:4px 0 8px;" id="scm-pull-pct">—</div>
+                                <div class="scm-progress"><span id="scm-pull-barra"></span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="crm-card">
+                        <h2>Estado del inventario</h2>
+
+                        <div class="scm-grid-3" style="margin-top:15px;">
+                            <div class="scm-distribucion-item">
+                                <strong>Agotados</strong>
+                                <div class="scm-distribucion-num" id="scm-stock-agotado">—</div>
+                                <div class="scm-progress"><span id="scm-stock-agotado-barra" style="background:#b7410e;"></span></div>
+                            </div>
+
+                            <div class="scm-distribucion-item">
+                                <strong>Stock bajo</strong>
+                                <div class="scm-distribucion-num" id="scm-stock-bajo">—</div>
+                                <div class="scm-progress"><span id="scm-stock-bajo-barra" style="background:#c9841d;"></span></div>
+                            </div>
+
+                            <div class="scm-distribucion-item">
+                                <strong>Normal</strong>
+                                <div class="scm-distribucion-num" id="scm-stock-normal">—</div>
+                                <div class="scm-progress"><span id="scm-stock-normal-barra" style="background:#3c6e57;"></span></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="scm-grid-2">
+                    <div class="crm-card">
+                        <div class="scm-section-head">
+                            <div>
+                                <h2>Insumos con mayor consumo</h2>
+                                <p style="color:#777;margin:5px 0 0;">Salidas registradas durante los últimos 30 días.</p>
+                            </div>
+                        </div>
+
+                        <div class="admin-table-container">
+                            <table class="admin-table">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Insumo</th>
+                                        <th>Consumo</th>
+                                        <th>Stock</th>
+                                        <th>Mínimo</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="scm-tabla-consumo">
+                                    <tr><td colspan="5">Cargando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="crm-card">
+                        <div class="scm-section-head">
+                            <div>
+                                <h2>Cobertura por proveedor</h2>
+                                <p style="color:#777;margin:5px 0 0;">Insumos asignados y pedidos abiertos.</p>
+                            </div>
+                        </div>
+
+                        <div class="admin-table-container">
+                            <table class="admin-table">
+                                <thead>
+                                    <tr>
+                                        <th>Proveedor</th>
+                                        <th>Insumos</th>
+                                        <th>Pedidos abiertos</th>
+                                        <th>Porciones pendientes</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="scm-tabla-proveedores">
+                                    <tr><td colspan="4">Cargando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="crm-card">
+                    <div class="scm-section-head">
+                        <div>
+                            <h2>Insumos que requieren atención</h2>
+                            <p style="color:#777;margin:5px 0 0;">Combina alertas de stock, configuración y pedidos de reposición.</p>
+                        </div>
+
+                        <div class="scm-toolbar">
+                            <button class="scm-btn-principal" onclick="window.location.href='admin-inventario.html'">Ir a Inventario</button>
+                            <button class="scm-btn-secundario" onclick="window.location.href='admin-logistica.html'">Ir a Logística</button>
+                        </div>
+                    </div>
+
+                    <div class="admin-table-container">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Insumo</th>
+                                    <th>Proveedor</th>
+                                    <th>Estrategia</th>
+                                    <th>Stock</th>
+                                    <th>Mínimo</th>
+                                    <th>Sugerido</th>
+                                    <th>Pedido</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scm-tabla-atencion">
+                                <tr><td colspan="8">Cargando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
             </div>
         </main>
     </div>
 
     <script src="js/app.js"></script>
-
-    <script>
-        const $scm = id => document.getElementById(id);
-
-        const escSCM = valor => String(valor ?? '').replace(
-            /[&<>"']/g,
-            caracter => ({
-                '&': '&amp;',
-                '<': '&lt;',
-                '>': '&gt;',
-                '"': '&quot;',
-                "'": '&#39;'
-            }[caracter])
-        );
-
-        async function pedirSCM(ruta) {
-            const respuesta = await fetch(ruta, { cache: 'no-store' });
-            const resultado = await respuesta.json();
-
-            if (!respuesta.ok) {
-                throw new Error(resultado.error || 'Error al consultar ' + ruta);
-            }
-
-            return resultado.data ?? resultado;
-        }
-
-        async function cargarResumenSCM() {
-            $scm('scm-error').textContent = '';
-            $scm('scm-actualizado').textContent = 'Actualizando...';
-
-            try {
-                const [productos, insumos, proveedores, inventario, resumenLogistica] = await Promise.all([
-                    pedirSCM('/api/productos?todos=1'),
-                    pedirSCM('/api/insumos'),
-                    pedirSCM('/api/proveedores'),
-                    pedirSCM('/api/inventario'),
-                    pedirSCM('/api/scm/resumen')
-                ]);
-
-                const activos = insumos.filter(i => i.estado === 'activo');
-                const inventarioActivo = inventario.filter(i => i.insumo_estado === 'activo');
-                const agotados = inventarioActivo.filter(i => Number(i.stock_actual) <= 0);
-                const bajos = inventarioActivo.filter(i =>
-                    Number(i.stock_actual) > 0 &&
-                    Number(i.stock_actual) <= Number(i.stock_minimo)
-                );
-
-                const set = (id, valor) => {
-                    const elemento = $scm(id);
-                    if (elemento) elemento.textContent = valor;
-                };
-
-                set('k-productos', productos.length);
-                set('k-insumos', activos.length);
-                set('k-proveedores', proveedores.filter(p => p.estado === 'activo').length);
-                set('k-agotados', agotados.length);
-                set('k-bajos', bajos.length);
-                set('k-sin-proveedor', activos.filter(i => !i.proveedor_id).length);
-
-                set('k-reposiciones', resumenLogistica.sugerencias_reposicion || 0);
-                set('k-pedidos-pendientes', resumenLogistica.pedidos_pendientes || 0);
-                set('k-en-transito', Number(resumenLogistica.pedidos_enviados || 0) + Number(resumenLogistica.pedidos_parciales || 0));
-                set('k-recibidos-hoy', resumenLogistica.recibidos_hoy || 0);
-
-                const alertas = [...agotados, ...bajos].sort(
-                    (a, b) => Number(a.stock_actual) - Number(b.stock_actual)
-                );
-
-                $scm('scm-tabla-alertas').innerHTML = alertas.length
-                    ? alertas.map(i => `
-                        <tr>
-                            <td>${escSCM(i.insumo_nombre)}</td>
-                            <td>${escSCM(i.proveedor_nombre || 'Sin proveedor')}</td>
-                            <td><strong>${escSCM(i.estrategia_reposicion || 'PULL')}</strong></td>
-                            <td>${Number(i.stock_actual)}</td>
-                            <td>${Number(i.stock_minimo)}</td>
-                            <td>${i.pedido_abierto_id ? `#${i.pedido_abierto_id} · ${escSCM(i.pedido_estado || '')} · faltan ${Number(i.pedido_pendiente || 0)}` : 'Sin pedido'}</td>
-                            <td>${Number(i.stock_actual) <= 0 ? 'Agotado' : 'Bajo'}</td>
-                        </tr>
-                    `).join('')
-                    : '<tr><td colspan="7">No hay alertas de inventario.</td></tr>';
-
-                $scm('scm-actualizado').textContent =
-                    'Actualizado: ' + new Date().toLocaleString('es-MX');
-
-            } catch (error) {
-                console.error(error);
-                $scm('scm-error').textContent = 'No se pudieron cargar los datos: ' + error.message;
-                $scm('scm-actualizado').textContent = 'Error de consulta';
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', cargarResumenSCM);
-    </script>
 </body>
 </html>

@@ -2580,3 +2580,235 @@ document.addEventListener('DOMContentLoaded', () => {
         cargarLogisticaSCM();
     }
 });
+// ============================================================
+// SCM: ANALÍTICA, INDICADORES Y MADUREZ OPERATIVA
+// ============================================================
+
+function monedaSCM(valor) {
+    return Number(valor || 0).toLocaleString('es-MX', {
+        style: 'currency',
+        currency: 'MXN',
+        minimumFractionDigits: 2
+    });
+}
+
+function porcentajeVisualSCM(valor) {
+    const numero = Math.max(0, Math.min(100, Number(valor || 0)));
+    return `${numero}%`;
+}
+
+function escaparAnaliticaSCM(valor) {
+    return String(valor ?? '').replace(/[&<>"']/g, caracter => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    }[caracter]));
+}
+
+function textoEstadoStockSCM(item) {
+    const actual = Number(item.stock_actual || 0);
+    const minimo = Number(item.stock_minimo || 0);
+
+    if (actual <= 0) return 'Agotado';
+    if (actual <= minimo) return 'Stock bajo';
+    if (item.configuracion_pendiente) return 'Configurar';
+    if (item.necesita_reposicion) return 'Reponer';
+    return 'Normal';
+}
+
+function colorEstadoStockSCM(item) {
+    const actual = Number(item.stock_actual || 0);
+    const minimo = Number(item.stock_minimo || 0);
+
+    if (actual <= 0) return '#b7410e';
+    if (actual <= minimo) return '#c9841d';
+    if (item.configuracion_pendiente) return '#8b6f47';
+    if (item.necesita_reposicion) return '#c9841d';
+    return '#3c6e57';
+}
+
+window.cargarAnaliticaSCM = async function() {
+    const error = document.getElementById('analitica-scm-error');
+    const actualizado = document.getElementById('analitica-scm-actualizado');
+
+    if (error) error.textContent = '';
+    if (actualizado) actualizado.textContent = 'Actualizando...';
+
+    try {
+        const respuesta = await fetch('/api/scm/analitica', { cache: 'no-store' });
+        const resultado = await respuesta.json();
+
+        if (!respuesta.ok) {
+            throw new Error(resultado.error || 'No se pudo cargar la analítica SCM.');
+        }
+
+        renderAnaliticaSCM(resultado.data || {});
+
+        if (actualizado) {
+            actualizado.textContent = `Actualizado: ${new Date().toLocaleString('es-MX')}`;
+        }
+    } catch (e) {
+        console.error('Error cargando analítica SCM:', e);
+        if (error) error.textContent = e.message;
+        if (actualizado) actualizado.textContent = 'No se pudo actualizar';
+    }
+};
+
+function renderAnaliticaSCM(data) {
+    const k = data.kpis || {};
+    const madurez = data.madurez || {};
+    const estrategias = data.estrategias || {};
+    const stock = data.stock || {};
+
+    const setTexto = (id, valor) => {
+        const elemento = document.getElementById(id);
+        if (elemento) elemento.textContent = valor;
+    };
+
+    setTexto('scm-k-productos', Number(k.productos_total || 0));
+    setTexto('scm-k-insumos', Number(k.insumos_activos || 0));
+    setTexto('scm-k-valor', monedaSCM(k.valor_inventario));
+    setTexto('scm-k-agotados', Number(k.agotados || 0));
+    setTexto('scm-k-bajos', Number(k.bajos || 0));
+    setTexto('scm-k-reposiciones', Number(k.sugerencias_reposicion || 0));
+    setTexto('scm-k-transito', Number(k.pedidos_enviados || 0) + Number(k.pedidos_parciales || 0));
+    setTexto('scm-k-madurez', `${Number(madurez.puntaje || 0)}/100`);
+
+    setTexto('scm-madurez-nivel', madurez.nivel || 'Inicial');
+    setTexto('scm-madurez-puntaje', `${Number(madurez.puntaje || 0)}%`);
+    setTexto('scm-madurez-aclaracion', madurez.aclaracion || '');
+
+    const barraMadurez = document.getElementById('scm-madurez-barra');
+    if (barraMadurez) barraMadurez.style.width = porcentajeVisualSCM(madurez.puntaje);
+
+    const criterios = document.getElementById('scm-tabla-criterios');
+    if (criterios) {
+        criterios.innerHTML = (madurez.criterios || []).length
+            ? madurez.criterios.map(c => `
+                <tr>
+                    <td><strong>${escaparAnaliticaSCM(c.nombre)}</strong></td>
+                    <td>${Number(c.porcentaje || 0).toFixed(1)}%</td>
+                    <td>${Number(c.peso || 0)} pts</td>
+                    <td>${Number(c.puntos || 0).toFixed(1)} pts</td>
+                    <td>
+                        <div class="scm-mini-barra">
+                            <span style="width:${porcentajeVisualSCM(c.porcentaje)}"></span>
+                        </div>
+                    </td>
+                </tr>
+            `).join('')
+            : '<tr><td colspan="5">Sin criterios disponibles.</td></tr>';
+    }
+
+    const recomendaciones = document.getElementById('scm-recomendaciones');
+    if (recomendaciones) {
+        recomendaciones.innerHTML = (madurez.recomendaciones || []).length
+            ? madurez.recomendaciones.map(r => `<li>${escaparAnaliticaSCM(r)}</li>`).join('')
+            : '<li>Sin recomendaciones pendientes.</li>';
+    }
+
+    const totalEstrategias = Number(estrategias.push || 0) + Number(estrategias.pull || 0);
+    const pushPct = totalEstrategias ? (Number(estrategias.push || 0) / totalEstrategias) * 100 : 0;
+    const pullPct = totalEstrategias ? (Number(estrategias.pull || 0) / totalEstrategias) * 100 : 0;
+
+    setTexto('scm-push-total', Number(estrategias.push || 0));
+    setTexto('scm-pull-total', Number(estrategias.pull || 0));
+    setTexto('scm-push-pct', `${pushPct.toFixed(1)}%`);
+    setTexto('scm-pull-pct', `${pullPct.toFixed(1)}%`);
+
+    const pushBar = document.getElementById('scm-push-barra');
+    const pullBar = document.getElementById('scm-pull-barra');
+    if (pushBar) pushBar.style.width = `${pushPct}%`;
+    if (pullBar) pullBar.style.width = `${pullPct}%`;
+
+    const totalStock = Number(stock.agotados || 0) + Number(stock.bajos || 0) + Number(stock.normales || 0);
+    const agotadoPct = totalStock ? (Number(stock.agotados || 0) / totalStock) * 100 : 0;
+    const bajoPct = totalStock ? (Number(stock.bajos || 0) / totalStock) * 100 : 0;
+    const normalPct = totalStock ? (Number(stock.normales || 0) / totalStock) * 100 : 0;
+
+    setTexto('scm-stock-agotado', Number(stock.agotados || 0));
+    setTexto('scm-stock-bajo', Number(stock.bajos || 0));
+    setTexto('scm-stock-normal', Number(stock.normales || 0));
+
+    const agotadoBar = document.getElementById('scm-stock-agotado-barra');
+    const bajoBar = document.getElementById('scm-stock-bajo-barra');
+    const normalBar = document.getElementById('scm-stock-normal-barra');
+    if (agotadoBar) agotadoBar.style.width = `${agotadoPct}%`;
+    if (bajoBar) bajoBar.style.width = `${bajoPct}%`;
+    if (normalBar) normalBar.style.width = `${normalPct}%`;
+
+    setTexto('scm-movimientos-30d', Number(k.movimientos_30d || 0));
+    setTexto('scm-entradas-30d', Number(k.entradas_30d || 0));
+    setTexto('scm-salidas-30d', Number(k.salidas_30d || 0));
+    setTexto('scm-pedidos-pendientes', Number(k.pedidos_pendientes || 0));
+    setTexto('scm-recibidos-30d', Number(k.recibidos_30d || 0));
+    setTexto('scm-valor-pendiente', monedaSCM(k.valor_pendiente));
+    setTexto('scm-compras-30d', monedaSCM(k.compras_recibidas_30d));
+
+    const consumo = document.getElementById('scm-tabla-consumo');
+    if (consumo) {
+        consumo.innerHTML = (data.top_consumo || []).length
+            ? data.top_consumo.map((item, indice) => `
+                <tr>
+                    <td>${indice + 1}</td>
+                    <td><strong>${escaparAnaliticaSCM(item.insumo_nombre)}</strong></td>
+                    <td>${Number(item.consumo_30d || 0)}</td>
+                    <td>${Number(item.stock_actual || 0)}</td>
+                    <td>${Number(item.stock_minimo || 0)}</td>
+                </tr>
+            `).join('')
+            : '<tr><td colspan="5">Todavía no existen salidas de inventario suficientes para mostrar consumo.</td></tr>';
+    }
+
+    const proveedores = document.getElementById('scm-tabla-proveedores');
+    if (proveedores) {
+        proveedores.innerHTML = (data.proveedores || []).length
+            ? data.proveedores.map(p => `
+                <tr>
+                    <td><strong>${escaparAnaliticaSCM(p.nombre)}</strong></td>
+                    <td>${Number(p.insumos_asignados || 0)}</td>
+                    <td>${Number(p.pedidos_abiertos || 0)}</td>
+                    <td>${Number(p.porciones_pendientes || 0)}</td>
+                </tr>
+            `).join('')
+            : '<tr><td colspan="4">No hay proveedores activos.</td></tr>';
+    }
+
+    const atencion = document.getElementById('scm-tabla-atencion');
+    if (atencion) {
+        atencion.innerHTML = (data.atencion || []).length
+            ? data.atencion.map(item => {
+                const estado = textoEstadoStockSCM(item);
+                const color = colorEstadoStockSCM(item);
+                const pedido = item.pedido_abierto_id
+                    ? `#${item.pedido_abierto_id} · ${escaparAnaliticaSCM(item.pedido_estado)}<br><small>${Number(item.pedido_pendiente || 0)} pendientes</small>`
+                    : '<span style="color:#777;">Sin pedido</span>';
+
+                return `
+                    <tr>
+                        <td><strong>${escaparAnaliticaSCM(item.insumo_nombre)}</strong></td>
+                        <td>${escaparAnaliticaSCM(item.proveedor_nombre || 'Sin proveedor')}</td>
+                        <td>${escaparAnaliticaSCM(item.estrategia_reposicion || 'PULL')}</td>
+                        <td>${Number(item.stock_actual || 0)}</td>
+                        <td>${Number(item.stock_minimo || 0)}</td>
+                        <td>${Number(item.cantidad_sugerida || 0)}</td>
+                        <td>${pedido}</td>
+                        <td><strong style="color:${color};">${estado}</strong></td>
+                    </tr>
+                `;
+            }).join('')
+            : '<tr><td colspan="8">No hay insumos que requieran atención.</td></tr>';
+    }
+}
+
+window.imprimirResumenSCM = function() {
+    window.print();
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (document.getElementById('scm-panel-analitica')) {
+        cargarAnaliticaSCM();
+    }
+});
