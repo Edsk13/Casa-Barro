@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Órdenes de Clientes | Casa Barro</title>
+
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<style>
+.ordenes-toolbar{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    align-items:center;
+    margin-top:20px;
+}
+
+.ordenes-toolbar input,
+.ordenes-toolbar select{
+    padding:10px 12px;
+    border:1px solid #ccc;
+    border-radius:8px;
+    background:white;
+}
+
+.ordenes-toolbar input{
+    flex:1;
+    min-width:220px;
+}
+
+.ordenes-toolbar select{
+    min-width:190px;
+}
+
+.ordenes-scroll{
+    overflow-x:auto;
+}
+
+.ordenes-scroll table{
+    min-width:950px;
+}
+
+.badge-status{
+    display:inline-block;
+    padding:5px 11px;
+    border-radius:15px;
+    font-size:.8rem;
+    font-weight:700;
+}
+
+.badge-status.pendiente{
+    background:#fff3cd;
+    color:#7a5b00;
+}
+
+.badge-status.preparacion{
+    background:#dbeafe;
+    color:#1d4ed8;
+}
+
+.badge-status.entregado{
+    background:#dcfce7;
+    color:#2f6b46;
+}
+
+.badge-status.cancelado{
+    background:#fee2e2;
+    color:#a83c21;
+}
+
+.orden-btn{
+    border:none;
+    border-radius:15px;
+    padding:7px 12px;
+    font-size:.8rem;
+    font-weight:700;
+    cursor:pointer;
+    margin:2px;
+    transition:.2s;
+}
+
+.orden-btn:hover{
+    transform:translateY(-1px);
+}
+
+.orden-ver{
+    background:#e8eee9;
+    color:#3c4a45;
+}
+
+.orden-avanzar{
+    background:#3c4a45;
+    color:white;
+}
+
+.orden-cancelar{
+    background:#fee2e2;
+    color:#a83c21;
+}
+
+.orden-vacio{
+    text-align:center;
+    padding:30px;
+    color:#777;
+}
+</style>
+</head>
+
+<body class="admin-body">
+
+<div class="admin-layout">
+
+<div id="admin-sidebar-container"></div>
+
+<main class="admin-main crm-main-bg">
+
+<header class="admin-header">
+
+    <div>
+        <h1>Gestión de Órdenes</h1>
+
+        <p style="color:#777;">
+            Controla las órdenes de clientes y su estado de preparación.
+        </p>
+    </div>
+
+    <div class="admin-user">
+        <span id="admin-user-name">
+            Cargando...
+        </span>
+    </div>
+
+</header>
+
+
+<div class="crm-card" style="margin-top:20px;">
+
+    <div
+        style="
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:15px;
+            flex-wrap:wrap;
+        "
+    >
+
+        <div>
+            <h2>Órdenes de clientes</h2>
+
+            <p style="color:#777;margin:5px 0 0;">
+                Información integrada con clientes CRM y productos SCM.
+            </p>
+        </div>
+
+        <button
+            class="btn-primary"
+            style="
+                width:auto;
+                padding:9px 17px;
+                font-size:0.9rem;
+                border-radius:17px
+
+            "
+            onclick="mostrarNuevaOrdenProximamente()"
+        >
+            Nueva orden
+        </button>
+
+    </div>
+
+
+    <div class="ordenes-toolbar">
+
+        <input
+            type="text"
+            id="ordenes-busqueda"
+            placeholder="Buscar por # de orden o cliente..."
+            oninput="filtrarOrdenesAdmin()"
+        >
+
+
+        <select
+            id="ordenes-estado"
+            onchange="filtrarOrdenesAdmin()"
+        >
+
+            <option value="todos">
+                Todos los estados
+            </option>
+
+            <option value="pendiente">
+                Pendientes
+            </option>
+
+            <option value="preparacion">
+                En Preparación
+            </option>
+
+            <option value="entregado">
+                Entregados
+            </option>
+
+            <option value="cancelado">
+                Cancelados
+            </option>
+
+        </select>
+
+
+        <button
+            class="btn-primary"
+            style="
+                width:auto;
+                padding:9px 16px;
+                font-size:0.9rem;
+                border-radius:16px;
+            "
+            onclick="cargarOrdenesAdmin()"
+        >
+            Actualizar
+        </button>
+
+    </div>
+
+
+    <div
+        class="admin-table-container ordenes-scroll"
+        style="margin-top:20px;"
+    >
+
+        <table class="admin-table">
+
+            <thead>
+
+                <tr>
+
+                    <th># Orden</th>
+
+                    <th>Cliente</th>
+
+                    <th>Fecha y Hora</th>
+
+                    <th>Productos</th>
+
+                    <th>Total</th>
+
+                    <th>Estado</th>
+
+                    <th>Acciones</th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody id="tabla-ordenes-admin">
+
+                <tr>
+
+                    <td
+                        colspan="7"
+                        class="orden-vacio"
+                    >
+                        Cargando...
+                    </td>
+
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+</main>
+
+</div>
+
+<script src="js/app.js"></script>
+
+</body>
+</html>

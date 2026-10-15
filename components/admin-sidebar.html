@@ -40,9 +40,96 @@
             <a href="admin-productos.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Productos (Menú)</a>
             <a href="admin-inventario.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Inventario (Insumos)</a>
             <a href="admin-proveedores.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Proveedores</a>
-            <a href="admin-pedidos.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Pedidos de Cliente</a>
             <a href="admin-logistica.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Estrategia Logística</a>
         </div>
+
+        <!-- ERP -->
+<button
+    class="nav-accordion"
+    style="
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        padding: 12px 25px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: white;
+        font-size: 1.05rem;
+        font-weight: bold;
+    "
+>
+    <div
+        style="
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: white;
+        "
+    >
+        <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+        </svg>
+
+        <span>
+            Dashboard ERP
+        </span>
+    </div>
+
+    <span class="arrow">
+        ▼
+    </span>
+</button>
+
+
+<div
+    class="nav-panel"
+    style="
+        background: rgba(0,0,0,0.15);
+        display: none;
+    "
+>
+
+    <a
+        href="admin-erp-resumen.html"
+        class="nav-sublink"
+        style="
+            display: block;
+            padding: 10px 25px 10px 40px;
+            color: #a4b3ac;
+            text-decoration: none;
+        "
+    >
+        › Resumen ERP
+    </a>
+
+    <a
+        href="admin-ordenes.html"
+        class="nav-sublink"
+        style="
+            display: block;
+            padding: 10px 25px 10px 40px;
+            color: #a4b3ac;
+            text-decoration: none;
+        "
+    >
+        › Órdenes de Clientes
+    </a>
+
+</div>
 
         <!-- ADMIN -->
         <button class="nav-accordion" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 12px 25px; background: none; border: none; cursor: pointer; color: white; font-size: 1.05rem; font-weight: bold;">

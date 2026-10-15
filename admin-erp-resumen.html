@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+
+<title>Dashboard ERP | Casa Barro</title>
+
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<style>
+.erp-kpis{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(175px,1fr));
+    gap:16px;
+    margin:20px 0;
+}
+
+.erp-num{
+    font-size:2rem;
+    font-weight:800;
+    color:var(--verde-logo);
+    margin-top:8px;
+}
+
+.erp-integracion{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:15px;
+    margin-top:18px;
+}
+
+.erp-modulo{
+    background:#f8f6f1;
+    border:1px solid #e4ded3;
+    border-radius:12px;
+    padding:18px;
+    text-align:center;
+}
+
+.erp-modulo strong{
+    display:block;
+    color:var(--verde-logo);
+    font-size:1.1rem;
+    margin-bottom:6px;
+}
+
+.erp-estados{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:15px;
+    margin-top:15px;
+}
+
+.erp-mini{
+    background:#f8f6f1;
+    border-radius:10px;
+    padding:15px;
+}
+
+.erp-mini strong{
+    display:block;
+    font-size:1.6rem;
+    margin-top:5px;
+}
+
+.erp-scroll{
+    overflow-x:auto;
+}
+
+@media(max-width:800px){
+    .erp-integracion,
+    .erp-estados{
+        grid-template-columns:1fr;
+    }
+}
+</style>
+</head>
+
+<body class="admin-body">
+
+<div class="admin-layout">
+
+<div id="admin-sidebar-container"></div>
+
+<main
+    class="admin-main crm-main-bg"
+    id="erp-resumen-panel"
+>
+
+<header class="admin-header">
+
+    <div>
+        <h1>Dashboard ERP</h1>
+
+        <p style="color:#777;">
+            Vista integrada de CRM, operaciones e inventario
+        </p>
+    </div>
+
+    <div class="admin-user">
+        <span id="admin-user-name">
+            Cargando...
+        </span>
+    </div>
+
+</header>
+
+
+<section class="erp-kpis">
+
+    <div class="crm-card">
+
+        <h3>Clientes activos</h3>
+
+        <div
+            class="erp-num"
+            id="erp-k-clientes"
+        >
+            —
+        </div>
+
+        <small>
+            Información del CRM.
+        </small>
+
+    </div>
+
+
+    <div class="crm-card">
+
+        <h3>Órdenes</h3>
+
+        <div
+            class="erp-num"
+            id="erp-k-ordenes"
+        >
+            —
+        </div>
+
+        <small>
+            Órdenes empresariales registradas.
+        </small>
+
+    </div>
+
+
+    <div class="crm-card">
+
+        <h3>Productos disponibles</h3>
+
+        <div
+            class="erp-num"
+            id="erp-k-productos"
+        >
+            —
+        </div>
+
+        <small>
+            Información proveniente del SCM.
+        </small>
+
+    </div>
+
+
+    <div class="crm-card">
+
+        <h3>Inventario</h3>
+
+        <div
+            class="erp-num"
+            id="erp-k-inventario"
+        >
+            —
+        </div>
+
+        <small>
+            Porciones disponibles registradas.
+        </small>
+
+    </div>
+
+
+    <div class="crm-card">
+
+        <h3>Insumos en atención</h3>
+
+        <div
+            class="erp-num"
+            id="erp-k-atencion"
+        >
+            —
+        </div>
+
+        <small>
+            Iguales o debajo del mínimo.
+        </small>
+
+    </div>
+
+</section>
+
+
+<div class="crm-card">
+
+    <div
+        style="
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:15px;
+            flex-wrap:wrap;
+        "
+    >
+
+        <div>
+
+            <h2>
+                Integración empresarial
+            </h2>
+
+            <p style="color:#777;margin:5px 0 0;">
+                El ERP integra datos ya existentes sin duplicarlos.
+            </p>
+
+        </div>
+
+
+        <button
+            class="btn-primary"
+            onclick="cargarResumenERP()"
+            style="
+                width:auto;
+                padding:9px 16px;
+                border-radius:16px;
+            "
+        >
+            Actualizar
+        </button>
+
+    </div>
+
+
+    <div class="erp-integracion">
+
+        <div class="erp-modulo">
+
+            <strong>
+                CRM
+            </strong>
+
+            Clientes e información comercial
+
+        </div>
+
+
+        <div class="erp-modulo">
+
+            <strong>
+                ERP
+            </strong>
+
+            Órdenes y operaciones empresariales
+
+        </div>
+
+
+        <div class="erp-modulo">
+
+            <strong>
+                SCM
+            </strong>
+
+            Productos, recetas e inventario
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<div class="crm-card" style="margin-top:20px;">
+
+    <h2>
+        Estado de las órdenes
+    </h2>
+
+
+    <div class="erp-estados">
+
+        <div class="erp-mini">
+
+            <span>
+                Pendientes
+            </span>
+
+            <strong id="erp-k-pendientes">
+                —
+            </strong>
+
+        </div>
+
+
+        <div class="erp-mini">
+
+            <span>
+                En preparación
+            </span>
+
+            <strong id="erp-k-preparacion">
+                —
+            </strong>
+
+        </div>
+
+
+        <div class="erp-mini">
+
+            <span>
+                Entregadas
+            </span>
+
+            <strong id="erp-k-entregadas">
+                —
+            </strong>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<div class="crm-card" style="margin-top:20px;">
+
+    <div
+        style="
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:15px;
+            flex-wrap:wrap;
+        "
+    >
+
+        <div>
+
+            <h2>
+                Órdenes recientes
+            </h2>
+
+            <p style="color:#777;margin:5px 0 0;">
+                Últimas operaciones registradas.
+            </p>
+
+        </div>
+
+
+        <button
+            class="btn-primary"
+            onclick="
+                window.location.href=
+                'admin-ordenes.html'
+            "
+            style="
+                width:auto;
+                padding:9px 16px;
+                border-radius:16px;
+            "
+        >
+            Ver todas
+        </button>
+
+    </div>
+
+
+    <div
+        class="admin-table-container erp-scroll"
+        style="margin-top:15px;"
+    >
+
+        <table class="admin-table">
+
+            <thead>
+
+                <tr>
+
+                    <th>Folio</th>
+
+                    <th>Fecha</th>
+
+                    <th>Cliente</th>
+
+                    <th>Total</th>
+
+                    <th>Estado</th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody id="erp-ordenes-recientes">
+
+                <tr>
+
+                    <td colspan="5">
+                        Cargando...
+                    </td>
+
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+</main>
+
+</div>
+
+<script src="js/app.js"></script>
+
+</body>
+</html>

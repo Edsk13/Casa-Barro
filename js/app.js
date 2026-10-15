@@ -3990,123 +3990,1452 @@ window.eliminarInsumoReceta = async function(productoId, insumoId) {
     }
 }
 
-// INICIALIZADOR DE SEGURIDAD Y VISTAS
-document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Cargar Navbar y Footer (Vista cliente)
-    await cargarComponente('navbar-container', 'components/navbar.html');
-    await cargarComponente('footer-container', 'components/footer.html');
-    
-    // 2. Cargar Menú Lateral (Vista Admin)
-    const adminSidebarContainer = document.getElementById('admin-sidebar-container');
-    if (adminSidebarContainer) {
-        await cargarComponente('admin-sidebar-container', 'components/admin-sidebar.html');
-        const acordeones = document.querySelectorAll(".nav-accordion");
-        
-        // 1. Leer la memoria del navegador para ver cuáles estaban abiertos
-        let menusAbiertos = JSON.parse(localStorage.getItem('casaBarro_menus_abiertos')) || [];
+// ============================================================
+// ERP - ÓRDENES DE CLIENTES
+// ============================================================
 
-        acordeones.forEach((btn, index) => {
-            // 2. Restaurar visualmente los menús que el usuario dejó abiertos
-            if (menusAbiertos.includes(index)) {
-                btn.classList.add("active");
-                btn.nextElementSibling.style.display = "block";
+let ordenesAdminCache=[];
+
+
+// ============================================================
+// UTILIDADES ERP
+// ============================================================
+
+function usuarioERPActual(){
+    try{
+        return JSON.parse(
+            localStorage.getItem(
+                'casaBarro_usuario'
+            )
+        );
+    }catch(_){
+        return null;
+    }
+}
+
+function escaparHtmlERP(valor){
+    return escaparHtmlSCM(
+        valor==null
+            ?''
+            :String(valor)
+    );
+}
+
+function fechaERP(fecha){
+    if(!fecha){
+        return '—';
+    }
+
+    const valor=
+        new Date(
+            String(fecha).includes('T')
+                ?fecha
+                :String(fecha).replace(' ','T')
+        );
+
+    if(Number.isNaN(valor.getTime())){
+        return escaparHtmlERP(fecha);
+    }
+
+    return valor.toLocaleString(
+        'es-MX',
+        {
+            dateStyle:'short',
+            timeStyle:'short'
+        }
+    );
+}
+
+async function apiERP(ruta,opciones={}){
+    const config={
+        ...opciones,
+        headers:{
+            'Content-Type':'application/json',
+            ...(opciones.headers||{})
+        }
+    };
+
+    const respuesta=
+        await fetch(
+            `http://localhost:3000${ruta}`,
+            config
+        );
+
+    let datos={};
+
+    try{
+        datos=await respuesta.json();
+    }catch(_){}
+
+    if(!respuesta.ok){
+        throw new Error(
+            datos.error||
+            `Error HTTP ${respuesta.status}`
+        );
+    }
+
+    return datos;
+}
+
+function textoEstadoOrdenERP(estado){
+    const nombres={
+        pendiente:'Pendiente',
+        preparacion:'En Preparación',
+        entregado:'Entregado',
+        cancelado:'Cancelado'
+    };
+
+    return nombres[estado]||estado||'—';
+}
+
+
+// ============================================================
+// CARGAR ÓRDENES
+// ============================================================
+
+window.cargarOrdenesAdmin=
+async function(){
+
+    const tabla=
+        document.getElementById(
+            'tabla-ordenes-admin'
+        );
+
+    if(!tabla){
+        return;
+    }
+
+    tabla.innerHTML=`
+        <tr>
+            <td
+                colspan="7"
+                style="
+                    text-align:center;
+                    padding:25px;
+                "
+            >
+                Cargando...
+            </td>
+        </tr>
+    `;
+
+    try{
+        const respuesta=
+            await apiERP(
+                '/api/ordenes'
+            );
+
+        ordenesAdminCache=
+            respuesta.data||[];
+
+        renderOrdenesAdmin();
+
+    }catch(error){
+        console.error(
+            'Error cargando órdenes:',
+            error
+        );
+
+        tabla.innerHTML=`
+            <tr>
+                <td
+                    colspan="7"
+                    style="
+                        text-align:center;
+                        padding:30px;
+                        color:#b7410e;
+                    "
+                >
+                    ${escaparHtmlERP(error.message)}
+                </td>
+            </tr>
+        `;
+    }
+}
+
+
+// ============================================================
+// FILTRAR
+// ============================================================
+
+window.filtrarOrdenesAdmin=
+function(){
+    renderOrdenesAdmin();
+}
+
+
+function renderOrdenesAdmin(){
+
+    const tabla=
+        document.getElementById(
+            'tabla-ordenes-admin'
+        );
+
+    if(!tabla){
+        return;
+    }
+
+    const texto=
+        (
+            document.getElementById(
+                'ordenes-busqueda'
+            )?.value||''
+        )
+        .trim()
+        .toLowerCase();
+
+    const estado=
+        document.getElementById(
+            'ordenes-estado'
+        )?.value||
+        'todos';
+
+    const ordenes=
+        ordenesAdminCache.filter(
+            orden=>{
+
+                const cadena=
+                    `#${orden.id} ${orden.cliente_nombre||''}`
+                    .toLowerCase();
+
+                const coincideTexto=
+                    !texto||
+                    cadena.includes(texto);
+
+                const coincideEstado=
+                    estado==='todos'||
+                    orden.estado===estado;
+
+                return(
+                    coincideTexto&&
+                    coincideEstado
+                );
             }
+        );
 
-            // 3. Detectar clics y guardar la decisión
-            btn.addEventListener("click", function() {
-                this.classList.toggle("active");
-                let panel = this.nextElementSibling;
-                
-                if (panel.style.display === "block") {
-                    panel.style.display = "none";
-                    // Quitar de la memoria porque se cerró
-                    menusAbiertos = menusAbiertos.filter(i => i !== index); 
-                } else {
-                    panel.style.display = "block";
-                    // Guardar en la memoria porque se abrió
-                    if (!menusAbiertos.includes(index)) menusAbiertos.push(index); 
+
+    if(!ordenes.length){
+
+        tabla.innerHTML=`
+            <tr>
+                <td
+                    colspan="7"
+                    class="orden-vacio"
+                >
+                    No hay órdenes que coincidan con el filtro.
+                </td>
+            </tr>
+        `;
+
+        return;
+    }
+
+
+    tabla.innerHTML=
+        ordenes.map(
+            orden=>{
+
+                let acciones=`
+                    <button
+                        class="orden-btn orden-ver"
+                        onclick="
+                            verDetallePedidoAdmin(
+                                ${orden.id}
+                            )
+                        "
+                    >
+                        Ver
+                    </button>
+                `;
+
+
+                if(
+                    orden.estado==='pendiente'||
+                    orden.estado==='preparacion'
+                ){
+
+                    acciones+=`
+                        <button
+                            class="orden-btn orden-avanzar"
+                            onclick="
+                                cambiarEstadoPedidoAdmin(
+                                    ${orden.id}
+                                )
+                            "
+                        >
+                            ${
+                                orden.estado==='pendiente'
+                                    ?'Iniciar preparación'
+                                    :'Marcar entregado'
+                            }
+                        </button>
+                    `;
+
+                    acciones+=`
+                        <button
+                            class="orden-btn orden-cancelar"
+                            onclick="
+                                cancelarOrdenAdmin(
+                                    ${orden.id}
+                                )
+                            "
+                        >
+                            Cancelar
+                        </button>
+                    `;
                 }
-                
-                // Actualizar el localStorage para la siguiente página
-                localStorage.setItem('casaBarro_menus_abiertos', JSON.stringify(menusAbiertos));
-            });
+
+
+                return `
+                    <tr>
+
+                        <td>
+                            <strong>
+                                #${orden.id}
+                            </strong>
+                        </td>
+
+                        <td>
+                            <strong>
+                                ${
+                                    escaparHtmlERP(
+                                        orden.cliente_nombre
+                                    )
+                                }
+                            </strong>
+
+                            ${
+                                orden.cliente_empresa
+                                    ?`
+                                        <br>
+                                        <small
+                                            style="color:#777;"
+                                        >
+                                            ${
+                                                escaparHtmlERP(
+                                                    orden.cliente_empresa
+                                                )
+                                            }
+                                        </small>
+                                    `
+                                    :''
+                            }
+                        </td>
+
+                        <td>
+                            ${
+                                fechaERP(
+                                    orden.fecha
+                                )
+                            }
+                        </td>
+
+                        <td>
+                            ${
+                                Number(
+                                    orden.productos_total||
+                                    0
+                                )
+                            }
+                        </td>
+
+                        <td>
+                            <strong>
+                                $${
+                                    Number(
+                                        orden.total||
+                                        0
+                                    ).toFixed(2)
+                                }
+                            </strong>
+                        </td>
+
+                        <td>
+                            <span
+                                class="
+                                    badge-status
+                                    ${orden.estado}
+                                "
+                            >
+                                ${
+                                    textoEstadoOrdenERP(
+                                        orden.estado
+                                    )
+                                }
+                            </span>
+                        </td>
+
+                        <td class="admin-actions">
+                            ${acciones}
+                        </td>
+
+                    </tr>
+                `;
+            }
+        ).join('');
+}
+
+
+// ============================================================
+// VER DETALLE
+// ============================================================
+
+window.verDetallePedidoAdmin=
+async function(ordenId){
+
+    try{
+        const respuesta=
+            await apiERP(
+                `/api/ordenes/${ordenId}`
+            );
+
+        const orden=
+            respuesta.data;
+
+        const productos=
+            orden.productos||[];
+
+        const historial=
+            orden.historial||[];
+
+
+        const productosHtml=
+            productos.length
+
+                ?productos.map(
+                    producto=>`
+                        <tr>
+
+                            <td
+                                style="
+                                    padding:8px;
+                                    text-align:left;
+                                "
+                            >
+                                ${
+                                    escaparHtmlERP(
+                                        producto.producto_nombre
+                                    )
+                                }
+                            </td>
+
+                            <td style="padding:8px;">
+                                ${
+                                    Number(
+                                        producto.cantidad
+                                    )
+                                }
+                            </td>
+
+                            <td style="padding:8px;">
+                                $${
+                                    Number(
+                                        producto.precio_unitario
+                                    ).toFixed(2)
+                                }
+                            </td>
+
+                            <td style="padding:8px;">
+                                <strong>
+                                    $${
+                                        Number(
+                                            producto.subtotal
+                                        ).toFixed(2)
+                                    }
+                                </strong>
+                            </td>
+
+                        </tr>
+                    `
+                ).join('')
+
+                :`
+                    <tr>
+                        <td
+                            colspan="4"
+                            style="
+                                padding:15px;
+                                color:#777;
+                            "
+                        >
+                            Sin productos.
+                        </td>
+                    </tr>
+                `;
+
+
+        const historialHtml=
+            historial.length
+
+                ?historial.map(
+                    movimiento=>`
+                        <div
+                            style="
+                                padding:9px 0;
+                                border-bottom:
+                                    1px solid #eee;
+                            "
+                        >
+
+                            <strong>
+                                ${
+                                    escaparHtmlERP(
+                                        movimiento.tipo
+                                    )
+                                }
+                            </strong>
+
+                            <div>
+                                ${
+                                    escaparHtmlERP(
+                                        movimiento.descripcion||
+                                        ''
+                                    )
+                                }
+                            </div>
+
+                            <small
+                                style="color:#777;"
+                            >
+                                ${
+                                    fechaERP(
+                                        movimiento.fecha
+                                    )
+                                }
+
+                                ${
+                                    movimiento.usuario_nombre
+                                        ?` · ${escaparHtmlERP(movimiento.usuario_nombre)}`
+                                        :''
+                                }
+                            </small>
+
+                        </div>
+                    `
+                ).join('')
+
+                :`
+                    <p style="color:#777;">
+                        Sin movimientos registrados.
+                    </p>
+                `;
+
+
+        Swal.fire({
+
+            title:
+                `Orden #${orden.id}`,
+
+            width:
+                '760px',
+
+            html:`
+                <div style="text-align:left;">
+
+                    <div
+                        style="
+                            background:#f8f6f1;
+                            padding:14px;
+                            border-radius:10px;
+                            margin-bottom:15px;
+                        "
+                    >
+
+                        <strong>Cliente:</strong>
+                        ${
+                            escaparHtmlERP(
+                                orden.cliente_nombre
+                            )
+                        }
+
+                        <br>
+
+                        ${
+                            orden.cliente_correo
+                                ?`
+                                    <strong>Correo:</strong>
+                                    ${escaparHtmlERP(orden.cliente_correo)}
+                                    <br>
+                                `
+                                :''
+                        }
+
+                        ${
+                            orden.cliente_telefono
+                                ?`
+                                    <strong>Teléfono:</strong>
+                                    ${escaparHtmlERP(orden.cliente_telefono)}
+                                    <br>
+                                `
+                                :''
+                        }
+
+                        <strong>Fecha:</strong>
+                        ${fechaERP(orden.fecha)}
+
+                        <br>
+
+                        <strong>Estado:</strong>
+
+                        <span
+                            class="
+                                badge-status
+                                ${orden.estado}
+                            "
+                        >
+                            ${
+                                textoEstadoOrdenERP(
+                                    orden.estado
+                                )
+                            }
+                        </span>
+
+                    </div>
+
+
+                    <table
+                        style="
+                            width:100%;
+                            border-collapse:collapse;
+                            text-align:center;
+                        "
+                    >
+
+                        <thead>
+                            <tr
+                                style="
+                                    border-bottom:
+                                        1px solid #ddd;
+                                "
+                            >
+                                <th style="padding:8px;">
+                                    Producto
+                                </th>
+
+                                <th style="padding:8px;">
+                                    Cant.
+                                </th>
+
+                                <th style="padding:8px;">
+                                    Precio
+                                </th>
+
+                                <th style="padding:8px;">
+                                    Subtotal
+                                </th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            ${productosHtml}
+                        </tbody>
+
+                    </table>
+
+
+                    <div
+                        style="
+                            text-align:right;
+                            margin-top:15px;
+                            font-size:1.3rem;
+                        "
+                    >
+                        <strong>
+                            Total:
+                            $${
+                                Number(
+                                    orden.total||
+                                    0
+                                ).toFixed(2)
+                            }
+                        </strong>
+                    </div>
+
+
+                    <h3 style="margin-top:22px;">
+                        Historial de la orden
+                    </h3>
+
+                    ${historialHtml}
+
+                </div>
+            `,
+
+            confirmButtonText:
+                'Cerrar',
+
+            confirmButtonColor:
+                '#3c4a45'
         });
 
+    }catch(error){
+
+        Swal.fire({
+            icon:'error',
+            title:'No se pudo cargar la orden',
+            text:error.message,
+            confirmButtonColor:'#3c4a45'
+        });
+    }
+}
+
+
+// ============================================================
+// AVANZAR ESTADO
+// ============================================================
+
+window.cambiarEstadoPedidoAdmin=
+async function(ordenId){
+
+    const orden=
+        ordenesAdminCache.find(
+            item=>
+                Number(item.id)===
+                Number(ordenId)
+        );
+
+    if(!orden){
+        return;
+    }
+
+    let nuevoEstado=null;
+    let titulo='';
+    let textoBoton='';
+
+    if(orden.estado==='pendiente'){
+        nuevoEstado='preparacion';
+        titulo='Iniciar preparación';
+        textoBoton='Sí, iniciar';
+    }
+
+    if(orden.estado==='preparacion'){
+        nuevoEstado='entregado';
+        titulo='Marcar como entregada';
+        textoBoton='Sí, entregar';
+    }
+
+    if(!nuevoEstado){
+        return;
+    }
+
+    const confirmacion=
+        await Swal.fire({
+
+            icon:'question',
+
+            title:
+                `${titulo} #${ordenId}`,
+
+            text:
+                nuevoEstado==='preparacion'
+                    ?'La orden cambiará a En Preparación.'
+                    :'La orden quedará marcada como Entregada.',
+
+            showCancelButton:true,
+
+            confirmButtonText:
+                textoBoton,
+
+            cancelButtonText:
+                'Cancelar',
+
+            confirmButtonColor:
+                '#3c4a45'
+        });
+
+
+    if(!confirmacion.isConfirmed){
+        return;
+    }
+
+
+    try{
+        await apiERP(
+            `/api/ordenes/${ordenId}/estado`,
+            {
+                method:'PUT',
+
+                body:
+                    JSON.stringify({
+
+                        estado:
+                            nuevoEstado,
+
+                        usuario_id:
+                            usuarioERPActual()?.id||
+                            null
+                    })
+            }
+        );
+
+        Swal.fire({
+            toast:true,
+            position:'top-end',
+            icon:'success',
+            title:
+                nuevoEstado==='preparacion'
+                    ?'Orden en preparación'
+                    :'Orden entregada',
+            showConfirmButton:false,
+            timer:1600
+        });
+
+        await cargarOrdenesAdmin();
+
+        if(
+            document.getElementById(
+                'erp-resumen-panel'
+            )
+        ){
+            await cargarResumenERP();
+        }
+
+    }catch(error){
+
+        Swal.fire({
+            icon:'error',
+            title:'No se pudo cambiar el estado',
+            text:error.message,
+            confirmButtonColor:'#3c4a45'
+        });
+    }
+}
+
+
+// ============================================================
+// CANCELAR
+// ============================================================
+
+window.cancelarOrdenAdmin=
+async function(ordenId){
+
+    const confirmacion=
+        await Swal.fire({
+
+            icon:'warning',
+
+            title:
+                `Cancelar orden #${ordenId}`,
+
+            text:
+                'La orden permanecerá en el historial como cancelada.',
+
+            showCancelButton:true,
+
+            confirmButtonText:
+                'Sí, cancelar',
+
+            cancelButtonText:
+                'Volver',
+
+            confirmButtonColor:
+                '#b7410e'
+        });
+
+
+    if(!confirmacion.isConfirmed){
+        return;
+    }
+
+
+    try{
+        await apiERP(
+            `/api/ordenes/${ordenId}/estado`,
+            {
+                method:'PUT',
+
+                body:
+                    JSON.stringify({
+
+                        estado:
+                            'cancelado',
+
+                        usuario_id:
+                            usuarioERPActual()?.id||
+                            null
+                    })
+            }
+        );
+
+        Swal.fire({
+            toast:true,
+            position:'top-end',
+            icon:'success',
+            title:'Orden cancelada',
+            showConfirmButton:false,
+            timer:1500
+        });
+
+        await cargarOrdenesAdmin();
+
+    }catch(error){
+
+        Swal.fire({
+            icon:'error',
+            title:'No se pudo cancelar',
+            text:error.message,
+            confirmButtonColor:'#3c4a45'
+        });
+    }
+}
+
+
+// ============================================================
+// NUEVA ORDEN - DÍA SIGUIENTE
+// ============================================================
+
+window.mostrarNuevaOrdenProximamente=
+function(){
+
+    Swal.fire({
+        icon:'info',
+        title:'Nueva orden',
+        text:
+            'La selección de cliente y productos se implementará en el siguiente avance del ERP.',
+        confirmButtonColor:'#3c4a45'
+    });
+}
+
+
+// ============================================================
+// DASHBOARD ERP INICIAL
+// ============================================================
+
+window.cargarResumenERP=
+async function(){
+
+    if(
+        !document.getElementById(
+            'erp-resumen-panel'
+        )
+    ){
+        return;
+    }
+
+    try{
+        const respuesta=
+            await apiERP(
+                '/api/erp/resumen'
+            );
+
+        const data=
+            respuesta.data||{};
+
+        const valores={
+            'erp-k-clientes':
+                data.clientes_activos||0,
+
+            'erp-k-ordenes':
+                data.ordenes_total||0,
+
+            'erp-k-pendientes':
+                data.ordenes_pendientes||0,
+
+            'erp-k-preparacion':
+                data.ordenes_preparacion||0,
+
+            'erp-k-entregadas':
+                data.ordenes_entregadas||0,
+
+            'erp-k-productos':
+                data.productos_disponibles||0,
+
+            'erp-k-inventario':
+                data.inventario_porciones||0,
+
+            'erp-k-atencion':
+                data.insumos_atencion||0
+        };
+
+        Object.entries(valores)
+        .forEach(([id,valor])=>{
+            const elemento=
+                document.getElementById(id);
+
+            if(elemento){
+                elemento.textContent=
+                    valor;
+            }
+        });
+
+
+        const tabla=
+            document.getElementById(
+                'erp-ordenes-recientes'
+            );
+
+        if(tabla){
+
+            const ordenes=
+                data.ordenes_recientes||
+                [];
+
+            tabla.innerHTML=
+                ordenes.length
+
+                    ?ordenes.map(
+                        orden=>`
+                            <tr>
+
+                                <td>
+                                    <strong>
+                                        #${orden.id}
+                                    </strong>
+                                </td>
+
+                                <td>
+                                    ${fechaERP(orden.fecha)}
+                                </td>
+
+                                <td>
+                                    ${
+                                        escaparHtmlERP(
+                                            orden.cliente_nombre
+                                        )
+                                    }
+                                </td>
+
+                                <td>
+                                    $${
+                                        Number(
+                                            orden.total||
+                                            0
+                                        ).toFixed(2)
+                                    }
+                                </td>
+
+                                <td>
+                                    <span
+                                        class="
+                                            badge-status
+                                            ${orden.estado}
+                                        "
+                                    >
+                                        ${
+                                            textoEstadoOrdenERP(
+                                                orden.estado
+                                            )
+                                        }
+                                    </span>
+                                </td>
+
+                            </tr>
+                        `
+                    ).join('')
+
+                    :`
+                        <tr>
+                            <td
+                                colspan="5"
+                                style="
+                                    text-align:center;
+                                    padding:25px;
+                                    color:#777;
+                                "
+                            >
+                                Aún no hay órdenes registradas.
+                            </td>
+                        </tr>
+                    `;
+        }
+
+    }catch(error){
+
+        console.error(
+            'Error cargando Dashboard ERP:',
+            error
+        );
+
+        Swal.fire({
+            icon:'error',
+            title:'No se pudo cargar el ERP',
+            text:error.message,
+            confirmButtonColor:'#3c4a45'
+        });
+    }
+}
+
+// INICIALIZADOR DE SEGURIDAD Y VISTAS
+document.addEventListener('DOMContentLoaded', async () => {
+
+    // 1. Cargar Navbar y Footer (Vista cliente)
+    await cargarComponente(
+        'navbar-container',
+        'components/navbar.html'
+    );
+
+    await cargarComponente(
+        'footer-container',
+        'components/footer.html'
+    );
+
+
+    // 2. Cargar Menú Lateral (Vista Admin)
+    const adminSidebarContainer =
+        document.getElementById(
+            'admin-sidebar-container'
+        );
+
+
+    if (adminSidebarContainer) {
+
+        await cargarComponente(
+            'admin-sidebar-container',
+            'components/admin-sidebar.html'
+        );
+
+
+        const acordeones =
+            document.querySelectorAll(
+                '.nav-accordion'
+            );
+
+
+        let menusAbiertos =
+            JSON.parse(
+                localStorage.getItem(
+                    'casaBarro_menus_abiertos'
+                )
+            ) || [];
+
+
+        acordeones.forEach(
+            (btn, index) => {
+
+                // Restaurar menús abiertos
+                if (
+                    menusAbiertos.includes(
+                        index
+                    )
+                ) {
+
+                    btn.classList.add(
+                        'active'
+                    );
+
+                    btn.nextElementSibling.style.display =
+                        'block';
+                }
+
+
+                // Abrir / cerrar acordeón
+                btn.addEventListener(
+                    'click',
+                    function() {
+
+                        this.classList.toggle(
+                            'active'
+                        );
+
+
+                        const panel =
+                            this.nextElementSibling;
+
+
+                        if (
+                            panel.style.display ===
+                            'block'
+                        ) {
+
+                            panel.style.display =
+                                'none';
+
+
+                            menusAbiertos =
+                                menusAbiertos.filter(
+                                    i =>
+                                        i !== index
+                                );
+
+                        } else {
+
+                            panel.style.display =
+                                'block';
+
+
+                            if (
+                                !menusAbiertos.includes(
+                                    index
+                                )
+                            ) {
+
+                                menusAbiertos.push(
+                                    index
+                                );
+                            }
+                        }
+
+
+                        localStorage.setItem(
+                            'casaBarro_menus_abiertos',
+                            JSON.stringify(
+                                menusAbiertos
+                            )
+                        );
+                    }
+                );
+            }
+        );
+
+
         // 3. Validar Seguridad del Usuario
-        const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
-        const spanUsuario = document.getElementById('admin-user-name');
-        
+        const usuarioActual =
+            JSON.parse(
+                localStorage.getItem(
+                    'casaBarro_usuario'
+                )
+            );
+
+
+        const spanUsuario =
+            document.getElementById(
+                'admin-user-name'
+            );
+
+
         if (spanUsuario) {
-            const rolesInternos = ['admin', 'vendedor', 'logistica'];
 
-            if (!usuarioActual || !rolesInternos.includes(usuarioActual.rol)) {
-                window.location.href = 'login.html';
+            const rolesInternos = [
+                'admin',
+                'vendedor',
+                'logistica'
+            ];
+
+
+            if (
+                !usuarioActual ||
+                !rolesInternos.includes(
+                    usuarioActual.rol
+                )
+            ) {
+
+                window.location.href =
+                    'login.html';
+
+                return;
+
             } else {
-                spanUsuario.innerText = `Hola, ${usuarioActual.nombre.split(' ')[0]} ♡`;
 
-                // Solo el Administrador Maestro puede gestionar Personal.
-                if (usuarioActual.rol !== 'admin') {
-                    const btnPersonal = document.getElementById('link-personal');
-                    if (btnPersonal) btnPersonal.style.display = 'none';
+                spanUsuario.innerText =
+                    `Hola, ${
+                        usuarioActual.nombre
+                            .split(' ')[0]
+                    } ♡`;
 
-                    if (window.location.pathname.includes('admin-personal.html')) {
+
+                // Solo el Administrador Maestro
+                // puede gestionar Personal
+                if (
+                    usuarioActual.rol !==
+                    'admin'
+                ) {
+
+                    const btnPersonal =
+                        document.getElementById(
+                            'link-personal'
+                        );
+
+
+                    if (btnPersonal) {
+
+                        btnPersonal.style.display =
+                            'none';
+                    }
+
+
+                    if (
+                        window.location.pathname
+                            .includes(
+                                'admin-personal.html'
+                            )
+                    ) {
+
                         Swal.fire({
-                            icon: 'error',
-                            title: 'Acceso Denegado',
-                            text: 'Solo Administradores Maestros.',
-                            confirmButtonColor: '#3c4a45'
+
+                            icon:
+                                'error',
+
+                            title:
+                                'Acceso Denegado',
+
+                            text:
+                                'Solo Administradores Maestros.',
+
+                            confirmButtonColor:
+                                '#3c4a45'
+
                         }).then(() => {
-                            window.location.href = 'admin.html';
+
+                            window.location.href =
+                                'admin.html';
                         });
+
+
+                        return;
                     }
                 }
             }
         }
     }
 
-    // 4. Iniciar Funciones Generales
+
+    // ========================================================
+    // 4. FUNCIONES GENERALES
+    // ========================================================
+
     activarAlertas();
+
     actualizarUI();
+
     renderizarCarrito();
 
-    const btnCarritoNav = document.getElementById('btn-carrito-nav');
-    if(btnCarritoNav) btnCarritoNav.addEventListener('click', () => window.location.href = 'carrito.html');
 
-    // 5. Cargar Tablas Específicas según la página
-    if(document.getElementById('tabla-clientes-crm')) {
+    const btnCarritoNav =
+        document.getElementById(
+            'btn-carrito-nav'
+        );
+
+
+    if (btnCarritoNav) {
+
+        btnCarritoNav.addEventListener(
+            'click',
+            () => {
+
+                window.location.href =
+                    'carrito.html';
+            }
+        );
+    }
+
+
+    // ========================================================
+    // 5. CARGAR VISTAS SEGÚN LA PÁGINA
+    // ========================================================
+
+
+    // CRM
+    if (
+        document.getElementById(
+            'tabla-clientes-crm'
+        )
+    ) {
+
         cargarClientesCRM();
     }
 
-    if(document.getElementById('tabla-personal')) {
+
+    // PERSONAL
+    if (
+        document.getElementById(
+            'tabla-personal'
+        )
+    ) {
+
         cargarPersonal();
     }
 
-    if(document.getElementById('tabla-productos-admin')) {
+
+    // PRODUCTOS
+    if (
+        document.getElementById(
+            'tabla-productos-admin'
+        )
+    ) {
+
         cargarProductosAdmin();
+
         cargarProveedoresEnProductos();
     }
 
-    if(document.getElementById('tabla-proveedores')) {
+
+    // PROVEEDORES
+    if (
+        document.getElementById(
+            'tabla-proveedores'
+        )
+    ) {
+
         cargarProveedores();
     }
 
-    if(document.getElementById('tabla-insumos')) {
+
+    // INSUMOS
+    if (
+        document.getElementById(
+            'tabla-insumos'
+        )
+    ) {
+
         cargarInsumos();
+
         cargarProveedoresEnInsumos();
     }
 
-    if(document.getElementById('tabla-inventario')) {
+
+    // INVENTARIO
+    if (
+        document.getElementById(
+            'tabla-inventario'
+        )
+    ) {
+
         cargarInventario();
+
         cargarMovimientosInventario();
     }
 
-    if(window.location.pathname.includes('catalogo.html') && typeof cargarProductosBD === 'function') {
+
+    // CATÁLOGO PÚBLICO
+    if (
+        window.location.pathname.includes(
+            'catalogo.html'
+        ) &&
+        typeof cargarProductosBD ===
+            'function'
+    ) {
+
         cargarProductosBD();
     }
 
-    if(document.getElementById('timeline-actividad')) {
+
+    // ACTIVIDAD
+    if (
+        document.getElementById(
+            'timeline-actividad'
+        )
+    ) {
+
         cargarMiActividad();
     }
+
+
+    // ========================================================
+    // ERP
+    // ========================================================
+
+
+    // ÓRDENES DE CLIENTES
+    if (
+        document.getElementById(
+            'tabla-ordenes-admin'
+        )
+    ) {
+
+        cargarOrdenesAdmin();
+    }
+
+
+    // DASHBOARD ERP
+    if (
+        document.getElementById(
+            'erp-resumen-panel'
+        )
+    ) {
+
+        cargarResumenERP();
+    }
+
 });
 
 window.cerrarSesionAdmin = async function(e) {

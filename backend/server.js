@@ -188,6 +188,121 @@ function inicializarTablas() {
     db.run(`CREATE TABLE IF NOT EXISTS movimientos_logisticos (id INTEGER PRIMARY KEY AUTOINCREMENT, pedido_id INTEGER, tipo TEXT, descripcion TEXT, estado TEXT, usuario_id INTEGER, fecha DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (pedido_id) REFERENCES pedidos(id), FOREIGN KEY (usuario_id) REFERENCES usuarios(id))`);
     db.run(`CREATE TABLE IF NOT EXISTS scm_config (id INTEGER PRIMARY KEY, nivel_scm TEXT DEFAULT 'Inicial', fecha_actualizacion DATETIME DEFAULT CURRENT_TIMESTAMP)`);
     db.run(`INSERT OR IGNORE INTO scm_config (id, nivel_scm) VALUES (1, 'Inicial')`);
+    // ============================================================
+    // ERP - NÚCLEO EMPRESARIAL
+    // ============================================================
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS ordenes_empresariales(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cliente_id INTEGER NOT NULL,
+            fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+            estado TEXT NOT NULL DEFAULT 'pendiente',
+            total REAL NOT NULL DEFAULT 0,
+            usuario_id INTEGER,
+            inventario_aplicado INTEGER NOT NULL DEFAULT 0,
+            fecha_procesado DATETIME,
+            FOREIGN KEY(cliente_id) REFERENCES clientes(id),
+            FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
+        )
+    `);
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS orden_detalle(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            orden_id INTEGER NOT NULL,
+            producto_id INTEGER NOT NULL,
+            cantidad INTEGER NOT NULL,
+            precio_unitario REAL NOT NULL,
+            subtotal REAL NOT NULL,
+            FOREIGN KEY(orden_id) REFERENCES ordenes_empresariales(id),
+            FOREIGN KEY(producto_id) REFERENCES productos(id)
+        )
+    `);
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS procesos_erp(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            orden_id INTEGER,
+            tipo TEXT NOT NULL,
+            descripcion TEXT,
+            estado TEXT,
+            usuario_id INTEGER,
+            fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(orden_id) REFERENCES ordenes_empresariales(id),
+            FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
+        )
+    `);
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS recursos_erp(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT NOT NULL,
+            nombre TEXT NOT NULL,
+            descripcion TEXT,
+            estado TEXT NOT NULL DEFAULT 'activo',
+            fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS reportes_erp(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT NOT NULL,
+            nombre TEXT NOT NULL,
+            datos_json TEXT,
+            usuario_id INTEGER,
+            fecha_generacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
+        )
+    `);
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS erp_config(
+            id INTEGER PRIMARY KEY,
+            nivel TEXT NOT NULL DEFAULT 'Básico',
+            fecha_actualizacion DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    db.run(`
+        INSERT OR IGNORE INTO erp_config(id,nivel)
+        VALUES(1,'Básico')
+    `);
+
+    // Compatibilidad si ya habías creado la tabla
+    // con la primera versión del Día 1.
+    asegurarColumna(
+        'ordenes_empresariales',
+        'inventario_aplicado',
+        'INTEGER NOT NULL DEFAULT 0'
+    );
+
+    asegurarColumna(
+        'ordenes_empresariales',
+        'fecha_procesado',
+        'DATETIME'
+    );
+
+    // Si hiciste pruebas con los estados de la propuesta anterior,
+    // los adaptamos a los estados originales de Casa Barro.
+    db.run(`
+        UPDATE ordenes_empresariales
+        SET estado='pendiente'
+        WHERE estado='confirmada'
+    `);
+
+    db.run(`
+        UPDATE ordenes_empresariales
+        SET estado='preparacion'
+        WHERE estado='procesando'
+    `);
+
+    db.run(`
+        UPDATE ordenes_empresariales
+        SET estado='entregado'
+        WHERE estado='procesada'
+    `);
 
     // SCM - Reposición por insumo y recepción de pedidos
     asegurarColumna('insumos','estrategia_reposicion',"TEXT NOT NULL DEFAULT 'PUSH'");
@@ -2778,6 +2893,755 @@ app.get('/api/scm/analitica', async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+});
+
+// ============================================================
+// ERP - ÓRDENES DE CLIENTES
+// ============================================================
+
+function enteroPositivoERP(valor){
+    const n=Number(valor);
+    return Number.isInteger(n)&&n>0?n:null;
+}
+
+function usuarioIdERP(req){
+    const n=Number(req.body?.usuario_id);
+    return Number.isInteger(n)&&n>0?n:null;
+}
+
+// ============================================================
+// GET /api/ordenes
+// ============================================================
+
+app.get('/api/ordenes',async(req,res)=>{
+    try{
+        const estado=String(req.query.estado||'todos').toLowerCase();
+
+        const permitidos=[
+            'todos',
+            'pendiente',
+            'preparacion',
+            'entregado',
+            'cancelado'
+        ];
+
+        if(!permitidos.includes(estado)){
+            return res.status(400).json({
+                error:'Estado de orden no válido.'
+            });
+        }
+
+        const where=
+            estado==='todos'
+                ?''
+                :'WHERE o.estado=?';
+
+        const params=
+            estado==='todos'
+                ?[]
+                :[estado];
+
+        const ordenes=await dbAllSCM(`
+            SELECT
+                o.id,
+                o.cliente_id,
+                o.fecha,
+                o.estado,
+                o.total,
+                o.usuario_id,
+                o.inventario_aplicado,
+                o.fecha_procesado,
+
+                c.nombre AS cliente_nombre,
+                c.correo AS cliente_correo,
+                c.telefono AS cliente_telefono,
+                c.empresa AS cliente_empresa,
+
+                u.nombre AS usuario_nombre,
+
+                COUNT(od.id) AS partidas,
+                COALESCE(SUM(od.cantidad),0) AS productos_total
+
+            FROM ordenes_empresariales o
+
+            INNER JOIN clientes c
+                ON c.id=o.cliente_id
+
+            LEFT JOIN usuarios u
+                ON u.id=o.usuario_id
+
+            LEFT JOIN orden_detalle od
+                ON od.orden_id=o.id
+
+            ${where}
+
+            GROUP BY
+                o.id,
+                o.cliente_id,
+                o.fecha,
+                o.estado,
+                o.total,
+                o.usuario_id,
+                o.inventario_aplicado,
+                o.fecha_procesado,
+                c.nombre,
+                c.correo,
+                c.telefono,
+                c.empresa,
+                u.nombre
+
+            ORDER BY
+                o.fecha DESC,
+                o.id DESC
+        `,params);
+
+        res.json({
+            mensaje:'Éxito',
+            data:ordenes
+        });
+
+    }catch(error){
+        console.error(
+            'Error cargando órdenes ERP:',
+            error
+        );
+
+        res.status(500).json({
+            error:'No se pudieron cargar las órdenes.'
+        });
+    }
+});
+
+
+// ============================================================
+// GET /api/ordenes/:id
+// ============================================================
+
+app.get('/api/ordenes/:id',async(req,res)=>{
+    try{
+        const ordenId=
+            enteroPositivoERP(req.params.id);
+
+        if(!ordenId){
+            return res.status(400).json({
+                error:'ID de orden no válido.'
+            });
+        }
+
+        const orden=await dbGetSCM(`
+            SELECT
+                o.*,
+
+                c.nombre AS cliente_nombre,
+                c.correo AS cliente_correo,
+                c.telefono AS cliente_telefono,
+                c.empresa AS cliente_empresa,
+
+                u.nombre AS usuario_nombre
+
+            FROM ordenes_empresariales o
+
+            INNER JOIN clientes c
+                ON c.id=o.cliente_id
+
+            LEFT JOIN usuarios u
+                ON u.id=o.usuario_id
+
+            WHERE o.id=?
+        `,[ordenId]);
+
+        if(!orden){
+            return res.status(404).json({
+                error:'Orden no encontrada.'
+            });
+        }
+
+        const productos=await dbAllSCM(`
+            SELECT
+                od.id,
+                od.producto_id,
+                od.cantidad,
+                od.precio_unitario,
+                od.subtotal,
+
+                p.nombre AS producto_nombre,
+                p.categoria,
+                p.estado AS producto_estado
+
+            FROM orden_detalle od
+
+            INNER JOIN productos p
+                ON p.id=od.producto_id
+
+            WHERE od.orden_id=?
+
+            ORDER BY od.id ASC
+        `,[ordenId]);
+
+        const historial=await dbAllSCM(`
+            SELECT
+                pe.*,
+                u.nombre AS usuario_nombre
+
+            FROM procesos_erp pe
+
+            LEFT JOIN usuarios u
+                ON u.id=pe.usuario_id
+
+            WHERE pe.orden_id=?
+
+            ORDER BY
+                pe.fecha DESC,
+                pe.id DESC
+        `,[ordenId]);
+
+        res.json({
+            mensaje:'Éxito',
+
+            data:{
+                ...orden,
+                productos,
+                historial
+            }
+        });
+
+    }catch(error){
+        console.error(
+            'Error consultando orden:',
+            error
+        );
+
+        res.status(500).json({
+            error:'No se pudo consultar la orden.'
+        });
+    }
+});
+
+
+// ============================================================
+// POST /api/ordenes
+// ============================================================
+
+app.post('/api/ordenes',async(req,res)=>{
+    let transaccion=false;
+
+    try{
+        const clienteId=
+            enteroPositivoERP(
+                req.body?.cliente_id
+            );
+
+        const usuarioId=
+            usuarioIdERP(req);
+
+        const productosEntrada=
+            Array.isArray(req.body?.productos)
+                ?req.body.productos
+                :[];
+
+        if(!clienteId){
+            return res.status(400).json({
+                error:'Selecciona un cliente válido.'
+            });
+        }
+
+        if(!productosEntrada.length){
+            return res.status(400).json({
+                error:'La orden debe contener al menos un producto.'
+            });
+        }
+
+        // CLIENTE CRM
+        const cliente=await dbGetSCM(`
+            SELECT
+                id,
+                nombre,
+                correo,
+                estado
+            FROM clientes
+            WHERE id=?
+        `,[clienteId]);
+
+        if(!cliente){
+            return res.status(404).json({
+                error:'El cliente no existe.'
+            });
+        }
+
+        if(cliente.estado!=='activo'){
+            return res.status(400).json({
+                error:'El cliente está inactivo.'
+            });
+        }
+
+        // AGRUPAR PRODUCTOS REPETIDOS
+        const cantidades=new Map();
+
+        for(const item of productosEntrada){
+            const productoId=
+                enteroPositivoERP(item?.producto_id);
+
+            const cantidad=
+                enteroPositivoERP(item?.cantidad);
+
+            if(!productoId||!cantidad){
+                return res.status(400).json({
+                    error:'Producto o cantidad no válidos.'
+                });
+            }
+
+            cantidades.set(
+                productoId,
+                (cantidades.get(productoId)||0)+cantidad
+            );
+        }
+
+        // PRODUCTOS SCM
+        const detalles=[];
+        let total=0;
+
+        for(const [productoId,cantidad] of cantidades.entries()){
+            const producto=await dbGetSCM(`
+                SELECT
+                    id,
+                    nombre,
+                    precio,
+                    estado
+                FROM productos
+                WHERE id=?
+            `,[productoId]);
+
+            if(!producto){
+                return res.status(404).json({
+                    error:`El producto #${productoId} no existe.`
+                });
+            }
+
+            if(producto.estado==='inactivo'){
+                return res.status(400).json({
+                    error:`${producto.nombre} está inactivo.`
+                });
+            }
+
+            const precio=
+                Number(producto.precio||0);
+
+            const subtotal=
+                Number(
+                    (precio*cantidad).toFixed(2)
+                );
+
+            total+=subtotal;
+
+            detalles.push({
+                producto_id:producto.id,
+                producto_nombre:producto.nombre,
+                cantidad,
+                precio_unitario:precio,
+                subtotal
+            });
+        }
+
+        total=
+            Number(total.toFixed(2));
+
+        // TRANSACCIÓN
+        await dbRunSCM(
+            'BEGIN IMMEDIATE TRANSACTION'
+        );
+
+        transaccion=true;
+
+        const resultadoOrden=
+            await dbRunSCM(`
+                INSERT INTO ordenes_empresariales(
+                    cliente_id,
+                    estado,
+                    total,
+                    usuario_id,
+                    inventario_aplicado
+                )
+                VALUES(
+                    ?,
+                    'pendiente',
+                    ?,
+                    ?,
+                    0
+                )
+            `,[
+                clienteId,
+                total,
+                usuarioId
+            ]);
+
+        const ordenId=
+            resultadoOrden.lastID;
+
+        for(const detalle of detalles){
+            await dbRunSCM(`
+                INSERT INTO orden_detalle(
+                    orden_id,
+                    producto_id,
+                    cantidad,
+                    precio_unitario,
+                    subtotal
+                )
+                VALUES(?,?,?,?,?)
+            `,[
+                ordenId,
+                detalle.producto_id,
+                detalle.cantidad,
+                detalle.precio_unitario,
+                detalle.subtotal
+            ]);
+        }
+
+        await dbRunSCM(`
+            INSERT INTO procesos_erp(
+                orden_id,
+                tipo,
+                descripcion,
+                estado,
+                usuario_id
+            )
+            VALUES(
+                ?,
+                'CREACION',
+                ?,
+                'pendiente',
+                ?
+            )
+        `,[
+            ordenId,
+            `Orden #${ordenId} creada para ${cliente.nombre}.`,
+            usuarioId
+        ]);
+
+        await dbRunSCM('COMMIT');
+
+        transaccion=false;
+
+        registrarActividad(
+            usuarioId,
+            'ALTA',
+            'ERP',
+            `Creó la orden #${ordenId} para ${cliente.nombre} por $${total.toFixed(2)}`,
+            'orden',
+            ordenId
+        );
+
+        res.status(201).json({
+            mensaje:'Orden registrada correctamente.',
+            id:ordenId,
+            estado:'pendiente',
+            total,
+            productos:detalles
+        });
+
+    }catch(error){
+        if(transaccion){
+            try{
+                await dbRunSCM('ROLLBACK');
+            }catch(_){}
+        }
+
+        console.error(
+            'Error creando orden:',
+            error
+        );
+
+        res.status(500).json({
+            error:'No se pudo registrar la orden.'
+        });
+    }
+});
+
+
+// ============================================================
+// PUT /api/ordenes/:id/estado
+// ============================================================
+
+app.put('/api/ordenes/:id/estado',async(req,res)=>{
+    try{
+        const ordenId=
+            enteroPositivoERP(req.params.id);
+
+        const nuevoEstado=
+            String(
+                req.body?.estado||''
+            ).toLowerCase();
+
+        const usuarioId=
+            usuarioIdERP(req);
+
+        if(!ordenId){
+            return res.status(400).json({
+                error:'ID de orden no válido.'
+            });
+        }
+
+        const permitidos=[
+            'pendiente',
+            'preparacion',
+            'entregado',
+            'cancelado'
+        ];
+
+        if(!permitidos.includes(nuevoEstado)){
+            return res.status(400).json({
+                error:'Estado de orden no válido.'
+            });
+        }
+
+        const orden=await dbGetSCM(`
+            SELECT
+                id,
+                estado
+            FROM ordenes_empresariales
+            WHERE id=?
+        `,[ordenId]);
+
+        if(!orden){
+            return res.status(404).json({
+                error:'Orden no encontrada.'
+            });
+        }
+
+        // FLUJO OPERATIVO
+        const transiciones={
+            pendiente:[
+                'preparacion',
+                'cancelado'
+            ],
+
+            preparacion:[
+                'entregado',
+                'cancelado'
+            ],
+
+            entregado:[],
+
+            cancelado:[]
+        };
+
+        if(
+            orden.estado!==nuevoEstado &&
+            !(
+                transiciones[orden.estado]||[]
+            ).includes(nuevoEstado)
+        ){
+            return res.status(409).json({
+                error:
+                    `No se puede cambiar una orden de ${orden.estado} a ${nuevoEstado}.`
+            });
+        }
+
+        if(orden.estado===nuevoEstado){
+            return res.json({
+                mensaje:'La orden ya tiene ese estado.',
+                id:ordenId,
+                estado:nuevoEstado
+            });
+        }
+
+        await dbRunSCM(`
+            UPDATE ordenes_empresariales
+            SET estado=?
+            WHERE id=?
+        `,[
+            nuevoEstado,
+            ordenId
+        ]);
+
+        await dbRunSCM(`
+            INSERT INTO procesos_erp(
+                orden_id,
+                tipo,
+                descripcion,
+                estado,
+                usuario_id
+            )
+            VALUES(
+                ?,
+                'CAMBIO_ESTADO',
+                ?,
+                ?,
+                ?
+            )
+        `,[
+            ordenId,
+            `La orden cambió de ${orden.estado} a ${nuevoEstado}.`,
+            nuevoEstado,
+            usuarioId
+        ]);
+
+        registrarActividad(
+            usuarioId,
+            'EDICION',
+            'ERP',
+            `Cambió la orden #${ordenId} de ${orden.estado} a ${nuevoEstado}`,
+            'orden',
+            ordenId
+        );
+
+        res.json({
+            mensaje:'Estado actualizado correctamente.',
+            id:ordenId,
+            estado:nuevoEstado
+        });
+
+    }catch(error){
+        console.error(
+            'Error actualizando estado ERP:',
+            error
+        );
+
+        res.status(500).json({
+            error:'No se pudo actualizar el estado.'
+        });
+    }
+});
+
+
+// ============================================================
+// GET /api/erp/resumen
+// ============================================================
+
+app.get('/api/erp/resumen',async(req,res)=>{
+    try{
+        const[
+            clientes,
+            ordenes,
+            productos,
+            inventario,
+            recientes
+        ]=await Promise.all([
+
+            dbGetSCM(`
+                SELECT COUNT(*) AS total
+                FROM clientes
+                WHERE estado='activo'
+            `),
+
+            dbGetSCM(`
+                SELECT
+                    COUNT(*) AS total,
+
+                    SUM(
+                        CASE
+                            WHEN estado='pendiente'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS pendientes,
+
+                    SUM(
+                        CASE
+                            WHEN estado='preparacion'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS preparacion,
+
+                    SUM(
+                        CASE
+                            WHEN estado='entregado'
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS entregadas
+
+                FROM ordenes_empresariales
+            `),
+
+            dbGetSCM(`
+                SELECT COUNT(*) AS total
+                FROM productos
+                WHERE estado='disponible'
+            `),
+
+            dbGetSCM(`
+                SELECT
+                    COALESCE(
+                        SUM(stock_actual),
+                        0
+                    ) AS porciones,
+
+                    SUM(
+                        CASE
+                            WHEN stock_actual<=stock_minimo
+                            THEN 1
+                            ELSE 0
+                        END
+                    ) AS atencion
+
+                FROM inventario
+            `),
+
+            dbAllSCM(`
+                SELECT
+                    o.id,
+                    o.fecha,
+                    o.estado,
+                    o.total,
+                    c.nombre AS cliente_nombre
+
+                FROM ordenes_empresariales o
+
+                INNER JOIN clientes c
+                    ON c.id=o.cliente_id
+
+                ORDER BY
+                    o.fecha DESC,
+                    o.id DESC
+
+                LIMIT 5
+            `)
+        ]);
+
+        res.json({
+            mensaje:'Éxito',
+
+            data:{
+                clientes_activos:
+                    Number(clientes?.total||0),
+
+                ordenes_total:
+                    Number(ordenes?.total||0),
+
+                ordenes_pendientes:
+                    Number(ordenes?.pendientes||0),
+
+                ordenes_preparacion:
+                    Number(ordenes?.preparacion||0),
+
+                ordenes_entregadas:
+                    Number(ordenes?.entregadas||0),
+
+                productos_disponibles:
+                    Number(productos?.total||0),
+
+                inventario_porciones:
+                    Number(inventario?.porciones||0),
+
+                insumos_atencion:
+                    Number(inventario?.atencion||0),
+
+                ordenes_recientes:
+                    recientes
+            }
+        });
+
+    }catch(error){
+        console.error(
+            'Error cargando resumen ERP:',
+            error
+        );
+
+        res.status(500).json({
+            error:'No se pudo cargar el resumen ERP.'
+        });
     }
 });
 
