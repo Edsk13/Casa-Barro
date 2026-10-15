@@ -1,116 +1,823 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Productos | Casa Barro</title>
-    <link rel="stylesheet" href="css/style.css">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>
+        Productos | Casa Barro
+    </title>
+
+    <link
+        rel="stylesheet"
+        href="css/style.css"
+    >
+
+    <script
+        src="https://cdn.jsdelivr.net/npm/sweetalert2@11"
+    ></script>
+
+    <style>
+
+        .producto-form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .producto-campo label {
+            display: block;
+            font-weight: bold;
+            color: var(--verde-logo);
+        }
+
+        .producto-campo input,
+        .producto-campo select,
+        .producto-campo textarea {
+            width: 100%;
+            margin-top: 6px;
+            padding: 10px 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+
+        .producto-campo select {
+            background: white;
+        }
+
+        .producto-campo textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+
+        .producto-campo-completo {
+            grid-column: 1 / -1;
+        }
+
+
+        /* ======================================
+           IMAGEN DEL PRODUCTO
+        ====================================== */
+
+        .producto-imagen-area {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .producto-imagen-selector {
+            flex: 1;
+            min-width: 240px;
+        }
+
+        .producto-preview-contenedor {
+            width: 180px;
+            height: 125px;
+
+            border: 2px dashed #c9c9c9;
+            border-radius: 12px;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            overflow: hidden;
+            background: #f8f7f4;
+        }
+
+        #producto-preview-vacio {
+            color: #888;
+            font-size: .82rem;
+            text-align: center;
+            padding: 15px;
+        }
+
+        #producto-imagen-preview {
+            display: none;
+
+            width: 100%;
+            height: 100%;
+
+            object-fit: cover;
+            object-position: center;
+        }
+
+
+        /* ======================================
+           TABLA
+        ====================================== */
+
+        .admin-producto-miniatura {
+            width: 72px;
+            height: 56px;
+
+            object-fit: cover;
+            object-position: center;
+
+            display: block;
+            margin: auto;
+
+            border-radius: 10px;
+
+            background: #eee;
+        }
+
+        .producto-sin-imagen {
+            display: inline-flex;
+
+            width: 72px;
+            height: 56px;
+
+            justify-content: center;
+            align-items: center;
+
+            border-radius: 10px;
+
+            background: #eee;
+            color: #888;
+
+            font-size: .7rem;
+            text-align: center;
+        }
+
+
+        /* ======================================
+           PUBLICACIÓN
+        ====================================== */
+
+        .badge-publicado {
+            display: inline-block;
+
+            padding: 4px 9px;
+
+            border-radius: 14px;
+
+            font-size: .76rem;
+            font-weight: bold;
+
+            background: #e3eee9;
+            color: #3c4a45;
+        }
+
+        .badge-no-publicado {
+            display: inline-block;
+
+            padding: 4px 9px;
+
+            border-radius: 14px;
+
+            font-size: .76rem;
+            font-weight: bold;
+
+            background: #eee;
+            color: #777;
+        }
+
+
+        @media (max-width: 800px) {
+
+            .producto-form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .producto-campo-completo {
+                grid-column: auto;
+            }
+
+        }
+
+    </style>
+
 </head>
+
+
 <body class="admin-body">
+
 <div class="admin-layout">
+
     <div id="admin-sidebar-container"></div>
 
+
     <main class="admin-main crm-main-bg">
+
+        <!-- ==========================================
+             ENCABEZADO
+        =========================================== -->
+
         <header class="admin-header">
+
             <div>
-                <h1>Productos</h1>
-                <p style="color:#777;">Administración de platillos y bebidas</p>
+
+                <h1>
+                    Productos
+                </h1>
+
+                <p style="color:#777;">
+                    Administración de platillos y bebidas
+                </p>
+
             </div>
-            <div class="admin-user"><span id="admin-user-name">Cargando...</span></div>
+
+
+            <div class="admin-user">
+
+                <span id="admin-user-name">
+                    Cargando...
+                </span>
+
+            </div>
+
         </header>
 
-        <div class="crm-card" style="margin-top:20px;">
-            <h2>Nuevo Producto</h2>
-            
-            <form id="form-alta-producto" onsubmit="guardarProducto(event)" style="display:grid; grid-template-columns:repeat(2,1fr); gap:15px; margin-top:20px;">
-                <div>
-                    <label for="producto-nombre" style="font-weight:bold; color:var(--verde-logo);">Nombre</label>
-                    <input type="text" id="producto-nombre" required placeholder="Nombre del producto" style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;">
+
+        <!-- ==========================================
+             NUEVO PRODUCTO
+        =========================================== -->
+
+        <div
+            class="crm-card"
+            style="margin-top:20px;"
+        >
+
+            <h2>
+                Nuevo Producto
+            </h2>
+            <form
+                id="form-alta-producto"
+                onsubmit="guardarProducto(event)"
+                class="producto-form-grid"
+            >
+
+                <!-- NOMBRE -->
+
+                <div class="producto-campo">
+
+                    <label for="producto-nombre">
+                        Nombre
+                    </label>
+
+                    <input
+                        type="text"
+                        id="producto-nombre"
+                        required
+                        placeholder="Nombre del producto"
+                    >
+
                 </div>
 
-                <div>
-                    <label for="producto-categoria" style="font-weight:bold; color:var(--verde-logo);">Categoría</label>
-                    <select id="producto-categoria" required style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;">
-                        <option value="">Selecciona una categoría</option>
-                        <option value="alimentos">Alimentos</option>
-                        <option value="calientes">Bebidas Calientes</option>
-                        <option value="frias">Bebidas Frías</option>
-                        <option value="postres">Postres</option>
+
+                <!-- CATEGORÍA -->
+
+                <div class="producto-campo">
+
+                    <label for="producto-categoria">
+                        Categoría
+                    </label>
+
+                    <select
+                        id="producto-categoria"
+                        required
+                    >
+
+                        <option value="">
+                            Selecciona una categoría
+                        </option>
+
+                        <option value="alimentos">
+                            Alimentos
+                        </option>
+
+                        <option value="calientes">
+                            Bebidas Calientes
+                        </option>
+
+                        <option value="frias">
+                            Bebidas Frías
+                        </option>
+
+                        <option value="postres">
+                            Postres
+                        </option>
+
                     </select>
+
                 </div>
 
-                <div style="grid-column:1 / -1;">
-                    <label for="producto-descripcion" style="font-weight:bold; color:var(--verde-logo);">Descripción</label>
-                    <textarea id="producto-descripcion" placeholder="Descripción del producto" style="width:100%; min-height:80px; resize:vertical; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;"></textarea>
+
+                <!-- DESCRIPCIÓN -->
+
+                <div
+                    class="
+                        producto-campo
+                        producto-campo-completo
+                    "
+                >
+
+                    <label for="producto-descripcion">
+                        Descripción
+                    </label>
+
+                    <textarea
+                        id="producto-descripcion"
+                        placeholder="Descripción que verá el cliente en el catálogo"
+                    ></textarea>
+
                 </div>
 
-                <div>
-                    <label for="producto-precio" style="font-weight:bold; color:var(--verde-logo);">Precio de venta</label>
-                    <input type="number" id="producto-precio" min="0" step="0.01" value="0" required style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;">
+
+                <!-- =================================
+                     IMAGEN
+                ================================== -->
+
+                <div
+                    class="
+                        producto-campo
+                        producto-campo-completo
+                    "
+                >
+
+                    <label>
+                        Imagen del producto
+                    </label>
+
+
+                    <div class="producto-imagen-area">
+
+
+                        <div class="producto-imagen-selector">
+
+                            <input
+                                type="file"
+                                id="producto-imagen"
+                                accept="
+                                    image/jpeg,
+                                    image/png,
+                                    image/webp
+                                "
+                                onchange="
+                                    previsualizarImagenProducto(this)
+                                "
+                            >
+
+
+                            <small
+                                style="
+                                    color:#777;
+                                    display:block;
+                                    margin-top:6px;
+                                "
+                            >
+                                Formatos permitidos:
+                                JPG, PNG o WEBP.
+                                Máximo 5 MB.
+                            </small>
+
+                        </div>
+
+
+                        <div
+                            class="producto-preview-contenedor"
+                        >
+
+                            <div
+                                id="producto-preview-vacio"
+                            >
+                                Vista previa
+                                de la imagen
+                            </div>
+
+
+                            <img
+                                id="producto-imagen-preview"
+                                alt="Vista previa del producto"
+                            >
+
+                        </div>
+
+                    </div>
+
                 </div>
 
-                <div>
-                    <label for="producto-costo" style="font-weight:bold; color:var(--verde-logo);">Costo unitario estimado</label>
-                    <input type="number" id="producto-costo" min="0" step="0.01" value="0" style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;">
-                </div>
 
-                <div>
-                    <label for="producto-estado" style="font-weight:bold; color:var(--verde-logo);">Estado</label>
-                    <select id="producto-estado" style="width:100%; margin-top:6px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;">
-                        <option value="disponible">Disponible</option>
-                        <option value="agotado">Agotado</option>
-                        <option value="inactivo">Inactivo</option>
+                <!-- ENCUADRE -->
+
+                <div class="producto-campo">
+
+                    <label for="producto-imagen-posicion">
+                        Encuadre de la imagen
+                    </label>
+
+                    <select
+                        id="producto-imagen-posicion"
+                        onchange="
+                            actualizarPosicionPreviewProducto()
+                        "
+                    >
+
+                        <option value="center">
+                            Centrado
+                        </option>
+
+                        <option value="top">
+                            Parte superior
+                        </option>
+
+                        <option value="bottom">
+                            Parte inferior
+                        </option>
+
                     </select>
+
                 </div>
 
-                <div style="display:flex; align-items:flex-end;">
-                    <button type="submit" class="btn-primary" style="width:auto; padding:8px 16px; font-size:.9rem; border-radius:16px;">Guardar Producto</button>
+
+                <!-- PUBLICAR -->
+
+                <div class="producto-campo">
+
+                    <label for="producto-publicado">
+                        Publicar en catálogo
+                    </label>
+
+                    <select id="producto-publicado">
+
+                        <option value="0">
+                            No, todavía no
+                        </option>
+
+                        <option value="1">
+                            Sí, mostrar en el menú
+                        </option>
+
+                    </select>
+
+                    <small
+                        style="
+                            color:#777;
+                            display:block;
+                            margin-top:6px;
+                        "
+                    >
+                        Recomendado: publica el producto
+                        después de configurar su receta.
+                    </small>
+
                 </div>
+
+
+                <!-- PRECIO -->
+
+                <div class="producto-campo">
+
+                    <label for="producto-precio">
+                        Precio de venta
+                    </label>
+
+                    <input
+                        type="number"
+                        id="producto-precio"
+                        min="0"
+                        step="0.01"
+                        value="0"
+                        required
+                    >
+
+                </div>
+
+
+                <!-- COSTO -->
+
+                <div class="producto-campo">
+
+                    <label for="producto-costo">
+                        Costo unitario estimado
+                    </label>
+
+                    <input
+                        type="number"
+                        id="producto-costo"
+                        min="0"
+                        step="0.01"
+                        value="0"
+                    >
+
+                </div>
+
+
+                <!-- ETIQUETA -->
+
+                <div class="producto-campo">
+
+                    <label for="producto-etiqueta">
+                        Texto de etiqueta
+                    </label>
+
+                    <input
+                        type="text"
+                        id="producto-etiqueta"
+                        maxlength="30"
+                        placeholder="Ej. Nuevo, Favorito..."
+                    >
+
+                    <small
+                        style="
+                            color:#777;
+                            display:block;
+                            margin-top:6px;
+                        "
+                    >
+                        Déjalo vacío si no quieres
+                        mostrar una etiqueta.
+                    </small>
+
+                </div>
+
+
+                <!-- TIPO DE ETIQUETA -->
+
+                <div class="producto-campo">
+
+                    <label for="producto-etiqueta-tipo">
+                        Estilo de etiqueta
+                    </label>
+
+                    <select id="producto-etiqueta-tipo">
+
+                        <option value="">
+                            Sin etiqueta
+                        </option>
+
+                        <option value="nuevo">
+                            Nuevo
+                        </option>
+
+                        <option value="vendido">
+                            Destacado / Más vendido
+                        </option>
+
+                        <option value="oferta">
+                            Oferta
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <!-- ESTADO -->
+
+                <div class="producto-campo">
+
+                    <label for="producto-estado">
+                        Estado
+                    </label>
+
+                    <select id="producto-estado">
+
+                        <option value="disponible">
+                            Disponible
+                        </option>
+
+                        <option value="agotado">
+                            Agotado
+                        </option>
+
+                        <option value="inactivo">
+                            Inactivo
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <!-- BOTÓN -->
+
+                <div
+                    style="
+                        display:flex;
+                        align-items:flex-end;
+                    "
+                >
+
+                    <button
+                        type="submit"
+                        class="btn-primary"
+                        style="
+                            width:auto;
+                            padding:9px 18px;
+                            font-size:.9rem;
+                            border-radius:16px;
+                        "
+                    >
+                        Guardar Producto
+                    </button>
+
+                </div>
+
             </form>
+
         </div>
 
+
+        <!-- ==========================================
+             FILTROS
+        =========================================== -->
+
         <div class="crm-card">
-            <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
-                <input type="text" id="admin-search" placeholder="Buscar producto..." oninput="filtrarProductosAdmin()" style="flex:2; min-width:220px; padding:10px 12px; border:1px solid #ccc; border-radius:8px;">
 
-                <select id="admin-filter-cat" onchange="filtrarProductosAdmin()" style="flex:1; min-width:180px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;">
-                    <option value="todos">Todas las categorías</option>
-                    <option value="alimentos">Alimentos</option>
-                    <option value="calientes">Bebidas Calientes</option>
-                    <option value="frias">Bebidas Frías</option>
-                    <option value="postres">Postres</option>
+            <div
+                style="
+                    display:flex;
+                    gap:12px;
+                    flex-wrap:wrap;
+                    align-items:center;
+                "
+            >
+
+                <input
+                    type="text"
+                    id="admin-search"
+                    placeholder="Buscar producto..."
+                    oninput="filtrarProductosAdmin()"
+                    style="
+                        flex:2;
+                        min-width:220px;
+                        padding:10px 12px;
+                        border:1px solid #ccc;
+                        border-radius:8px;
+                    "
+                >
+
+
+                <select
+                    id="admin-filter-cat"
+                    onchange="filtrarProductosAdmin()"
+                    style="
+                        flex:1;
+                        min-width:180px;
+                        padding:10px 12px;
+                        border:1px solid #ccc;
+                        border-radius:8px;
+                        background:white;
+                    "
+                >
+
+                    <option value="todos">
+                        Todas las categorías
+                    </option>
+
+                    <option value="alimentos">
+                        Alimentos
+                    </option>
+
+                    <option value="calientes">
+                        Bebidas Calientes
+                    </option>
+
+                    <option value="frias">
+                        Bebidas Frías
+                    </option>
+
+                    <option value="postres">
+                        Postres
+                    </option>
+
                 </select>
 
-                <select id="admin-filter-status" onchange="filtrarProductosAdmin()" style="flex:1; min-width:160px; padding:10px 12px; border:1px solid #ccc; border-radius:8px; background:white;">
-                    <option value="todos">Todos los estados</option>
-                    <option value="disponible">Disponible</option>
-                    <option value="agotado">Agotado</option>
-                    <option value="inactivo">Inactivo</option>
+
+                <select
+                    id="admin-filter-status"
+                    onchange="filtrarProductosAdmin()"
+                    style="
+                        flex:1;
+                        min-width:160px;
+                        padding:10px 12px;
+                        border:1px solid #ccc;
+                        border-radius:8px;
+                        background:white;
+                    "
+                >
+
+                    <option value="todos">
+                        Todos los estados
+                    </option>
+
+                    <option value="disponible">
+                        Disponible
+                    </option>
+
+                    <option value="agotado">
+                        Agotado
+                    </option>
+
+                    <option value="inactivo">
+                        Inactivo
+                    </option>
+
                 </select>
+
             </div>
+
         </div>
 
+
+        <!-- ==========================================
+             TABLA DE PRODUCTOS
+        =========================================== -->
+
         <div class="crm-card">
+
             <div class="admin-table-container">
+
                 <table class="admin-table">
+
                     <thead>
+
                         <tr>
-                            <th>ID</th>
-                            <th>Producto</th>
-                            <th>Categoría</th>
-                            <th>Precio</th>
-                            <th>Disponibilidad</th>
-                            <th>Estado</th>
-                            <th>Acciones</th>
+
+                            <th>
+                                ID
+                            </th>
+
+                            <th>
+                                Imagen
+                            </th>
+
+                            <th>
+                                Producto
+                            </th>
+
+                            <th>
+                                Categoría
+                            </th>
+
+                            <th>
+                                Precio
+                            </th>
+
+                            <th>
+                                Disponibilidad
+                            </th>
+
+                            <th>
+                                Estado
+                            </th>
+
+                            <th>
+                                Catálogo
+                            </th>
+
+                            <th>
+                                Acciones
+                            </th>
+
                         </tr>
+
                     </thead>
-                    <tbody id="tabla-productos-admin"></tbody>
+
+
+                    <tbody id="tabla-productos-admin">
+
+                        <tr>
+
+                            <td
+                                colspan="9"
+                                style="
+                                    text-align:center;
+                                    padding:30px;
+                                    color:#777;
+                                "
+                            >
+                                Cargando productos...
+                            </td>
+
+                        </tr>
+
+                    </tbody>
+
                 </table>
+
             </div>
+
         </div>
+
     </main>
+
 </div>
+
+
 <script src="js/app.js"></script>
+
 </body>
+
 </html>

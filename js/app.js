@@ -35,15 +35,162 @@ window.actualizarUI = function() { const cartCountElement = document.getElementB
 window.cambiarCantidad = function(cambio) { let el = document.getElementById('swal-cantidad'); let nueva = parseInt(el.innerText) + cambio; if (nueva >= 1) el.innerText = nueva; }
 window.cambiarCantidadCarrito = function(index, cambio) { if (carrito[index].cantidad + cambio >= 1) { carrito[index].cantidad += cambio; localStorage.setItem('casaBarro_carrito', JSON.stringify(carrito)); actualizarUI(); renderizarCarrito(); } }
 
-window.confirmarAgregarAlCarrito = function(nombre, precio) {
-    let cantidad = parseInt(document.getElementById('swal-cantidad').innerText);
-    let opt = document.getElementById('swal-opciones') ? document.getElementById('swal-opciones').value : null;
-    let ext = document.getElementById('swal-extras') ? document.getElementById('swal-extras').value : null;
-    let stringOpcion = [opt, ext].filter(Boolean).join(' + ') || null;
-    carrito.push({ producto: nombre, precio, cantidad, opcion: stringOpcion });
-    localStorage.setItem('casaBarro_carrito', JSON.stringify(carrito));
-    actualizarUI(); 
-    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Agregado al carrito', showConfirmButton: false, timer: 1500 });
+window.confirmarAgregarAlCarrito = async function(
+    nombre,
+    precio,
+    productoId = null
+) {
+
+    /*
+    Si viene de un producto de la base de datos,
+    verificamos nuevamente la disponibilidad real
+    antes de agregarlo.
+    */
+
+    if (productoId) {
+
+        try {
+
+            const respuesta = await fetch(
+                `http://localhost:3000/api/productos/${productoId}/disponibilidad`,
+                {
+                    cache: 'no-store'
+                }
+            );
+
+            const resultado =
+                await respuesta.json();
+
+            if (!respuesta.ok) {
+
+                throw new Error(
+                    resultado.error ||
+                    'No se pudo comprobar la disponibilidad.'
+                );
+            }
+
+            const disponibles =
+                Number(
+                    resultado.disponibles || 0
+                );
+
+            if (disponibles <= 0) {
+
+                return Swal.fire({
+
+                    icon: 'warning',
+
+                    title: 'Producto agotado',
+
+                    text:
+                        'Este producto ya no tiene disponibilidad suficiente para agregarse al carrito.',
+
+                    confirmButtonColor:
+                        '#3c4a45'
+                });
+            }
+
+        } catch (error) {
+
+            console.error(
+                'Error comprobando disponibilidad:',
+                error
+            );
+
+            return Swal.fire({
+
+                icon: 'error',
+
+                title:
+                    'No se pudo comprobar la disponibilidad',
+
+                text:
+                    'Intenta nuevamente.',
+
+                confirmButtonColor:
+                    '#3c4a45'
+            });
+        }
+    }
+
+    const cantidad =
+        parseInt(
+            document.getElementById(
+                'swal-cantidad'
+            ).innerText
+        );
+
+    const opt =
+        document.getElementById(
+            'swal-opciones'
+        )
+            ? document.getElementById(
+                'swal-opciones'
+              ).value
+            : null;
+
+    const ext =
+        document.getElementById(
+            'swal-extras'
+        )
+            ? document.getElementById(
+                'swal-extras'
+              ).value
+            : null;
+
+    const stringOpcion =
+        [opt, ext]
+            .filter(Boolean)
+            .join(' + ') ||
+        null;
+
+    carrito.push({
+
+        producto:
+            nombre,
+
+        precio:
+            precio,
+
+        cantidad:
+            cantidad,
+
+        opcion:
+            stringOpcion,
+
+        producto_id:
+            productoId
+                ? Number(productoId)
+                : null
+    });
+
+    localStorage.setItem(
+        'casaBarro_carrito',
+        JSON.stringify(carrito)
+    );
+
+    actualizarUI();
+
+    Swal.fire({
+
+        toast:
+            true,
+
+        position:
+            'top-end',
+
+        icon:
+            'success',
+
+        title:
+            'Agregado al carrito',
+
+        showConfirmButton:
+            false,
+
+        timer:
+            1500
+    });
 }
 
 window.cambiarPropina = function(porcentaje) { propinaPorcentaje = porcentaje; renderizarCarrito(); }
@@ -99,17 +246,803 @@ window.renderizarCarrito = function() {
 
 window.eliminarDelCarrito = function(index) { carrito.splice(index, 1); localStorage.setItem('casaBarro_carrito', JSON.stringify(carrito)); actualizarUI(); renderizarCarrito(); }
 
-window.abrirDetalleMejorado = function(nombre, descripcion, precioStr, imagenUrl, alineacion = 'center', opcionesStr = '', extrasStr = '') {
-    let precioNum = parseFloat(precioStr.replace('$', '').replace(' MXN', ''));
-    let opcionesHtml = '';
-    if (opcionesStr) opcionesHtml += `<select id="swal-opciones" class="swal2-select" style="display:flex; width:100%; margin: 10px 0 ${extrasStr ? '10px' : '20px'} 0; font-size: 1rem;">${opcionesStr.split(',').map((op, i) => `<option value="${op.trim()}" ${i === 0 ? 'selected' : ''}>${op.trim()}</option>`).join('')}</select>`;
-    if (extrasStr) opcionesHtml += `<select id="swal-extras" class="swal2-select" style="display:flex; width:100%; margin: 0 0 20px 0; font-size: 1rem;">${extrasStr.split(',').map((ex, i) => `<option value="${ex.trim()}" ${i === 0 ? 'selected' : ''}>${ex.trim()}</option>`).join('')}</select>`;
+window.abrirDetalleMejorado = function(
+    nombre,
+    descripcion,
+    precioStr,
+    imagenUrl,
+    alineacion = 'center',
+    opcionesStr = '',
+    extrasStr = '',
+    productoId = null,
+    disponible = true
+) {
+
+    const precioNum =
+        parseFloat(
+            precioStr
+                .replace('$', '')
+                .replace(' MXN', '')
+        );
+
+    let opcionesHtml =
+        '';
+
+    if (opcionesStr) {
+
+        opcionesHtml += `
+            <select
+                id="swal-opciones"
+                class="swal2-select"
+                style="
+                    display:flex;
+                    width:100%;
+                    margin:10px 0
+                    ${extrasStr ? '10px' : '20px'}
+                    0;
+                    font-size:1rem;
+                "
+            >
+
+                ${
+                    opcionesStr
+                        .split(',')
+                        .map(
+                            (op, i) => `
+                                <option
+                                    value="${op.trim()}"
+                                    ${i === 0 ? 'selected' : ''}
+                                >
+                                    ${op.trim()}
+                                </option>
+                            `
+                        )
+                        .join('')
+                }
+
+            </select>
+        `;
+    }
+
+    if (extrasStr) {
+
+        opcionesHtml += `
+            <select
+                id="swal-extras"
+                class="swal2-select"
+
+                style="
+                    display:flex;
+                    width:100%;
+                    margin:0 0 20px 0;
+                    font-size:1rem;
+                "
+            >
+
+                ${
+                    extrasStr
+                        .split(',')
+                        .map(
+                            (ex, i) => `
+                                <option
+                                    value="${ex.trim()}"
+                                    ${i === 0 ? 'selected' : ''}
+                                >
+                                    ${ex.trim()}
+                                </option>
+                            `
+                        )
+                        .join('')
+                }
+
+            </select>
+        `;
+    }
+
+    const nombreSeguroJS =
+        String(nombre)
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'");
+
+    let controlesCompra =
+        '';
+
+    if (disponible) {
+
+        controlesCompra = `
+
+            <div
+                style="
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    gap:20px;
+                    margin-bottom:25px;
+                "
+            >
+
+                <button
+                    onclick="cambiarCantidad(-1)"
+
+                    style="
+                        background-color:#eae5db;
+                        border:none;
+                        border-radius:50%;
+                        width:40px;
+                        height:40px;
+                        font-size:1.5rem;
+                        cursor:pointer;
+                        color:#3c4a45;
+                    "
+                >
+                    -
+                </button>
+
+                <span
+                    id="swal-cantidad"
+
+                    style="
+                        font-size:1.4rem;
+                        font-weight:bold;
+                        min-width:30px;
+                    "
+                >
+                    1
+                </span>
+
+                <button
+                    onclick="cambiarCantidad(1)"
+
+                    style="
+                        background-color:var(--verde-logo);
+                        border:none;
+                        border-radius:50%;
+                        width:40px;
+                        height:40px;
+                        font-size:1.5rem;
+                        cursor:pointer;
+                        color:white;
+                    "
+                >
+                    +
+                </button>
+
+            </div>
+
+            <button
+                onclick="
+                    confirmarAgregarAlCarrito(
+                        '${nombreSeguroJS}',
+                        ${precioNum},
+                        ${
+                            productoId
+                                ? Number(productoId)
+                                : 'null'
+                        }
+                    )
+                "
+
+                class="btn-primary"
+
+                style="
+                    width:100%;
+                    padding:12px;
+                    border-radius:30px;
+                    margin-bottom:25px;
+                "
+            >
+                Agregar al carrito
+            </button>
+        `;
+
+    } else {
+
+        controlesCompra = `
+
+            <div
+                style="
+                    background:#eee;
+                    color:#777;
+                    padding:12px;
+                    border-radius:10px;
+                    text-align:center;
+                    font-weight:bold;
+                    margin:10px 0 20px 0;
+                "
+            >
+                Producto agotado
+            </div>
+
+            <button
+                disabled
+
+                style="
+                    width:100%;
+                    padding:12px;
+                    border:none;
+                    border-radius:30px;
+                    margin-bottom:25px;
+                    background:#aaa;
+                    color:white;
+                    cursor:not-allowed;
+                    font-weight:bold;
+                "
+            >
+                No disponible
+            </button>
+        `;
+    }
 
     Swal.fire({
-        title: nombre, html: `<img src="${imagenUrl}" alt="${nombre}" style="width: 100%; height: 250px; object-fit: cover; object-position: ${alineacion}; border-radius: 12px; margin-bottom: 15px;"><p style="text-align: justify; margin-bottom: 15px; color: #555;">${descripcion}</p><h3 style="color: #3c4a45; font-size: 1.8rem; margin-bottom: 10px;">${precioStr}</h3>${opcionesHtml}<div style="display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 25px;"><button onclick="cambiarCantidad(-1)" style="background-color: #eae5db; border:none; border-radius:50%; width:40px; height:40px; font-size:1.5rem; cursor:pointer; color:#3c4a45;">-</button><span id="swal-cantidad" style="font-size:1.4rem; font-weight:bold; min-width: 30px;">1</span><button onclick="cambiarCantidad(1)" style="background-color: var(--verde-logo); border:none; border-radius:50%; width:40px; height:40px; font-size:1.5rem; cursor:pointer; color:white;">+</button></div><button onclick="confirmarAgregarAlCarrito('${nombre}', ${precioNum})" class="btn-primary" style="width: 100%; padding: 12px; border-radius: 30px; margin-bottom: 25px;">Agregar al carrito</button>`,
-        showConfirmButton: false, showCloseButton: true, width: '480px'
+
+        title:
+            nombre,
+
+        html: `
+
+            <img
+                src="${imagenUrl}"
+                alt="${nombre}"
+
+                style="
+                    width:100%;
+                    height:250px;
+                    object-fit:cover;
+                    object-position:${alineacion};
+                    border-radius:12px;
+                    margin-bottom:15px;
+                "
+            >
+
+            <p
+                style="
+                    text-align:justify;
+                    margin-bottom:15px;
+                    color:#555;
+                "
+            >
+                ${descripcion}
+            </p>
+
+            <h3
+                style="
+                    color:#3c4a45;
+                    font-size:1.8rem;
+                    margin-bottom:10px;
+                "
+            >
+                ${precioStr}
+            </h3>
+
+            ${opcionesHtml}
+
+            ${controlesCompra}
+        `,
+
+        showConfirmButton:
+            false,
+
+        showCloseButton:
+            true,
+
+        width:
+            '480px'
     });
 }
+
+// ============================================================
+// CATÁLOGO DINÁMICO
+// ============================================================
+
+let catalogoProductosCache = [];
+
+function normalizarTextoCatalogo(texto) {
+
+    return String(texto || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+}
+
+function obtenerClaseEtiquetaCatalogo(tipo) {
+
+    switch (
+        String(tipo || '')
+            .toLowerCase()
+    ) {
+
+        case 'vendido':
+            return 'badge-vendido';
+
+        case 'oferta':
+            return 'badge-oferta';
+
+        case 'nuevo':
+            return 'badge-nuevo';
+
+        default:
+            return '';
+    }
+}
+
+function abrirDetalleProductoBD(productoId) {
+
+    const producto =
+        catalogoProductosCache.find(
+            item =>
+                Number(item.id) ===
+                Number(productoId)
+        );
+
+    if (!producto) {
+        return;
+    }
+
+    const grupos =
+        Array.isArray(producto.grupos)
+            ? producto.grupos
+            : [];
+
+    const opcionesStr =
+        grupos[0]?.opciones
+            ?.map(opcion =>
+                opcion.nombre
+            )
+            .join(', ')
+        || '';
+
+    const extrasStr =
+        grupos[1]?.opciones
+            ?.map(opcion =>
+                opcion.nombre
+            )
+            .join(', ')
+        || '';
+
+    const precio =
+        `$${Number(
+            producto.precio || 0
+        ).toFixed(2)} MXN`;
+
+    const estaDisponible =
+    producto.estado === 'disponible' &&
+    Number(producto.stock_actual || 0) > 0;
+
+        abrirDetalleMejorado(
+            producto.nombre,
+            producto.descripcion || '',
+            precio,
+            producto.imagen,
+            producto.imagen_posicion || 'center',
+            opcionesStr,
+            extrasStr,
+            producto.id,
+            estaDisponible
+        );
+}
+
+function crearTarjetaCatalogo(producto) {
+
+    const tarjeta =
+        document.createElement('div');
+
+    tarjeta.className =
+        'tarjeta-producto';
+
+    const grupos =
+        Array.isArray(producto.grupos)
+            ? producto.grupos
+            : [];
+
+    const nombresOpciones =
+        grupos
+            .flatMap(grupo =>
+                (grupo.opciones || [])
+                    .map(opcion =>
+                        opcion.nombre
+                    )
+            )
+            .join(' ');
+
+    tarjeta.dataset.nombre =
+        normalizarTextoCatalogo(
+            `
+            ${producto.nombre}
+            ${producto.descripcion || ''}
+            ${producto.categoria || ''}
+            ${nombresOpciones}
+            `
+        );
+
+    const posicion =
+        ['top', 'center', 'bottom']
+            .includes(
+                producto.imagen_posicion
+            )
+            ? producto.imagen_posicion
+            : 'center';
+
+    let etiquetaHtml =
+        '';
+
+    if (
+        producto.etiqueta &&
+        producto.etiqueta_tipo
+    ) {
+
+        const clase =
+            obtenerClaseEtiquetaCatalogo(
+                producto.etiqueta_tipo
+            );
+
+        if (clase) {
+
+            etiquetaHtml = `
+                <div
+                    class="
+                        badge-etiqueta
+                        ${clase}
+                    "
+                >
+                    ${
+                        escaparHtmlSCM(
+                            producto.etiqueta
+                        )
+                    }
+                </div>
+            `;
+        }
+    }
+
+    const agotado =
+    producto.estado === 'agotado' ||
+    Number(producto.stock_actual || 0) <= 0;
+
+const agotadoHtml =
+    agotado
+        ? `
+            <div
+                style="
+                    position:absolute;
+                    bottom:70px;
+                    left:12px;
+                    background:#555;
+                    color:white;
+                    padding:5px 10px;
+                    border-radius:12px;
+                    font-size:.8rem;
+                    font-weight:bold;
+                    z-index:2;
+                "
+            >
+                Agotado
+            </div>
+          `
+        : '';
+
+    tarjeta.innerHTML = `
+
+        ${agotadoHtml}
+        ${etiquetaHtml}
+        if (agotado) {
+            tarjeta.style.opacity = '0.75';
+        }
+        <img
+            src="${
+                escaparHtmlSCM(
+                    producto.imagen
+                )
+            }"
+
+            alt="${
+                escaparHtmlSCM(
+                    producto.nombre
+                )
+            }"
+
+            style="
+                object-position:
+                ${posicion};
+            "
+        >
+
+        <div class="info-producto">
+
+            <h3>
+                ${
+                    escaparHtmlSCM(
+                        producto.nombre
+                    )
+                }
+            </h3>
+
+            <p class="precio">
+                $${Number(
+                    producto.precio || 0
+                ).toFixed(2)} MXN
+            </p>
+
+        </div>
+    `;
+
+    tarjeta.addEventListener(
+        'click',
+        () =>
+            abrirDetalleProductoBD(
+                producto.id
+            )
+    );
+
+    return tarjeta;
+}
+
+function filtrarCatalogoBD() {
+
+    const buscador =
+        document.getElementById(
+            'buscador-productos'
+        );
+
+    const filtroCategoria =
+        document.getElementById(
+            'filtro-categoria'
+        );
+
+    if (
+        !buscador ||
+        !filtroCategoria
+    ) {
+        return;
+    }
+
+    const texto =
+        normalizarTextoCatalogo(
+            buscador.value.trim()
+        );
+
+    const categoria =
+        filtroCategoria.value;
+
+    document
+        .querySelectorAll(
+            '.seccion-categoria'
+        )
+        .forEach(seccion => {
+
+            const categoriaSeccion =
+                seccion.dataset.categoria;
+
+            const mostrarCategoria =
+                categoria === 'todos' ||
+                categoria ===
+                    categoriaSeccion;
+
+            let visibles =
+                0;
+
+            seccion
+                .querySelectorAll(
+                    '.tarjeta-producto'
+                )
+                .forEach(tarjeta => {
+
+                    const coincideTexto =
+                        (
+                            tarjeta.dataset.nombre ||
+                            ''
+                        ).includes(texto);
+
+                    const mostrar =
+                        mostrarCategoria &&
+                        coincideTexto;
+
+                    tarjeta.style.display =
+                        mostrar
+                            ? ''
+                            : 'none';
+
+                    if (mostrar) {
+                        visibles++;
+                    }
+                });
+
+            seccion.style.display =
+                visibles > 0
+                    ? ''
+                    : 'none';
+        });
+}
+
+async function cargarProductosBD() {
+
+    const contenedores = {
+
+        alimentos:
+            document.getElementById(
+                'catalogo-alimentos'
+            ),
+
+        calientes:
+            document.getElementById(
+                'catalogo-calientes'
+            ),
+
+        frias:
+            document.getElementById(
+                'catalogo-frias'
+            ),
+
+        postres:
+            document.getElementById(
+                'catalogo-postres'
+            )
+    };
+
+    if (
+        !Object.values(contenedores)
+            .some(Boolean)
+    ) {
+        return;
+    }
+
+    try {
+
+        const respuesta =
+            await fetch(
+                'http://localhost:3000/api/catalogo/productos',
+                {
+                    cache: 'no-store'
+                }
+            );
+
+        const resultado =
+            await respuesta.json();
+
+        if (!respuesta.ok) {
+
+            throw new Error(
+                resultado.error ||
+                'No se pudo cargar el catálogo.'
+            );
+        }
+
+        catalogoProductosCache =
+            resultado.data || [];
+
+        Object.values(
+            contenedores
+        ).forEach(contenedor => {
+
+            if (contenedor) {
+                contenedor.innerHTML =
+                    '';
+            }
+        });
+
+        catalogoProductosCache
+            .forEach(producto => {
+
+                const categoria =
+                    normalizarCategoriaMenu(
+                        producto.categoria
+                    );
+
+                const contenedor =
+                    contenedores[
+                        categoria
+                    ];
+
+                if (!contenedor) {
+
+                    console.warn(
+                        `Categoría no reconocida: ${producto.categoria}`
+                    );
+
+                    return;
+                }
+
+                contenedor.appendChild(
+                    crearTarjetaCatalogo(
+                        producto
+                    )
+                );
+            });
+
+        /*
+        Ocultar categorías que no tengan
+        productos publicados.
+        */
+
+        document
+            .querySelectorAll(
+                '.seccion-categoria'
+            )
+            .forEach(seccion => {
+
+                const tarjetas =
+                    seccion.querySelectorAll(
+                        '.tarjeta-producto'
+                    );
+
+                seccion.style.display =
+                    tarjetas.length > 0
+                        ? ''
+                        : 'none';
+            });
+
+        // FILTROS
+
+        const buscador =
+            document.getElementById(
+                'buscador-productos'
+            );
+
+        const filtroCategoria =
+            document.getElementById(
+                'filtro-categoria'
+            );
+
+        if (
+            buscador &&
+            buscador.dataset.catalogoEventos !==
+                '1'
+        ) {
+
+            buscador.addEventListener(
+                'input',
+                filtrarCatalogoBD
+            );
+
+            buscador.dataset.catalogoEventos =
+                '1';
+        }
+
+        if (
+            filtroCategoria &&
+            filtroCategoria.dataset.catalogoEventos !==
+                '1'
+        ) {
+
+            filtroCategoria.addEventListener(
+                'change',
+                filtrarCatalogoBD
+            );
+
+            filtroCategoria.dataset.catalogoEventos =
+                '1';
+        }
+
+        filtrarCatalogoBD();
+
+    } catch (error) {
+
+        console.error(
+            'Error cargando catálogo:',
+            error
+        );
+
+        Swal.fire({
+
+            icon:
+                'error',
+
+            title:
+                'No se pudo cargar el menú',
+
+            text:
+                'Intenta nuevamente en unos momentos.',
+
+            confirmButtonColor:
+                '#3c4a45'
+        });
+    }
+}
+
+window.cargarProductosBD =
+    cargarProductosBD;
+
+window.abrirDetalleProductoBD =
+    abrirDetalleProductoBD;
 
 function activarAlertas() {
     const btnLogin = document.getElementById('btn-login');
@@ -199,56 +1132,612 @@ function escaparHtmlSCM(valor) {
 // PRODUCTOS
 // ============================================================
 
+// ============================================================
+// IMAGEN DE PRODUCTO
+// ============================================================
+
+window.previsualizarImagenProducto = function(input) {
+
+    const preview =
+        document.getElementById(
+            'producto-imagen-preview'
+        );
+
+    const vacio =
+        document.getElementById(
+            'producto-preview-vacio'
+        );
+
+    if (!preview || !vacio) {
+        return;
+    }
+
+    const archivo =
+        input.files?.[0];
+
+    if (!archivo) {
+
+        preview.style.display = 'none';
+        preview.removeAttribute('src');
+
+        vacio.style.display = 'flex';
+
+        return;
+    }
+
+    const tiposPermitidos = [
+        'image/jpeg',
+        'image/png',
+        'image/webp'
+    ];
+
+    if (!tiposPermitidos.includes(archivo.type)) {
+
+        input.value = '';
+
+        return Swal.fire({
+            icon: 'warning',
+            title: 'Imagen no válida',
+            text: 'Selecciona una imagen JPG, PNG o WEBP.',
+            confirmButtonColor: '#3c4a45'
+        });
+    }
+
+    const maximo =
+        5 * 1024 * 1024;
+
+    if (archivo.size > maximo) {
+
+        input.value = '';
+
+        return Swal.fire({
+            icon: 'warning',
+            title: 'Imagen demasiado grande',
+            text: 'La imagen debe pesar como máximo 5 MB.',
+            confirmButtonColor: '#3c4a45'
+        });
+    }
+
+    const urlTemporal =
+        URL.createObjectURL(archivo);
+
+    preview.onload = function() {
+        URL.revokeObjectURL(
+            urlTemporal
+        );
+    };
+
+    preview.src =
+        urlTemporal;
+
+    preview.style.display =
+        'block';
+
+    vacio.style.display =
+        'none';
+
+    actualizarPosicionPreviewProducto();
+};
+
+window.actualizarPosicionPreviewProducto = function() {
+
+    const preview =
+        document.getElementById(
+            'producto-imagen-preview'
+        );
+
+    const select =
+        document.getElementById(
+            'producto-imagen-posicion'
+        );
+
+    if (!preview || !select) {
+        return;
+    }
+
+    const posiciones = [
+        'top',
+        'center',
+        'bottom'
+    ];
+
+    preview.style.objectPosition =
+        posiciones.includes(select.value)
+            ? select.value
+            : 'center';
+};
+
+async function subirImagenProductoAdmin(
+    productoId,
+    archivo,
+    usuarioId
+) {
+
+    if (!archivo) {
+        return null;
+    }
+
+    const formulario =
+        new FormData();
+
+    formulario.append(
+        'imagen',
+        archivo
+    );
+
+    if (usuarioId) {
+
+        formulario.append(
+            'usuario_id',
+            usuarioId
+        );
+    }
+
+    const respuesta =
+        await fetch(
+            `http://localhost:3000/api/productos/${productoId}/imagen`,
+            {
+                method: 'POST',
+                body: formulario
+            }
+        );
+
+    const resultado =
+        await respuesta.json();
+
+    if (!respuesta.ok) {
+
+        throw new Error(
+            resultado.error ||
+            'No se pudo subir la imagen.'
+        );
+    }
+
+    return resultado.imagen;
+}
+
 window.cargarProductosAdmin = async function() {
-    const tabla = document.getElementById('tabla-productos-admin');
+
+    const tabla =
+        document.getElementById(
+            'tabla-productos-admin'
+        );
+
     if (!tabla) return;
 
     try {
-        const respuesta = await fetch('http://localhost:3000/api/productos?todos=1', { cache:'no-store' });
-        const resultado = await respuesta.json();
-        if (!respuesta.ok) throw new Error(resultado.error || 'No se pudieron cargar los productos');
 
-        productosAdminCache = resultado.data || [];
+        const respuesta =
+            await fetch(
+                'http://localhost:3000/api/productos?todos=1',
+                {
+                    cache: 'no-store'
+                }
+            );
 
-        if (productosAdminCache.length === 0) {
-            tabla.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:#777;">No hay productos registrados.</td></tr>';
+        const resultado =
+            await respuesta.json();
+
+        if (!respuesta.ok) {
+
+            throw new Error(
+                resultado.error ||
+                'No se pudieron cargar los productos'
+            );
+        }
+
+        productosAdminCache =
+            resultado.data || [];
+
+        if (
+            productosAdminCache.length === 0
+        ) {
+
+            tabla.innerHTML = `
+                <tr>
+                    <td
+                        colspan="9"
+                        style="
+                            text-align:center;
+                            padding:30px;
+                            color:#777;
+                        "
+                    >
+                        No hay productos registrados.
+                    </td>
+                </tr>
+            `;
+
             actualizarFiltroCategoriasProductos();
+
             return;
         }
 
-        tabla.innerHTML = productosAdminCache.map(producto => {
-            let colorEstado = '#557268';
-            if (producto.estado === 'agotado') colorEstado = '#d9822b';
-            if (producto.estado === 'inactivo') colorEstado = '#777';
+        tabla.innerHTML =
+            productosAdminCache
+                .map(producto => {
 
-            return `
-                <tr class="admin-row producto-admin-row"
-                    data-nombre="${escaparHtmlSCM(producto.nombre).toLowerCase()}"
-                    data-categoria="${escaparHtmlSCM(producto.categoria || '')}"
-                    data-estado="${escaparHtmlSCM(producto.estado || '')}"
-                    style="border-bottom:1px solid #eae5db;">
-                    <td style="padding:10px;">${producto.id}</td>
-                    <td style="padding:10px;">
-                        <strong>${escaparHtmlSCM(producto.nombre)}</strong><br>
-                        <small style="color:#777;">${escaparHtmlSCM(producto.descripcion || 'Sin descripción')}</small>
-                    </td>
-                    <td style="padding:10px;">${escaparHtmlSCM(producto.categoria || 'Sin categoría')}</td>
-                    <td style="padding:10px;">$${Number(producto.precio || 0).toFixed(2)}</td>
-                    <td style="padding:10px; text-align:center;"><strong>${Number(producto.stock_actual || 0)}</strong></td>
-                    <td style="padding:10px;"><span style="background:${colorEstado}; color:white; padding:3px 8px; border-radius:12px; font-size:.8rem;">${escaparHtmlSCM(producto.estado || 'disponible')}</span></td>
-                    <td class="admin-actions" style="padding:10px; display:flex; gap:5px; align-items:center; flex-wrap:wrap;">
-                        <button onclick="gestionarReceta(${producto.id})" style="background:#557268; color:white;">Receta</button>
-                        <button onclick="editarProductoAdmin(${producto.id})">Editar</button>
-                        <button onclick="eliminarProductoAdmin(${producto.id})" style="background:#b7410e; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;">Eliminar</button>
-                    </td>
-                </tr>`;
-        }).join('');
+                    let colorEstado =
+                        '#557268';
+
+                    if (
+                        producto.estado ===
+                        'agotado'
+                    ) {
+                        colorEstado =
+                            '#d9822b';
+                    }
+
+                    if (
+                        producto.estado ===
+                        'inactivo'
+                    ) {
+                        colorEstado =
+                            '#777';
+                    }
+
+                    const posiciones = [
+                        'top',
+                        'center',
+                        'bottom'
+                    ];
+
+                    const posicionImagen =
+                        posiciones.includes(
+                            producto.imagen_posicion
+                        )
+                            ? producto.imagen_posicion
+                            : 'center';
+
+                    const imagen =
+                        producto.imagen
+                            ? escaparHtmlSCM(
+                                producto.imagen
+                              )
+                            : '';
+
+                    const publicado =
+                        Number(
+                            producto.publicado
+                        ) === 1;
+
+                    const etiqueta =
+                        producto.etiqueta
+                            ? escaparHtmlSCM(
+                                producto.etiqueta
+                              )
+                            : '';
+
+                    return `
+
+                        <tr
+                            class="
+                                admin-row
+                                producto-admin-row
+                            "
+
+                            data-nombre="${
+                                escaparHtmlSCM(
+                                    producto.nombre
+                                ).toLowerCase()
+                            }"
+
+                            data-categoria="${
+                                escaparHtmlSCM(
+                                    producto.categoria ||
+                                    ''
+                                )
+                            }"
+
+                            data-estado="${
+                                escaparHtmlSCM(
+                                    producto.estado ||
+                                    ''
+                                )
+                            }"
+
+                            style="
+                                border-bottom:
+                                1px solid #eae5db;
+                            "
+                        >
+
+                            <!-- ID -->
+
+                            <td style="padding:10px;">
+
+                                ${producto.id}
+
+                            </td>
+
+                            <!-- IMAGEN -->
+
+                            <td
+                                style="
+                                    padding:8px;
+                                    text-align:center;
+                                "
+                            >
+
+                                ${
+                                    imagen
+                                        ? `
+                                            <img
+                                                src="${imagen}"
+
+                                                alt="${
+                                                    escaparHtmlSCM(
+                                                        producto.nombre
+                                                    )
+                                                }"
+
+                                                class="
+                                                    admin-producto-miniatura
+                                                "
+
+                                                style="
+                                                    object-position:
+                                                    ${posicionImagen};
+                                                "
+                                            >
+                                          `
+                                        : `
+                                            <span
+                                                class="
+                                                    producto-sin-imagen
+                                                "
+                                            >
+                                                Sin
+                                                imagen
+                                            </span>
+                                          `
+                                }
+
+                            </td>
+
+                            <!-- PRODUCTO -->
+
+                            <td style="padding:10px;">
+
+                                <strong>
+                                    ${
+                                        escaparHtmlSCM(
+                                            producto.nombre
+                                        )
+                                    }
+                                </strong>
+
+                                <br>
+
+                                <small
+                                    style="
+                                        color:#777;
+                                    "
+                                >
+                                    ${
+                                        escaparHtmlSCM(
+                                            producto.descripcion ||
+                                            'Sin descripción'
+                                        )
+                                    }
+                                </small>
+
+                            </td>
+
+                            <!-- CATEGORÍA -->
+
+                            <td style="padding:10px;">
+
+                                ${
+                                    escaparHtmlSCM(
+                                        producto.categoria ||
+                                        'Sin categoría'
+                                    )
+                                }
+
+                            </td>
+
+                            <!-- PRECIO -->
+
+                            <td style="padding:10px;">
+
+                                $${Number(
+                                    producto.precio || 0
+                                ).toFixed(2)}
+
+                            </td>
+
+                            <!-- DISPONIBILIDAD -->
+
+                            <td
+                                style="
+                                    padding:10px;
+                                    text-align:center;
+                                "
+                            >
+
+                                <strong>
+
+                                    ${Number(
+                                        producto.stock_actual ||
+                                        0
+                                    )}
+
+                                </strong>
+
+                            </td>
+
+                            <!-- ESTADO -->
+
+                            <td style="padding:10px;">
+
+                                <span
+                                    style="
+                                        background:
+                                        ${colorEstado};
+
+                                        color:white;
+
+                                        padding:
+                                        3px 8px;
+
+                                        border-radius:
+                                        12px;
+
+                                        font-size:
+                                        .8rem;
+                                    "
+                                >
+
+                                    ${
+                                        escaparHtmlSCM(
+                                            producto.estado ||
+                                            'disponible'
+                                        )
+                                    }
+
+                                </span>
+
+                            </td>
+
+                            <!-- CATÁLOGO -->
+
+                            <td
+                                style="
+                                    padding:10px;
+                                    text-align:center;
+                                "
+                            >
+
+                                <span
+                                    class="${
+                                        publicado
+                                            ? 'badge-publicado'
+                                            : 'badge-no-publicado'
+                                    }"
+                                >
+
+                                    ${
+                                        publicado
+                                            ? 'Publicado'
+                                            : 'No publicado'
+                                    }
+
+                                </span>
+
+                                ${
+                                    etiqueta
+                                        ? `
+                                            <br>
+
+                                            <small
+                                                style="
+                                                    display:inline-block;
+                                                    margin-top:5px;
+                                                    color:#777;
+                                                "
+                                            >
+                                                ${etiqueta}
+                                            </small>
+                                          `
+                                        : ''
+                                }
+
+                            </td>
+
+                            <!-- ACCIONES -->
+
+                            <td
+                                class="admin-actions"
+
+                                style="
+                                    padding:10px;
+                                    display:flex;
+                                    gap:5px;
+                                    align-items:center;
+                                    flex-wrap:wrap;
+                                "
+                            >
+
+                                <button
+                                    onclick="
+                                        gestionarReceta(
+                                            ${producto.id}
+                                        )
+                                    "
+                                    style="
+                                        background:#557268;
+                                        color:white;
+                                    "
+                                >
+                                    Receta
+                                </button>
+
+                                <button
+                                    onclick="
+                                        editarProductoAdmin(
+                                            ${producto.id}
+                                        )
+                                    "
+                                >
+                                    Editar
+                                </button>
+
+                                <button
+                                    onclick="
+                                        eliminarProductoAdmin(
+                                            ${producto.id}
+                                        )
+                                    "
+
+                                    style="
+                                        background:#b7410e;
+                                        color:white;
+                                        border:none;
+                                        padding:5px 10px;
+                                        border-radius:5px;
+                                        cursor:pointer;
+                                    "
+                                >
+                                    Eliminar
+                                </button>
+
+                            </td>
+
+                        </tr>
+                    `;
+
+                })
+                .join('');
 
         actualizarFiltroCategoriasProductos();
+
         filtrarProductosAdmin();
+
     } catch (error) {
-        console.error('Error cargando productos:', error);
-        tabla.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:#b7410e;">No se pudieron cargar los productos.</td></tr>';
+
+        console.error(
+            'Error cargando productos:',
+            error
+        );
+
+        tabla.innerHTML = `
+            <tr>
+
+                <td
+                    colspan="9"
+
+                    style="
+                        text-align:center;
+                        padding:30px;
+                        color:#b7410e;
+                    "
+                >
+                    No se pudieron cargar los productos.
+                </td>
+
+            </tr>
+        `;
     }
 }
 
@@ -297,125 +1786,1454 @@ window.filtrarProductosAdmin = function() {
 }
 
 window.guardarProducto = async function(event) {
+
     event.preventDefault();
 
-    const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
+    const usuarioActual =
+        JSON.parse(
+            localStorage.getItem(
+                'casaBarro_usuario'
+            )
+        );
+
+    const inputImagen =
+        document.getElementById(
+            'producto-imagen'
+        );
+
+    const archivoImagen =
+        inputImagen?.files?.[0] ||
+        null;
+
+    const publicado =
+        Number(
+            document.getElementById(
+                'producto-publicado'
+            ).value
+        );
+
+    /*
+    Si el administrador quiere publicarlo
+    inmediatamente, debe existir una imagen.
+    */
+
+    if (
+        publicado === 1 &&
+        !archivoImagen
+    ) {
+
+        return Swal.fire({
+            icon: 'warning',
+
+            title:
+                'Falta la imagen',
+
+            text:
+                'Para publicar un producto nuevo en el catálogo debes seleccionar una imagen.',
+
+            confirmButtonColor:
+                '#3c4a45'
+        });
+    }
+
     const data = {
-        nombre: document.getElementById('producto-nombre').value.trim(),
-        descripcion: document.getElementById('producto-descripcion').value.trim(),
-        categoria: document.getElementById('producto-categoria').value.trim(),
-        precio: Number(document.getElementById('producto-precio').value),
+
+        nombre:
+            document.getElementById(
+                'producto-nombre'
+            ).value.trim(),
+
+        descripcion:
+            document.getElementById(
+                'producto-descripcion'
+            ).value.trim(),
+
+        categoria:
+            document.getElementById(
+                'producto-categoria'
+            ).value.trim(),
+
+        precio:
+            Number(
+                document.getElementById(
+                    'producto-precio'
+                ).value
+            ),
+
         stock_actual: 0,
+
         stock_minimo: 0,
+
         proveedor_id: null,
-        costo_unitario: Number(document.getElementById('producto-costo').value || 0),
-        estrategia_logistica: 'PULL',
-        estado: document.getElementById('producto-estado').value,
-        usuario_id: usuarioActual ? usuarioActual.id : null
+
+        costo_unitario:
+            Number(
+                document.getElementById(
+                    'producto-costo'
+                ).value || 0
+            ),
+
+        estrategia_logistica:
+            'PULL',
+
+        estado:
+            document.getElementById(
+                'producto-estado'
+            ).value,
+
+        // DATOS DEL CATÁLOGO
+
+        publicado:
+            publicado,
+
+        imagen_posicion:
+            document.getElementById(
+                'producto-imagen-posicion'
+            ).value,
+
+        etiqueta:
+            document.getElementById(
+                'producto-etiqueta'
+            ).value.trim(),
+
+        etiqueta_tipo:
+            document.getElementById(
+                'producto-etiqueta-tipo'
+            ).value,
+
+        orden_catalogo:
+            999,
+
+        usuario_id:
+            usuarioActual
+                ? usuarioActual.id
+                : null
     };
 
     try {
-        const respuesta = await fetch('http://localhost:3000/api/productos', {
-            method: 'POST',
-            headers: { 'Content-Type':'application/json' },
-            body: JSON.stringify(data)
-        });
-        const resultado = await respuesta.json();
+
+        /*
+        PRIMERO:
+        crear el producto para obtener su ID.
+        */
+
+        const respuesta =
+            await fetch(
+                'http://localhost:3000/api/productos',
+                {
+                    method: 'POST',
+
+                    headers: {
+                        'Content-Type':
+                            'application/json'
+                    },
+
+                    body:
+                        JSON.stringify(
+                            data
+                        )
+                }
+            );
+
+        const resultado =
+            await respuesta.json();
 
         if (!respuesta.ok) {
-            return Swal.fire({ icon:'error', title:resultado.error || 'No se pudo registrar', confirmButtonColor:'#3c4a45' });
+
+            return Swal.fire({
+                icon: 'error',
+
+                title:
+                    resultado.error ||
+                    'No se pudo registrar',
+
+                confirmButtonColor:
+                    '#3c4a45'
+            });
         }
 
-        Swal.fire({ toast:true, position:'top-end', icon:'success', title:'Producto registrado', showConfirmButton:false, timer:2000 });
-        document.getElementById('form-alta-producto').reset();
-        document.getElementById('producto-precio').value = 0;
-        document.getElementById('producto-costo').value = 0;
-        document.getElementById('producto-estado').value = 'disponible';
+        /*
+        SEGUNDO:
+        si seleccionó imagen,
+        subirla al producto recién creado.
+        */
+
+        let errorImagen =
+            null;
+
+        if (archivoImagen) {
+
+            try {
+
+                await subirImagenProductoAdmin(
+                    resultado.id,
+                    archivoImagen,
+                    usuarioActual
+                        ? usuarioActual.id
+                        : null
+                );
+
+            } catch (error) {
+
+                errorImagen =
+                    error.message;
+            }
+        }
+
+        /*
+        Si el producto se creó pero falló
+        únicamente la fotografía, no decimos
+        que todo el registro falló.
+        */
+
+        if (errorImagen) {
+
+            await Swal.fire({
+
+                icon: 'warning',
+
+                title:
+                    'Producto creado',
+
+                text:
+                    `El producto se registró, pero la imagen no pudo guardarse: ${errorImagen}`,
+
+                confirmButtonColor:
+                    '#3c4a45'
+            });
+
+        } else {
+
+            Swal.fire({
+
+                toast: true,
+
+                position:
+                    'top-end',
+
+                icon:
+                    'success',
+
+                title:
+                    'Producto registrado',
+
+                showConfirmButton:
+                    false,
+
+                timer:
+                    2000
+            });
+        }
+
+        // LIMPIAR FORMULARIO
+
+        document.getElementById(
+            'form-alta-producto'
+        ).reset();
+
+        document.getElementById(
+            'producto-precio'
+        ).value = 0;
+
+        document.getElementById(
+            'producto-costo'
+        ).value = 0;
+
+        document.getElementById(
+            'producto-estado'
+        ).value =
+            'disponible';
+
+        document.getElementById(
+            'producto-publicado'
+        ).value =
+            '0';
+
+        document.getElementById(
+            'producto-imagen-posicion'
+        ).value =
+            'center';
+
+        document.getElementById(
+            'producto-etiqueta-tipo'
+        ).value =
+            '';
+
+        // LIMPIAR PREVIEW
+
+        const preview =
+            document.getElementById(
+                'producto-imagen-preview'
+            );
+
+        const vacio =
+            document.getElementById(
+                'producto-preview-vacio'
+            );
+
+        if (preview) {
+
+            preview.style.display =
+                'none';
+
+            preview.removeAttribute(
+                'src'
+            );
+
+            preview.style.objectPosition =
+                'center';
+        }
+
+        if (vacio) {
+
+            vacio.style.display =
+                'flex';
+        }
+
+        // RECARGAR TABLA
+
         await cargarProductosAdmin();
+
     } catch (error) {
-        Swal.fire({ icon:'error', title:'Error de conexión', confirmButtonColor:'#3c4a45' });
+
+        console.error(
+            'Error registrando producto:',
+            error
+        );
+
+        Swal.fire({
+
+            icon:
+                'error',
+
+            title:
+                'Error de conexión',
+
+            text:
+                error.message,
+
+            confirmButtonColor:
+                '#3c4a45'
+        });
     }
 }
 
 window.editarProductoAdmin = async function(id) {
-    const producto = productosAdminCache.find(item => Number(item.id) === Number(id));
-    if (!producto) return;
+
+    const producto = productosAdminCache.find(
+        item => Number(item.id) === Number(id)
+    );
+
+    if (!producto) {
+        return;
+    }
+
+    // ============================================================
+    // DATOS ACTUALES DEL PRODUCTO
+    // ============================================================
+
+    const imagenActual =
+        producto.imagen
+            ? escaparHtmlSCM(producto.imagen)
+            : '';
+
+    const posicionActual =
+        ['top', 'center', 'bottom'].includes(
+            producto.imagen_posicion
+        )
+            ? producto.imagen_posicion
+            : 'center';
+
+    const publicadoActual =
+        Number(producto.publicado) === 1;
+
+    const etiquetaActual =
+        escaparHtmlSCM(
+            producto.etiqueta || ''
+        );
+
+    const tipoEtiquetaActual =
+        producto.etiqueta_tipo || '';
+
+    // ============================================================
+    // MODAL DE EDICIÓN
+    // ============================================================
 
     const result = await Swal.fire({
-        title:'Editar Producto',
-        width:'600px',
-        html:`
-            <div style="display:flex; flex-direction:column; gap:10px; text-align:left;">
-                <label>Nombre:</label>
-                <input type="text" id="edit-producto-nombre" class="swal2-input" style="margin:0; width:100%;" value="${escaparHtmlSCM(producto.nombre)}">
 
-                <label>Descripción:</label>
-                <textarea id="edit-producto-descripcion" class="swal2-textarea" style="margin:0; width:100%;">${escaparHtmlSCM(producto.descripcion || '')}</textarea>
+        title: 'Editar Producto',
 
-                <label>Categoría:</label>
-                <select id="edit-producto-categoria" class="swal2-select" style="margin:0; width:100%;">${opcionesCategoriaProducto(producto.categoria || '')}</select>
+        width: '700px',
 
-                <div style="display:flex; gap:10px;">
-                    <div style="flex:1;">
-                        <label>Precio:</label>
-                        <input type="number" id="edit-producto-precio" class="swal2-input" min="0" step="0.01" style="margin:0; width:100%;" value="${Number(producto.precio || 0)}">
+        html: `
+
+            <div
+                style="
+                    display:flex;
+                    flex-direction:column;
+                    gap:12px;
+                    text-align:left;
+                "
+            >
+
+                <!-- ==========================================
+                     IMAGEN
+                =========================================== -->
+
+                <label style="font-weight:bold;">
+                    Imagen del producto:
+                </label>
+
+                <div
+                    style="
+                        display:flex;
+                        gap:16px;
+                        align-items:center;
+                        flex-wrap:wrap;
+                    "
+                >
+
+                    <div
+                        style="
+                            width:180px;
+                            height:125px;
+                            border-radius:12px;
+                            overflow:hidden;
+                            background:#eee;
+                            display:flex;
+                            align-items:center;
+                            justify-content:center;
+                            flex-shrink:0;
+                        "
+                    >
+
+                        ${
+                            imagenActual
+                                ? `
+                                    <img
+                                        id="edit-producto-preview"
+                                        src="${imagenActual}"
+                                        alt="${escaparHtmlSCM(producto.nombre)}"
+
+                                        style="
+                                            width:100%;
+                                            height:100%;
+                                            object-fit:cover;
+                                            object-position:${posicionActual};
+                                        "
+                                    >
+                                `
+                                : `
+                                    <span
+                                        id="edit-producto-sin-imagen"
+
+                                        style="
+                                            color:#888;
+                                            font-size:.8rem;
+                                        "
+                                    >
+                                        Sin imagen
+                                    </span>
+
+                                    <img
+                                        id="edit-producto-preview"
+
+                                        style="
+                                            display:none;
+                                            width:100%;
+                                            height:100%;
+                                            object-fit:cover;
+                                            object-position:${posicionActual};
+                                        "
+                                    >
+                                `
+                        }
+
                     </div>
-                    <div style="flex:1;">
-                        <label>Costo unitario:</label>
-                        <input type="number" id="edit-producto-costo" class="swal2-input" min="0" step="0.01" style="margin:0; width:100%;" value="${Number(producto.costo_unitario || 0)}">
+
+                    <div style="flex:1; min-width:220px;">
+
+                        <input
+                            type="file"
+
+                            id="edit-producto-imagen"
+
+                            accept="
+                                image/jpeg,
+                                image/png,
+                                image/webp
+                            "
+
+                            style="
+                                width:100%;
+                            "
+                        >
+
+                        <small
+                            style="
+                                display:block;
+                                color:#777;
+                                margin-top:6px;
+                            "
+                        >
+                            Déjalo vacío para conservar la imagen actual.
+                            JPG, PNG o WEBP. Máximo 5 MB.
+                        </small>
+
                     </div>
+
                 </div>
 
-                <label>Disponibilidad calculada por receta:</label>
-                <input type="number" readonly class="swal2-input" style="margin:0; width:100%;" value="${Number(producto.stock_actual || 0)}">
-                <small style="color:#777;">Proveedor, estrategia PUSH/PULL y reposición se administran por insumo, no por producto.</small>
+                <!-- ==========================================
+                     ENCUADRE
+                =========================================== -->
 
-                <label>Estado:</label>
-                <select id="edit-producto-estado" class="swal2-select" style="margin:0; width:100%;">
-                    <option value="disponible" ${producto.estado === 'disponible' ? 'selected' : ''}>Disponible</option>
-                    <option value="agotado" ${producto.estado === 'agotado' ? 'selected' : ''}>Agotado</option>
-                    <option value="inactivo" ${producto.estado === 'inactivo' ? 'selected' : ''}>Inactivo</option>
+                <label style="font-weight:bold;">
+                    Encuadre de la imagen:
+                </label>
+
+                <select
+                    id="edit-producto-imagen-posicion"
+                    class="swal2-select"
+
+                    style="
+                        margin:0;
+                        width:100%;
+                    "
+                >
+
+                    <option
+                        value="center"
+                        ${posicionActual === 'center' ? 'selected' : ''}
+                    >
+                        Centrado
+                    </option>
+
+                    <option
+                        value="top"
+                        ${posicionActual === 'top' ? 'selected' : ''}
+                    >
+                        Parte superior
+                    </option>
+
+                    <option
+                        value="bottom"
+                        ${posicionActual === 'bottom' ? 'selected' : ''}
+                    >
+                        Parte inferior
+                    </option>
+
                 </select>
-            </div>`,
-        showCancelButton:true,
-        confirmButtonText:'Actualizar',
-        cancelButtonText:'Cancelar',
-        confirmButtonColor:'#3c4a45',
-        preConfirm:() => {
-            const nombre = document.getElementById('edit-producto-nombre').value.trim();
-            const precio = Number(document.getElementById('edit-producto-precio').value);
-            const costo = Number(document.getElementById('edit-producto-costo').value);
-            if (!nombre) return Swal.showValidationMessage('El nombre es obligatorio');
-            if (!Number.isFinite(precio) || !Number.isFinite(costo) || precio < 0 || costo < 0) return Swal.showValidationMessage('Precio y costo deben ser números no negativos');
+
+                <!-- ==========================================
+                     NOMBRE
+                =========================================== -->
+
+                <label style="font-weight:bold;">
+                    Nombre:
+                </label>
+
+                <input
+                    type="text"
+
+                    id="edit-producto-nombre"
+
+                    class="swal2-input"
+
+                    style="
+                        margin:0;
+                        width:100%;
+                    "
+
+                    value="${escaparHtmlSCM(producto.nombre)}"
+                >
+
+                <!-- ==========================================
+                     DESCRIPCIÓN
+                =========================================== -->
+
+                <label style="font-weight:bold;">
+                    Descripción:
+                </label>
+
+                <textarea
+                    id="edit-producto-descripcion"
+
+                    class="swal2-textarea"
+
+                    style="
+                        margin:0;
+                        width:100%;
+                        min-height:120px;
+                    "
+                >${escaparHtmlSCM(producto.descripcion || '')}</textarea>
+
+                <!-- ==========================================
+                     CATEGORÍA
+                =========================================== -->
+
+                <label style="font-weight:bold;">
+                    Categoría:
+                </label>
+
+                <select
+                    id="edit-producto-categoria"
+
+                    class="swal2-select"
+
+                    style="
+                        margin:0;
+                        width:100%;
+                    "
+                >
+                    ${
+                        opcionesCategoriaProducto(
+                            producto.categoria || ''
+                        )
+                    }
+                </select>
+
+                <!-- ==========================================
+                     PRECIO / COSTO
+                =========================================== -->
+
+                <div
+                    style="
+                        display:flex;
+                        gap:12px;
+                        flex-wrap:wrap;
+                    "
+                >
+
+                    <div
+                        style="
+                            flex:1;
+                            min-width:200px;
+                        "
+                    >
+
+                        <label
+                            style="
+                                display:block;
+                                margin-bottom:6px;
+                                font-weight:bold;
+                            "
+                        >
+                            Precio:
+                        </label>
+
+                        <input
+                            type="number"
+
+                            id="edit-producto-precio"
+
+                            class="swal2-input"
+
+                            min="0"
+                            step="0.01"
+
+                            style="
+                                margin:0;
+                                width:100%;
+                            "
+
+                            value="${Number(producto.precio || 0)}"
+                        >
+
+                    </div>
+
+                    <div
+                        style="
+                            flex:1;
+                            min-width:200px;
+                        "
+                    >
+
+                        <label
+                            style="
+                                display:block;
+                                margin-bottom:6px;
+                                font-weight:bold;
+                            "
+                        >
+                            Costo unitario:
+                        </label>
+
+                        <input
+                            type="number"
+
+                            id="edit-producto-costo"
+
+                            class="swal2-input"
+
+                            min="0"
+                            step="0.01"
+
+                            style="
+                                margin:0;
+                                width:100%;
+                            "
+
+                            value="${Number(producto.costo_unitario || 0)}"
+                        >
+
+                    </div>
+
+                </div>
+
+                <!-- ==========================================
+                     ETIQUETA
+                =========================================== -->
+
+                <label style="font-weight:bold;">
+                    Texto de etiqueta:
+                </label>
+
+                <input
+                    type="text"
+
+                    id="edit-producto-etiqueta"
+
+                    class="swal2-input"
+
+                    maxlength="30"
+
+                    placeholder="Ej. Nuevo, Favorito, Más Vendido..."
+
+                    style="
+                        margin:0;
+                        width:100%;
+                    "
+
+                    value="${etiquetaActual}"
+                >
+
+                <!-- ==========================================
+                     TIPO DE ETIQUETA
+                =========================================== -->
+
+                <label style="font-weight:bold;">
+                    Estilo de etiqueta:
+                </label>
+
+                <select
+                    id="edit-producto-etiqueta-tipo"
+
+                    class="swal2-select"
+
+                    style="
+                        margin:0;
+                        width:100%;
+                    "
+                >
+
+                    <option
+                        value=""
+                        ${tipoEtiquetaActual === '' ? 'selected' : ''}
+                    >
+                        Sin etiqueta
+                    </option>
+
+                    <option
+                        value="nuevo"
+                        ${tipoEtiquetaActual === 'nuevo' ? 'selected' : ''}
+                    >
+                        Nuevo
+                    </option>
+
+                    <option
+                        value="vendido"
+                        ${tipoEtiquetaActual === 'vendido' ? 'selected' : ''}
+                    >
+                        Destacado / Más vendido
+                    </option>
+
+                    <option
+                        value="oferta"
+                        ${tipoEtiquetaActual === 'oferta' ? 'selected' : ''}
+                    >
+                        Oferta
+                    </option>
+
+                </select>
+
+                <!-- ==========================================
+                     DISPONIBILIDAD
+                =========================================== -->
+
+                <label style="font-weight:bold;">
+                    Disponibilidad calculada por receta:
+                </label>
+
+                <input
+                    type="number"
+
+                    readonly
+
+                    class="swal2-input"
+
+                    style="
+                        margin:0;
+                        width:100%;
+                        background:#f3f3f3;
+                    "
+
+                    value="${Number(producto.stock_actual || 0)}"
+                >
+
+                <small
+                    style="
+                        color:#777;
+                    "
+                >
+                    La disponibilidad se calcula automáticamente
+                    utilizando los insumos de la receta.
+                </small>
+
+                <!-- ==========================================
+                     PUBLICACIÓN
+                =========================================== -->
+
+                <div
+                    style="
+                        margin-top:8px;
+                        padding:14px;
+                        border:1px solid #d9d4ca;
+                        border-radius:10px;
+                        background:#faf9f6;
+                    "
+                >
+
+                    <label
+                        for="edit-producto-publicado"
+
+                        style="
+                            display:block;
+                            font-weight:bold;
+                            color:#3c4a45;
+                            margin-bottom:7px;
+                        "
+                    >
+                        Publicación en catálogo:
+                    </label>
+
+                    <select
+                        id="edit-producto-publicado"
+
+                        class="swal2-select"
+
+                        style="
+                            margin:0;
+                            width:100%;
+                            background:white;
+                        "
+                    >
+
+                        <option
+                            value="1"
+                            ${publicadoActual ? 'selected' : ''}
+                        >
+                            Publicado en catálogo
+                        </option>
+
+                        <option
+                            value="0"
+                            ${!publicadoActual ? 'selected' : ''}
+                        >
+                            No publicado
+                        </option>
+
+                    </select>
+
+                    <small
+                        style="
+                            display:block;
+                            color:#777;
+                            margin-top:7px;
+                        "
+                    >
+                        Define si este producto aparece en
+                        el menú público de Casa Barro.
+                    </small>
+
+                </div>
+
+                <!-- ==========================================
+                     ESTADO
+                =========================================== -->
+
+                <label
+                    style="
+                        font-weight:bold;
+                        margin-top:5px;
+                    "
+                >
+                    Estado:
+                </label>
+
+                <select
+                    id="edit-producto-estado"
+
+                    class="swal2-select"
+
+                    style="
+                        margin:0;
+                        width:100%;
+                    "
+                >
+
+                    <option
+                        value="disponible"
+                        ${
+                            producto.estado === 'disponible'
+                                ? 'selected'
+                                : ''
+                        }
+                    >
+                        Disponible
+                    </option>
+
+                    <option
+                        value="agotado"
+                        ${
+                            producto.estado === 'agotado'
+                                ? 'selected'
+                                : ''
+                        }
+                    >
+                        Agotado
+                    </option>
+
+                    <option
+                        value="inactivo"
+                        ${
+                            producto.estado === 'inactivo'
+                                ? 'selected'
+                                : ''
+                        }
+                    >
+                        Inactivo
+                    </option>
+
+                </select>
+
+            </div>
+        `,
+
+        showCancelButton: true,
+
+        confirmButtonText: 'Actualizar',
+
+        cancelButtonText: 'Cancelar',
+
+        confirmButtonColor: '#3c4a45',
+
+        cancelButtonColor: '#7b858e',
+
+        // ========================================================
+        // AL ABRIR EL MODAL
+        // ========================================================
+
+        didOpen: () => {
+
+            const inputImagen =
+                document.getElementById(
+                    'edit-producto-imagen'
+                );
+
+            const selectPosicion =
+                document.getElementById(
+                    'edit-producto-imagen-posicion'
+                );
+
+            const preview =
+                document.getElementById(
+                    'edit-producto-preview'
+                );
+
+            const sinImagen =
+                document.getElementById(
+                    'edit-producto-sin-imagen'
+                );
+
+            // ------------------------------------------
+            // ACTUALIZAR ENCUADRE EN TIEMPO REAL
+            // ------------------------------------------
+
+            const actualizarPreview = () => {
+
+                if (
+                    preview &&
+                    selectPosicion
+                ) {
+
+                    preview.style.objectPosition =
+                        selectPosicion.value;
+                }
+            };
+
+            if (selectPosicion) {
+
+                selectPosicion.addEventListener(
+                    'change',
+                    actualizarPreview
+                );
+            }
+
+            // ------------------------------------------
+            // CAMBIO DE IMAGEN
+            // ------------------------------------------
+
+            if (inputImagen) {
+
+                inputImagen.addEventListener(
+                    'change',
+                    () => {
+
+                        const archivo =
+                            inputImagen.files?.[0];
+
+                        if (!archivo) {
+                            return;
+                        }
+
+                        const tiposPermitidos = [
+                            'image/jpeg',
+                            'image/png',
+                            'image/webp'
+                        ];
+
+                        if (
+                            !tiposPermitidos.includes(
+                                archivo.type
+                            )
+                        ) {
+
+                            inputImagen.value = '';
+
+                            Swal.showValidationMessage(
+                                'Selecciona una imagen JPG, PNG o WEBP.'
+                            );
+
+                            return;
+                        }
+
+                        const maximo =
+                            5 * 1024 * 1024;
+
+                        if (
+                            archivo.size >
+                            maximo
+                        ) {
+
+                            inputImagen.value = '';
+
+                            Swal.showValidationMessage(
+                                'La imagen debe pesar máximo 5 MB.'
+                            );
+
+                            return;
+                        }
+
+                        Swal.resetValidationMessage();
+
+                        if (sinImagen) {
+
+                            sinImagen.style.display =
+                                'none';
+                        }
+
+                        const urlTemporal =
+                            URL.createObjectURL(
+                                archivo
+                            );
+
+                        if (preview) {
+
+                            preview.onload =
+                                function() {
+
+                                    URL.revokeObjectURL(
+                                        urlTemporal
+                                    );
+                                };
+
+                            preview.src =
+                                urlTemporal;
+
+                            preview.style.display =
+                                'block';
+
+                            actualizarPreview();
+                        }
+                    }
+                );
+            }
+        },
+
+        // ========================================================
+        // VALIDAR Y OBTENER DATOS
+        // ========================================================
+
+        preConfirm: () => {
+
+            const nombre =
+                document.getElementById(
+                    'edit-producto-nombre'
+                ).value.trim();
+
+            const descripcion =
+                document.getElementById(
+                    'edit-producto-descripcion'
+                ).value.trim();
+
+            const categoria =
+                document.getElementById(
+                    'edit-producto-categoria'
+                ).value.trim();
+
+            const precio =
+                Number(
+                    document.getElementById(
+                        'edit-producto-precio'
+                    ).value
+                );
+
+            const costo =
+                Number(
+                    document.getElementById(
+                        'edit-producto-costo'
+                    ).value
+                );
+
+            const publicado =
+                Number(
+                    document.getElementById(
+                        'edit-producto-publicado'
+                    ).value
+                );
+
+            const imagenPosicion =
+                document.getElementById(
+                    'edit-producto-imagen-posicion'
+                ).value;
+
+            const etiqueta =
+                document.getElementById(
+                    'edit-producto-etiqueta'
+                ).value.trim();
+
+            const etiquetaTipo =
+                document.getElementById(
+                    'edit-producto-etiqueta-tipo'
+                ).value;
+
+            const estado =
+                document.getElementById(
+                    'edit-producto-estado'
+                ).value;
+
+            const inputImagen =
+                document.getElementById(
+                    'edit-producto-imagen'
+                );
+
+            const archivoImagen =
+                inputImagen?.files?.[0] ||
+                null;
+
+            // ------------------------------------------
+            // VALIDACIONES
+            // ------------------------------------------
+
+            if (!nombre) {
+
+                Swal.showValidationMessage(
+                    'El nombre del producto es obligatorio.'
+                );
+
+                return false;
+            }
+
+            if (!categoria) {
+
+                Swal.showValidationMessage(
+                    'Selecciona una categoría.'
+                );
+
+                return false;
+            }
+
+            if (
+                !Number.isFinite(precio) ||
+                precio < 0
+            ) {
+
+                Swal.showValidationMessage(
+                    'El precio debe ser un número no negativo.'
+                );
+
+                return false;
+            }
+
+            if (
+                !Number.isFinite(costo) ||
+                costo < 0
+            ) {
+
+                Swal.showValidationMessage(
+                    'El costo debe ser un número no negativo.'
+                );
+
+                return false;
+            }
+
+            /*
+            Para publicar tiene que existir
+            una imagen actual o una nueva.
+            */
+
+            if (
+                publicado === 1 &&
+                !producto.imagen &&
+                !archivoImagen
+            ) {
+
+                Swal.showValidationMessage(
+                    'Para publicar el producto debes asignarle una imagen.'
+                );
+
+                return false;
+            }
+
+            /*
+            Si está inactivo no tiene sentido
+            dejarlo publicado.
+            */
+
+            if (
+                estado === 'inactivo' &&
+                publicado === 1
+            ) {
+
+                Swal.showValidationMessage(
+                    'Un producto inactivo no puede permanecer publicado.'
+                );
+
+                return false;
+            }
+
+            // ------------------------------------------
+            // RESULTADO DEL MODAL
+            // ------------------------------------------
+
             return {
+
                 nombre,
-                descripcion: document.getElementById('edit-producto-descripcion').value.trim(),
-                categoria: document.getElementById('edit-producto-categoria').value.trim(),
+
+                descripcion,
+
+                categoria,
+
                 precio,
-                costo_unitario: costo,
-                stock_actual: Number(producto.stock_actual || 0),
-                stock_minimo: Number(producto.stock_minimo || 0),
-                proveedor_id: producto.proveedor_id || null,
-                estrategia_logistica: producto.estrategia_logistica || 'PULL',
-                estado: document.getElementById('edit-producto-estado').value
+
+                costo_unitario:
+                    costo,
+
+                /*
+                Estos datos se conservan.
+                La disponibilidad real se administra
+                mediante la receta.
+                */
+
+                stock_actual:
+                    Number(
+                        producto.stock_actual ||
+                        0
+                    ),
+
+                stock_minimo:
+                    Number(
+                        producto.stock_minimo ||
+                        0
+                    ),
+
+                proveedor_id:
+                    producto.proveedor_id ||
+                    null,
+
+                estrategia_logistica:
+                    producto.estrategia_logistica ||
+                    'PULL',
+
+                estado,
+
+                // DATOS DEL CATÁLOGO
+
+                publicado,
+
+                imagen_posicion:
+                    imagenPosicion,
+
+                etiqueta,
+
+                etiqueta_tipo:
+                    etiquetaTipo,
+
+                orden_catalogo:
+                    Number(
+                        producto.orden_catalogo ??
+                        999
+                    ),
+
+                /*
+                El archivo no se puede enviar
+                dentro del JSON.
+                Se sube después mediante FormData.
+                */
+
+                archivoImagen
             };
         }
     });
 
-    if (!result.isConfirmed) return;
-    const usuarioActual = JSON.parse(localStorage.getItem('casaBarro_usuario'));
-    result.value.usuario_id = usuarioActual ? usuarioActual.id : null;
+    // ============================================================
+    // CANCELÓ LA EDICIÓN
+    // ============================================================
+
+    if (!result.isConfirmed) {
+        return;
+    }
+
+    // Sacamos el archivo para no enviarlo en JSON.
+
+    const {
+        archivoImagen,
+        ...datosProducto
+    } = result.value;
+
+    const usuarioActual =
+        JSON.parse(
+            localStorage.getItem(
+                'casaBarro_usuario'
+            )
+        );
+
+    datosProducto.usuario_id =
+        usuarioActual
+            ? usuarioActual.id
+            : null;
 
     try {
-        const respuesta = await fetch(`http://localhost:3000/api/productos/${id}`, {
-            method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(result.value)
+
+        // ========================================================
+        // 1. ACTUALIZAR DATOS DEL PRODUCTO
+        // ========================================================
+
+        const respuesta =
+            await fetch(
+                `http://localhost:3000/api/productos/${id}`,
+                {
+                    method: 'PUT',
+
+                    headers: {
+                        'Content-Type':
+                            'application/json'
+                    },
+
+                    body:
+                        JSON.stringify(
+                            datosProducto
+                        )
+                }
+            );
+
+        const datos =
+            await respuesta.json();
+
+        if (!respuesta.ok) {
+
+            return Swal.fire({
+
+                icon: 'error',
+
+                title:
+                    datos.error ||
+                    'No se pudo actualizar',
+
+                confirmButtonColor:
+                    '#3c4a45'
+            });
+        }
+
+        // ========================================================
+        // 2. CAMBIAR IMAGEN SI SE SELECCIONÓ UNA NUEVA
+        // ========================================================
+
+        if (archivoImagen) {
+
+            await subirImagenProductoAdmin(
+                id,
+                archivoImagen,
+                usuarioActual
+                    ? usuarioActual.id
+                    : null
+            );
+        }
+
+        // ========================================================
+        // 3. MOSTRAR RESULTADO
+        // ========================================================
+
+        Swal.fire({
+
+            toast: true,
+
+            position:
+                'top-end',
+
+            icon:
+                'success',
+
+            title:
+                datosProducto.publicado === 1
+                    ? 'Producto actualizado y publicado'
+                    : 'Producto actualizado',
+
+            showConfirmButton:
+                false,
+
+            timer:
+                2000
         });
-        const datos = await respuesta.json();
-        if (!respuesta.ok) return Swal.fire({ icon:'error', title:datos.error || 'No se pudo actualizar', confirmButtonColor:'#3c4a45' });
-        Swal.fire({ toast:true, position:'top-end', icon:'success', title:'Producto actualizado', showConfirmButton:false, timer:2000 });
+
+        // ========================================================
+        // 4. RECARGAR TABLA
+        // ========================================================
+
         await cargarProductosAdmin();
+
     } catch (error) {
-        Swal.fire({ icon:'error', title:'Error de conexión', confirmButtonColor:'#3c4a45' });
+
+        console.error(
+            'Error actualizando producto:',
+            error
+        );
+
+        Swal.fire({
+
+            icon:
+                'error',
+
+            title:
+                'No se pudo actualizar',
+
+            text:
+                error.message,
+
+            confirmButtonColor:
+                '#3c4a45'
+        });
     }
 }
 
@@ -814,8 +3632,6 @@ window.filtrarProveedores = function() {
     });
 }
 
-
-
 // ============================================================
 // SCM: INSUMOS, INVENTARIO Y RECETAS
 // ============================================================
@@ -851,156 +3667,79 @@ window.cargarProveedoresEnInsumos = async function() {
     }
 }
 
-window.cargarInsumos = async function() {
-    const tabla = document.getElementById('tabla-insumos');
-    if (!tabla) return;
-
-    try {
-        const respuesta = await fetch('http://localhost:3000/api/insumos');
-        const resultado = await respuesta.json();
-        if (!respuesta.ok) throw new Error(resultado.error || 'No se pudieron cargar los insumos');
-
-        insumosSCMCache = resultado.data || [];
-        if (insumosSCMCache.length === 0) {
-            tabla.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:30px; color:#777;">No hay insumos registrados.</td></tr>';
-            return;
-        }
-
-        tabla.innerHTML = insumosSCMCache.map(insumo => {
-            const colorInv = insumo.estado_inventario === 'agotado' ? '#b7410e' : insumo.estado_inventario === 'bajo' ? '#d9822b' : '#557268';
-            const colorEstado = insumo.estado === 'activo' ? '#557268' : '#777';
-            return `
-                <tr class="insumo-row" data-nombre="${escaparHtmlSCM(insumo.nombre).toLowerCase()}" data-estado="${insumo.estado}" style="border-bottom:1px solid #eae5db;">
-                    <td>${insumo.id}</td>
-                    <td><strong>${escaparHtmlSCM(insumo.nombre)}</strong><br><small style="color:#777;">${escaparHtmlSCM(insumo.descripcion || 'Sin descripción')}</small></td>
-                    <td>${escaparHtmlSCM(insumo.proveedor_nombre || 'Sin proveedor')}</td>
-                    <td>$${Number(insumo.costo_porcion || 0).toFixed(2)}</td>
-                    <td>${Number(insumo.stock_actual || 0)}</td>
-                    <td>${Number(insumo.stock_minimo || 0)}</td>
-                    <td><span style="background:${colorInv}; color:white; padding:3px 8px; border-radius:12px; font-size:0.8rem;">${escaparHtmlSCM(insumo.estado_inventario)}</span></td>
-                    <td><span style="background:${colorEstado}; color:white; padding:3px 8px; border-radius:12px; font-size:0.8rem;">${escaparHtmlSCM(insumo.estado)}</span></td>
-                    <td class="admin-actions" style="display:flex; gap:5px; flex-wrap:wrap;">
-                        <button onclick="editarInsumo(${insumo.id})">Editar</button>
-                        <button onclick="eliminarInsumo(${insumo.id})" style="background:#b7410e; color:white;">Eliminar</button>
-                    </td>
-                </tr>`;
-        }).join('');
-
-        filtrarInsumos();
-    } catch (error) {
-        console.error(error);
-        tabla.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:30px; color:#b7410e;">No se pudieron cargar los insumos.</td></tr>';
-    }
+window.cargarInsumos=async function(){
+    const tabla=document.getElementById('tabla-insumos');if(!tabla)return;
+    try{
+        const respuesta=await fetch('http://localhost:3000/api/insumos',{cache:'no-store'}),resultado=await respuesta.json();
+        if(!respuesta.ok)throw new Error(resultado.error||'No se pudieron cargar los insumos');
+        insumosSCMCache=resultado.data||[];
+        if(!insumosSCMCache.length){tabla.innerHTML='<tr><td colspan="9" style="text-align:center;padding:30px;color:#777;">No hay insumos registrados.</td></tr>';return;}
+        tabla.innerHTML=insumosSCMCache.map(i=>{
+            const estrategia=['PUSH','PULL'].includes(String(i.estrategia_reposicion||'').toUpperCase())?String(i.estrategia_reposicion).toUpperCase():'PUSH';
+            const colorEstrategia=estrategia==='PUSH'?'#6f42c1':'#2980b9',colorEstado=i.estado==='activo'?'#557268':'#777';
+            return `<tr class="insumo-row" data-nombre="${escaparHtmlSCM(i.nombre).toLowerCase()}" data-estado="${i.estado}" data-estrategia="${estrategia}" style="border-bottom:1px solid #eae5db;">
+                <td>${i.id}</td><td><strong>${escaparHtmlSCM(i.nombre)}</strong><br><small style="color:#777;">${escaparHtmlSCM(i.descripcion||'Sin descripción')}</small></td>
+                <td>${escaparHtmlSCM(i.proveedor_nombre||'Sin proveedor')}</td><td>$${Number(i.costo_porcion||0).toFixed(2)}</td>
+                <td><span style="background:${colorEstrategia};color:white;padding:3px 8px;border-radius:12px;font-size:.8rem;font-weight:bold;">${estrategia}</span></td>
+                <td>${Number(i.dias_cobertura||7)} días</td><td>${Number(i.stock_minimo||0)}</td>
+                <td><span style="background:${colorEstado};color:white;padding:3px 8px;border-radius:12px;font-size:.8rem;">${escaparHtmlSCM(i.estado||'activo')}</span></td>
+                <td class="admin-actions" style="display:flex;gap:5px;flex-wrap:wrap;"><button onclick="editarInsumo(${i.id})">Editar</button><button onclick="eliminarInsumo(${i.id})" style="background:#b7410e;color:white;">Eliminar</button></td></tr>`;
+        }).join('');filtrarInsumos();
+    }catch(error){console.error(error);tabla.innerHTML='<tr><td colspan="9" style="text-align:center;padding:30px;color:#b7410e;">No se pudieron cargar los insumos.</td></tr>';}
 }
-
-window.guardarInsumo = async function(event) {
-    event.preventDefault();
-    const usuario = usuarioSCMActual();
-    const data = {
-        nombre: document.getElementById('insumo-nombre').value.trim(),
-        descripcion: document.getElementById('insumo-descripcion').value.trim(),
-        proveedor_id: document.getElementById('insumo-proveedor').value || null,
-        costo_porcion: Number(document.getElementById('insumo-costo').value),
-        stock_actual: Number(document.getElementById('insumo-stock').value),
-        stock_minimo: Number(document.getElementById('insumo-minimo').value),
-        usuario_id: usuario?.id || null
-    };
-
-    try {
-        const respuesta = await fetch('http://localhost:3000/api/insumos', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
-        });
-        const resultado = await respuesta.json();
-        if (!respuesta.ok) return Swal.fire({ icon:'error', title:resultado.error || 'No se pudo registrar', confirmButtonColor:'#3c4a45' });
-
-        Swal.fire({ toast:true, position:'top-end', icon:'success', title:'Insumo registrado', showConfirmButton:false, timer:1800 });
-        document.getElementById('form-alta-insumo').reset();
-        document.getElementById('insumo-costo').value = 0;
-        document.getElementById('insumo-stock').value = 0;
-        document.getElementById('insumo-minimo').value = 0;
-        await cargarInsumos();
-    } catch (error) {
-        Swal.fire({ icon:'error', title:'Error de conexión', confirmButtonColor:'#3c4a45' });
-    }
+window.guardarInsumo=async function(event){
+    event.preventDefault();const usuario=usuarioSCMActual();
+    const estrategia=document.getElementById('insumo-estrategia').value,dias_cobertura=Number(document.getElementById('insumo-cobertura').value),stock_minimo=Number(document.getElementById('insumo-minimo').value);
+    const data={nombre:document.getElementById('insumo-nombre').value.trim(),descripcion:document.getElementById('insumo-descripcion').value.trim(),proveedor_id:document.getElementById('insumo-proveedor').value||null,costo_porcion:Number(document.getElementById('insumo-costo').value),stock_actual:Number(document.getElementById('insumo-stock').value),stock_minimo,usuario_id:usuario?.id||null};
+    if(!data.nombre)return Swal.fire({icon:'warning',title:'Nombre obligatorio',confirmButtonColor:'#3c4a45'});
+    if([data.costo_porcion,data.stock_actual,stock_minimo].some(n=>!Number.isFinite(n)||n<0)||!Number.isInteger(data.stock_actual)||!Number.isInteger(stock_minimo))return Swal.fire({icon:'warning',title:'Valores no válidos',text:'Costo y existencias deben ser números no negativos; los stocks deben ser enteros.',confirmButtonColor:'#3c4a45'});
+    if(!['PUSH','PULL'].includes(estrategia)||!Number.isInteger(dias_cobertura)||dias_cobertura<1||dias_cobertura>90)return Swal.fire({icon:'warning',title:'Configuración logística no válida',confirmButtonColor:'#3c4a45'});
+    try{
+        const respuesta=await fetch('http://localhost:3000/api/insumos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}),resultado=await respuesta.json();
+        if(!respuesta.ok)return Swal.fire({icon:'error',title:resultado.error||'No se pudo registrar',confirmButtonColor:'#3c4a45'});
+        const rc=await fetch(`http://localhost:3000/api/scm/insumos/${resultado.id}/configuracion`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({estrategia_reposicion:estrategia,dias_cobertura,stock_minimo,usuario_id:usuario?.id||null})}),cfg=await rc.json();
+        if(!rc.ok)await Swal.fire({icon:'warning',title:'Insumo creado con configuración pendiente',text:cfg.error||'No se pudo guardar PUSH/PULL.',confirmButtonColor:'#3c4a45'});
+        else Swal.fire({toast:true,position:'top-end',icon:'success',title:cfg.pedido_automatico?.creado?`Insumo creado. Pedido PUSH #${cfg.pedido_automatico.pedido_id} generado.`:'Insumo registrado',showConfirmButton:false,timer:2200});
+        document.getElementById('form-alta-insumo').reset();document.getElementById('insumo-costo').value=0;document.getElementById('insumo-stock').value=0;document.getElementById('insumo-minimo').value=0;document.getElementById('insumo-cobertura').value=7;document.getElementById('insumo-estrategia').value='PUSH';await cargarInsumos();
+    }catch(error){Swal.fire({icon:'error',title:'Error de conexión',text:error.message,confirmButtonColor:'#3c4a45'});}
 }
-
-window.editarInsumo = async function(id) {
-    const insumo = insumosSCMCache.find(i => Number(i.id) === Number(id));
-    if (!insumo) return;
-
-    let proveedores = [];
-    try { proveedores = await obtenerProveedoresSCM(false); } catch (e) {}
-    let opciones = '<option value="">Sin proveedor</option>';
-    proveedores.forEach(p => {
-        opciones += `<option value="${p.id}" ${Number(p.id) === Number(insumo.proveedor_id) ? 'selected' : ''}>${escaparHtmlSCM(p.nombre)}${p.estado === 'inactivo' ? ' (Inactivo)' : ''}</option>`;
-    });
-
-    const result = await Swal.fire({
-        title:'Editar Insumo', width:'560px', showCancelButton:true, confirmButtonText:'Actualizar', cancelButtonText:'Cancelar', confirmButtonColor:'#3c4a45',
-        html:`<div style="display:flex; flex-direction:column; gap:10px; text-align:left;">
-            <label>Nombre:</label><input id="edit-insumo-nombre" class="swal2-input" style="margin:0; width:100%;" value="${escaparHtmlSCM(insumo.nombre)}">
-            <label>Descripción:</label><textarea id="edit-insumo-descripcion" class="swal2-textarea" style="margin:0; width:100%;">${escaparHtmlSCM(insumo.descripcion || '')}</textarea>
-            <label>Proveedor:</label><select id="edit-insumo-proveedor" class="swal2-select" style="margin:0; width:100%;">${opciones}</select>
-            <label>Costo por porción:</label><input type="number" id="edit-insumo-costo" class="swal2-input" min="0" step="0.01" style="margin:0; width:100%;" value="${Number(insumo.costo_porcion || 0)}">
-            <label>Stock mínimo:</label><input type="number" id="edit-insumo-minimo" class="swal2-input" min="0" step="1" style="margin:0; width:100%;" value="${Number(insumo.stock_minimo || 0)}">
-            <label>Estado:</label><select id="edit-insumo-estado" class="swal2-select" style="margin:0; width:100%;"><option value="activo" ${insumo.estado === 'activo' ? 'selected' : ''}>Activo</option><option value="inactivo" ${insumo.estado === 'inactivo' ? 'selected' : ''}>Inactivo</option></select>
-            <small style="color:#777;">El stock actual se modifica desde Inventario mediante entradas y salidas.</small>
-        </div>`,
-        preConfirm:() => {
-            const nombre = document.getElementById('edit-insumo-nombre').value.trim();
-            const costo = Number(document.getElementById('edit-insumo-costo').value);
-            const minimo = Number(document.getElementById('edit-insumo-minimo').value);
-            if (!nombre) return Swal.showValidationMessage('El nombre es obligatorio');
-            if (costo < 0 || minimo < 0) return Swal.showValidationMessage('Los valores no pueden ser negativos');
-            return {
-                nombre, descripcion:document.getElementById('edit-insumo-descripcion').value.trim(),
-                proveedor_id:document.getElementById('edit-insumo-proveedor').value || null,
-                costo_porcion:costo, stock_minimo:minimo, estado:document.getElementById('edit-insumo-estado').value
-            };
-        }
-    });
-
-    if (!result.isConfirmed) return;
-    result.value.usuario_id = usuarioSCMActual()?.id || null;
-
-    try {
-        const respuesta = await fetch(`http://localhost:3000/api/insumos/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(result.value) });
-        const datos = await respuesta.json();
-        if (!respuesta.ok) return Swal.fire({ icon:'error', title:datos.error || 'No se pudo actualizar', confirmButtonColor:'#3c4a45' });
-        Swal.fire({ toast:true, position:'top-end', icon:'success', title:'Insumo actualizado', showConfirmButton:false, timer:1800 });
-        cargarInsumos();
-    } catch (e) {
-        Swal.fire({ icon:'error', title:'Error de conexión', confirmButtonColor:'#3c4a45' });
-    }
+window.editarInsumo=async function(id){
+    const i=insumosSCMCache.find(x=>Number(x.id)===Number(id));if(!i)return;
+    let proveedores=[];try{proveedores=await obtenerProveedoresSCM(false);}catch(e){}
+    let opciones='<option value="">Sin proveedor</option>';proveedores.forEach(p=>opciones+=`<option value="${p.id}" ${Number(p.id)===Number(i.proveedor_id)?'selected':''}>${escaparHtmlSCM(p.nombre)}${p.estado==='inactivo'?' (Inactivo)':''}</option>`);
+    const estrategiaActual=['PUSH','PULL'].includes(String(i.estrategia_reposicion||'').toUpperCase())?String(i.estrategia_reposicion).toUpperCase():'PUSH';
+    const result=await Swal.fire({title:'Editar Insumo',width:'600px',showCancelButton:true,confirmButtonText:'Actualizar',cancelButtonText:'Cancelar',confirmButtonColor:'#3c4a45',html:`<div style="display:flex;flex-direction:column;gap:10px;text-align:left;">
+        <label>Nombre:</label><input id="edit-insumo-nombre" class="swal2-input" style="margin:0;width:100%;" value="${escaparHtmlSCM(i.nombre)}">
+        <label>Descripción:</label><textarea id="edit-insumo-descripcion" class="swal2-textarea" style="margin:0;width:100%;">${escaparHtmlSCM(i.descripcion||'')}</textarea>
+        <label>Proveedor:</label><select id="edit-insumo-proveedor" class="swal2-select" style="margin:0;width:100%;">${opciones}</select>
+        <label>Costo por porción:</label><input type="number" id="edit-insumo-costo" class="swal2-input" min="0" step="0.01" style="margin:0;width:100%;" value="${Number(i.costo_porcion||0)}">
+        <label>Estrategia:</label><select id="edit-insumo-estrategia" class="swal2-select" style="margin:0;width:100%;"><option value="PUSH" ${estrategiaActual==='PUSH'?'selected':''}>PUSH - reposición automática planificada</option><option value="PULL" ${estrategiaActual==='PULL'?'selected':''}>PULL - reposición según demanda</option></select>
+        <label>Días de cobertura:</label><input type="number" id="edit-insumo-cobertura" class="swal2-input" min="1" max="90" step="1" style="margin:0;width:100%;" value="${Number(i.dias_cobertura||7)}">
+        <label>Stock mínimo:</label><input type="number" id="edit-insumo-minimo" class="swal2-input" min="0" step="1" style="margin:0;width:100%;" value="${Number(i.stock_minimo||0)}">
+        <label>Estado:</label><select id="edit-insumo-estado" class="swal2-select" style="margin:0;width:100%;"><option value="activo" ${i.estado==='activo'?'selected':''}>Activo</option><option value="inactivo" ${i.estado==='inactivo'?'selected':''}>Inactivo</option></select>
+        <small style="color:#777;">PUSH calcula y genera la reposición automáticamente según consumo y cobertura. PULL reacciona a la demanda y deja el pedido para confirmación manual. El stock actual se modifica desde Inventario.</small></div>`,preConfirm:()=>{
+            const nombre=document.getElementById('edit-insumo-nombre').value.trim(),costo=Number(document.getElementById('edit-insumo-costo').value),stock_minimo=Number(document.getElementById('edit-insumo-minimo').value),dias_cobertura=Number(document.getElementById('edit-insumo-cobertura').value),estrategia_reposicion=document.getElementById('edit-insumo-estrategia').value;
+            if(!nombre)return Swal.showValidationMessage('El nombre es obligatorio');if(!Number.isFinite(costo)||costo<0||!Number.isInteger(stock_minimo)||stock_minimo<0)return Swal.showValidationMessage('Costo o stock mínimo no válido');if(!Number.isInteger(dias_cobertura)||dias_cobertura<1||dias_cobertura>90)return Swal.showValidationMessage('La cobertura debe estar entre 1 y 90 días.');
+            return {nombre,descripcion:document.getElementById('edit-insumo-descripcion').value.trim(),proveedor_id:document.getElementById('edit-insumo-proveedor').value||null,costo_porcion:costo,stock_minimo,estado:document.getElementById('edit-insumo-estado').value,estrategia_reposicion,dias_cobertura};
+        }});
+    if(!result.isConfirmed)return;result.value.usuario_id=usuarioSCMActual()?.id||null;
+    try{
+        const respuesta=await fetch(`http://localhost:3000/api/insumos/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(result.value)}),datos=await respuesta.json();
+        if(!respuesta.ok)return Swal.fire({icon:'error',title:datos.error||'No se pudo actualizar',confirmButtonColor:'#3c4a45'});
+        const rc=await fetch(`http://localhost:3000/api/scm/insumos/${id}/configuracion`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({estrategia_reposicion:result.value.estrategia_reposicion,dias_cobertura:result.value.dias_cobertura,stock_minimo:result.value.stock_minimo,usuario_id:result.value.usuario_id})}),cfg=await rc.json();
+        if(!rc.ok)return Swal.fire({icon:'warning',title:'Datos actualizados, configuración logística pendiente',text:cfg.error||'',confirmButtonColor:'#3c4a45'});
+        Swal.fire({toast:true,position:'top-end',icon:'success',title:cfg.pedido_automatico?.creado?`Insumo actualizado. Pedido PUSH #${cfg.pedido_automatico.pedido_id} generado.`:'Insumo actualizado',showConfirmButton:false,timer:2200});await cargarInsumos();
+    }catch(e){Swal.fire({icon:'error',title:'Error de conexión',text:e.message,confirmButtonColor:'#3c4a45'});}
 }
-
-window.eliminarInsumo = function(id) {
-    const insumo = insumosSCMCache.find(i => Number(i.id) === Number(id));
-    if (!insumo) return;
-
-    Swal.fire({ title:`¿Dar de baja ${insumo.nombre}?`, text:'El historial de inventario y las recetas se conservarán.', icon:'warning', showCancelButton:true, confirmButtonColor:'#b7410e', confirmButtonText:'Sí, dar de baja', cancelButtonText:'Cancelar' })
-    .then(async result => {
-        if (!result.isConfirmed) return;
-        try {
-            const respuesta = await fetch(`http://localhost:3000/api/insumos/${id}`, { method:'DELETE', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ usuario_id:usuarioSCMActual()?.id || null }) });
-            const datos = await respuesta.json();
-            if (!respuesta.ok) return Swal.fire({ icon:'error', title:datos.error || 'No se pudo dar de baja', confirmButtonColor:'#3c4a45' });
-            Swal.fire({ toast:true, position:'top-end', icon:'success', title:'Insumo dado de baja', showConfirmButton:false, timer:1800 });
-            cargarInsumos();
-        } catch (e) {
-            Swal.fire({ icon:'error', title:'Error de conexión', confirmButtonColor:'#3c4a45' });
-        }
+window.eliminarInsumo=function(id){
+    const i=insumosSCMCache.find(x=>Number(x.id)===Number(id));if(!i)return;
+    Swal.fire({title:`¿Dar de baja ${i.nombre}?`,text:'El historial de inventario y las recetas se conservarán.',icon:'warning',showCancelButton:true,confirmButtonColor:'#b7410e',confirmButtonText:'Sí, dar de baja',cancelButtonText:'Cancelar'}).then(async r=>{
+        if(!r.isConfirmed)return;try{const respuesta=await fetch(`http://localhost:3000/api/insumos/${id}`,{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({usuario_id:usuarioSCMActual()?.id||null})}),datos=await respuesta.json();if(!respuesta.ok)return Swal.fire({icon:'error',title:datos.error||'No se pudo dar de baja',confirmButtonColor:'#3c4a45'});Swal.fire({toast:true,position:'top-end',icon:'success',title:'Insumo dado de baja',showConfirmButton:false,timer:1800});await cargarInsumos();}catch(e){Swal.fire({icon:'error',title:'Error de conexión',confirmButtonColor:'#3c4a45'});}
     });
 }
-
-window.filtrarInsumos = function() {
-    const texto = (document.getElementById('insumo-busqueda')?.value || '').toLowerCase().trim();
-    const estado = document.getElementById('insumo-estado')?.value || 'todos';
-    document.querySelectorAll('.insumo-row').forEach(fila => {
-        const coincideTexto = (fila.dataset.nombre || '').includes(texto);
-        const coincideEstado = estado === 'todos' || fila.dataset.estado === estado;
-        fila.style.display = coincideTexto && coincideEstado ? '' : 'none';
-    });
+window.filtrarInsumos=function(){
+    const texto=(document.getElementById('insumo-busqueda')?.value||'').toLowerCase().trim(),estado=document.getElementById('insumo-estado')?.value||'todos',estrategia=document.getElementById('insumo-estrategia-filtro')?.value||'todos';
+    document.querySelectorAll('.insumo-row').forEach(f=>{const okTexto=(f.dataset.nombre||'').includes(texto),okEstado=estado==='todos'||f.dataset.estado===estado,okEstrategia=estrategia==='todos'||f.dataset.estrategia===estrategia;f.style.display=okTexto&&okEstado&&okEstrategia?'':'none';});
 }
 
 // -------------------- INVENTARIO --------------------
@@ -1037,7 +3776,7 @@ window.cargarInventario = async function() {
         tabla.innerHTML = inventarioSCMCache.map(item => {
             const color = item.estado === 'agotado' ? '#b7410e' : item.estado === 'bajo' ? '#d9822b' : '#557268';
             const textoEstado = item.estado === 'bajo' ? 'Stock bajo' : item.estado === 'agotado' ? 'Agotado' : 'Normal';
-            const estrategia = String(item.estrategia_reposicion || 'PULL').toUpperCase();
+            const estrategia = String(item.estrategia_reposicion || 'PUSH').toUpperCase();
             const colorEstrategia = estrategia === 'PUSH' ? '#6f42c1' : '#2980b9';
 
             let pedidoHtml = '<span style="color:#777;">Sin pedido</span>';
@@ -2085,6 +4824,32 @@ async function apiLogistica(ruta, opciones = {}) {
     return datos;
 }
 
+function badgeEstrategiaLogistica(estrategia){
+    const valor=String(estrategia||'').toUpperCase();
+
+    if(!['PUSH','PULL'].includes(valor)){
+        return escaparHtmlLogistica(valor||'—');
+    }
+
+    const color=valor==='PUSH'
+        ?'#6f42c1'
+        :'#2980b9';
+
+    return `
+        <span style="
+            display:inline-block;
+            background:${color};
+            color:white;
+            padding:3px 8px;
+            border-radius:12px;
+            font-size:.8rem;
+            font-weight:bold;
+        ">
+            ${valor}
+        </span>
+    `;
+}
+
 function badgePedidoLogistica(estado) {
     const nombres = {
         pendiente: 'Pendiente',
@@ -2201,7 +4966,7 @@ function renderSugerenciasLogistica() {
             <tr>
                 <td><strong>${escaparHtmlLogistica(i.insumo_nombre)}</strong></td>
                 <td>${escaparHtmlLogistica(i.proveedor_nombre || 'Sin proveedor')}</td>
-                <td><strong>${escaparHtmlLogistica(i.estrategia_reposicion)}</strong></td>
+                <td>${badgeEstrategiaLogistica(i.estrategia_reposicion)}</td>
                 <td>${Number(i.stock_actual)}</td>
                 <td>${Number(i.stock_minimo)}</td>
                 <td>${Number(i.consumo_30d)}</td>
@@ -2210,13 +4975,29 @@ function renderSugerenciasLogistica() {
                 <td title="${escaparHtmlLogistica(i.motivo_sugerencia)}">${estado}</td>
                 <td>
                     <div class="acciones-logistica-botones">
-                        <button class="btn-configurar-scm" onclick="configurarReposicionInsumo(${i.insumo_id})">
+                        <button
+                            class="btn-configurar-scm"
+                            onclick="configurarReposicionInsumo(${i.insumo_id})"
+                        >
                             Configurar
                         </button>
-
-                        <button class="btn-pedido-scm" onclick="crearPedidoReposicion(${i.insumo_id})" ${!i.proveedor_id ? 'disabled' : ''}>
-                            Pedido
-                        </button>
+                        ${
+                            i.estrategia_reposicion === 'PUSH'
+                                ? `
+                                    <span class="badge-auto-push">
+                                        Automático
+                                    </span>
+                                `
+                                : `
+                                    <button
+                                        class="btn-pedido-scm"
+                                        onclick="crearPedidoReposicion(${i.insumo_id})"
+                                        ${!i.proveedor_id ? 'disabled' : ''}
+                                    >
+                                        Pedido
+                                    </button>
+                                `
+                        }
                     </div>
                 </td>
             </tr>
@@ -2234,8 +5015,8 @@ window.configurarReposicionInsumo = async function(insumoId) {
             <div style="text-align:left;display:grid;gap:10px;">
                 <label>Estrategia
                     <select id="logistica-estrategia" class="swal2-select" style="width:100%;margin:4px 0 0 0;">
-                        <option value="PULL" ${i.estrategia_reposicion === 'PULL' ? 'selected' : ''}>PULL - punto mínimo</option>
-                        <option value="PUSH" ${i.estrategia_reposicion === 'PUSH' ? 'selected' : ''}>PUSH - consumo planificado</option>
+                        <option value="PUSH" ${i.estrategia_reposicion === 'PUSH' ? 'selected' : ''}>PUSH - reposición automática planificada</option>
+                        <option value="PULL" ${i.estrategia_reposicion === 'PULL' ? 'selected' : ''}>PULL - reposición según demanda</option>
                     </select>
                 </label>
 
@@ -2247,7 +5028,7 @@ window.configurarReposicionInsumo = async function(insumoId) {
                     <input id="logistica-dias" type="number" min="1" max="90" step="1" class="swal2-input" value="${Number(i.dias_cobertura || 7)}" style="width:100%;margin:4px 0 0 0;">
                 </label>
 
-                <small style="color:#777;">PULL se activa al llegar al stock mínimo. PUSH utiliza las salidas registradas durante los últimos 30 días.</small>
+                <small style="color:#777;">PUSH usa las salidas de los últimos 30 días y la cobertura para generar reposición automática. PULL usa la demanda real y el stock mínimo para sugerir un pedido manual.</small>
             </div>
         `,
         showCancelButton: true,
@@ -2305,6 +5086,8 @@ window.configurarReposicionInsumo = async function(insumoId) {
 window.crearPedidoReposicion = async function(insumoId) {
     const i = scmSugerencias.find(x => Number(x.insumo_id) === Number(insumoId));
     if (!i) return;
+
+    if (i.estrategia_reposicion === 'PUSH') return Swal.fire({icon:'info',title:'Reposición automática',text:'Los insumos PUSH generan el pedido automáticamente según consumo y cobertura.',confirmButtonColor:'#3c4a45'});
 
     if (!i.proveedor_id) {
         return Swal.fire({
@@ -2415,32 +5198,65 @@ function renderPedidosLogistica() {
         const acciones = [];
 
         if (p.estado === 'pendiente') {
-            acciones.push(`<button onclick="enviarPedidoReposicion(${p.id})">Enviar</button>`);
+            acciones.push(`
+                <button
+                    class="btn-accion-pedido btn-enviar-pedido"
+                    onclick="enviarPedidoReposicion(${p.id})"
+                >
+                    Enviar
+                </button>
+            `);
         }
 
         if (['enviado', 'parcial'].includes(p.estado) && restante > 0) {
-            acciones.push(`<button onclick="recibirPedidoReposicion(${p.id})">Recibir</button>`);
+            acciones.push(`
+                <button
+                    class="btn-accion-pedido btn-recibir-pedido"
+                    onclick="recibirPedidoReposicion(${p.id})"
+                >
+                    Recibir
+                </button>
+            `);
         }
 
         if (['pendiente', 'enviado'].includes(p.estado)) {
-            acciones.push(`<button onclick="cancelarPedidoReposicion(${p.id})" class="btn-eliminar-admin">Cancelar</button>`);
+            acciones.push(`
+                <button
+                    class="btn-accion-pedido btn-cancelar-pedido"
+                    onclick="cancelarPedidoReposicion(${p.id})"
+                >
+                    Cancelar
+                </button>
+            `);
         }
 
-        acciones.push(`<button onclick="historialPedidoReposicion(${p.id})">Historial</button>`);
+        acciones.push(`
+            <button
+                class="btn-accion-pedido btn-historial-pedido"
+                onclick="historialPedidoReposicion(${p.id})"
+            >
+                Historial
+            </button>
+        `);
 
         return `
             <tr>
                 <td>#${p.id}</td>
                 <td><strong>${escaparHtmlLogistica(p.insumo_nombre || '—')}</strong></td>
                 <td>${escaparHtmlLogistica(p.proveedor_nombre || '—')}</td>
-                <td>${escaparHtmlLogistica(p.tipo || '—')}</td>
+                <td>${badgeEstrategiaLogistica(p.tipo)}</td>
                 <td>${Number(p.cantidad)}</td>
                 <td>${Number(p.cantidad_recibida || 0)}</td>
                 <td>${restante}</td>
                 <td>$${Number(p.total_estimado || 0).toFixed(2)}</td>
                 <td>${badgePedidoLogistica(p.estado)}</td>
                 <td>${formatearFechaLogistica(p.fecha_creacion)}</td>
-                <td style="white-space:nowrap;">${acciones.join(' ')}</td>
+
+                <td>
+                    <div class="acciones-pedido">
+                        ${acciones.join('')}
+                    </div>
+                </td>
             </tr>
         `;
     }).join('');
@@ -2790,7 +5606,7 @@ function renderAnaliticaSCM(data) {
                     <tr>
                         <td><strong>${escaparAnaliticaSCM(item.insumo_nombre)}</strong></td>
                         <td>${escaparAnaliticaSCM(item.proveedor_nombre || 'Sin proveedor')}</td>
-                        <td>${escaparAnaliticaSCM(item.estrategia_reposicion || 'PULL')}</td>
+                        <td>${escaparAnaliticaSCM(item.estrategia_reposicion || 'PUSH')}</td>
                         <td>${Number(item.stock_actual || 0)}</td>
                         <td>${Number(item.stock_minimo || 0)}</td>
                         <td>${Number(item.cantidad_sugerida || 0)}</td>

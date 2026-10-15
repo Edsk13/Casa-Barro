@@ -2,6 +2,8 @@ const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 
 const app = express();
 const PORT = 3000;
@@ -14,13 +16,102 @@ const frontendPath = path.resolve(__dirname, '..');
 app.use(express.static(frontendPath));
 
 // ============================================================
+// IMÁGENES DE PRODUCTOS
+// ============================================================
+
+const productosImagenesPath = path.join(
+    frontendPath,
+    'img',
+    'productos'
+);
+
+fs.mkdirSync(
+    productosImagenesPath,
+    { recursive: true }
+);
+
+const almacenamientoImagenProducto = multer.diskStorage({
+
+    destination: function(req, file, cb) {
+        cb(null, productosImagenesPath);
+    },
+
+    filename: function(req, file, cb) {
+
+        const extension =
+            path.extname(file.originalname).toLowerCase();
+
+        const nombreBase =
+            path.parse(file.originalname).name
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-zA-Z0-9_-]/g, '-')
+                .replace(/-+/g, '-')
+                .replace(/^-|-$/g, '')
+                .toLowerCase();
+
+        cb(
+            null,
+            `${nombreBase}-${Date.now()}${extension}`
+        );
+    }
+});
+
+const subirImagenProducto = multer({
+
+    storage: almacenamientoImagenProducto,
+
+    limits: {
+        fileSize: 5 * 1024 * 1024
+    },
+
+    fileFilter: function(req, file, cb) {
+
+        const permitidos = [
+            'image/jpeg',
+            'image/png',
+            'image/webp'
+        ];
+
+        if (!permitidos.includes(file.mimetype)) {
+
+            return cb(
+                new Error(
+                    'Solo se permiten imágenes JPG, PNG o WEBP.'
+                )
+            );
+        }
+
+        cb(null, true);
+    }
+});
+
+// ============================================================
 // CONFIGURACIÓN DE LA BASE DE DATOS
 // ============================================================
 const dbPath = path.resolve(__dirname, 'database.sqlite');
 const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) return console.error('Error SQLite:', err.message);
-    console.log('Conectado a SQLite.');
-    db.serialize(() => inicializarTablas());
+
+    if (err) {
+        return console.error(
+            'Error SQLite:',
+            err.message
+        );
+    }
+    console.log(
+        'Conectado a SQLite.'
+    );
+    db.serialize(() => {
+        inicializarTablas();
+        recalcularDisponibilidadTodosProductos(
+            error => {
+                if (error) {console.error('Error recalculando disponibilidad:',error.message);
+                    return;
+                }
+                console.log('Disponibilidad de productos recalculada.');
+            }
+        );
+    });
 });
 
 function asegurarColumna(tabla, columna, definicion) {
@@ -51,6 +142,43 @@ function inicializarTablas() {
     asegurarColumna('productos', 'costo_unitario', 'REAL DEFAULT 0');
     asegurarColumna('productos', 'estrategia_logistica', "TEXT DEFAULT 'PULL'");
 
+    // Información del catálogo público
+    asegurarColumna(
+        'productos',
+        'imagen',
+        'TEXT'
+    );
+
+    asegurarColumna(
+        'productos',
+        'imagen_posicion',
+        "TEXT NOT NULL DEFAULT 'center'"
+    );
+
+    asegurarColumna(
+        'productos',
+        'publicado',
+        'INTEGER NOT NULL DEFAULT 0'
+    );
+
+    asegurarColumna(
+        'productos',
+        'etiqueta',
+        'TEXT'
+    );
+
+    asegurarColumna(
+        'productos',
+        'etiqueta_tipo',
+        'TEXT'
+    );
+
+    asegurarColumna(
+        'productos',
+        'orden_catalogo',
+        'INTEGER NOT NULL DEFAULT 999'
+    );
+
     db.run(`CREATE TABLE IF NOT EXISTS proveedores (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, contacto TEXT, correo TEXT, telefono TEXT, estado TEXT DEFAULT 'activo', fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP)`);
     db.run(`CREATE TABLE IF NOT EXISTS insumos (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, descripcion TEXT, proveedor_id INTEGER, costo_porcion REAL DEFAULT 0, estado TEXT DEFAULT 'activo', fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (proveedor_id) REFERENCES proveedores(id))`);
     db.run(`CREATE TABLE IF NOT EXISTS inventario (id INTEGER PRIMARY KEY AUTOINCREMENT, insumo_id INTEGER NOT NULL UNIQUE, stock_actual INTEGER DEFAULT 0, stock_minimo INTEGER DEFAULT 0, fecha_actualizacion DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (insumo_id) REFERENCES insumos(id))`);
@@ -62,7 +190,7 @@ function inicializarTablas() {
     db.run(`INSERT OR IGNORE INTO scm_config (id, nivel_scm) VALUES (1, 'Inicial')`);
 
     // SCM - Reposición por insumo y recepción de pedidos
-    asegurarColumna('insumos', 'estrategia_reposicion', "TEXT NOT NULL DEFAULT 'PULL'");
+    asegurarColumna('insumos','estrategia_reposicion',"TEXT NOT NULL DEFAULT 'PUSH'");
     asegurarColumna('insumos', 'dias_cobertura', 'INTEGER NOT NULL DEFAULT 7');
     asegurarColumna('pedidos', 'cantidad_recibida', 'INTEGER NOT NULL DEFAULT 0');
     asegurarColumna('pedidos', 'costo_unitario', 'REAL NOT NULL DEFAULT 0');
@@ -355,68 +483,508 @@ app.get('/api/productos', (req, res) => {
 });
 
 app.post('/api/productos', (req, res) => {
-    const { nombre, descripcion, categoria, precio, stock_actual, stock_minimo, proveedor_id, costo_unitario, estrategia_logistica, estado, usuario_id } = req.body;
-    if (!nombre?.trim()) return res.status(400).json({ error: 'El nombre del producto es obligatorio.' });
 
-    const [pNum, sAct, sMin, cNum] = [Number(precio||0), Number(stock_actual||0), Number(stock_minimo||0), Number(costo_unitario||0)];
-    if ([pNum, sAct, sMin, cNum].some(n => !Number.isFinite(n) || n < 0)) {
-        return res.status(400).json({ error: 'Precio, costo y existencias deben ser números no negativos.' });
+    const {
+        nombre,
+        descripcion,
+        categoria,
+        precio,
+        stock_actual,
+        stock_minimo,
+        proveedor_id,
+        costo_unitario,
+        estrategia_logistica,
+        estado,
+        usuario_id,
+
+        publicado,
+        imagen_posicion,
+        etiqueta,
+        etiqueta_tipo,
+        orden_catalogo
+
+    } = req.body;
+
+    if (!nombre?.trim()) {
+        return res.status(400).json({
+            error: 'El nombre del producto es obligatorio.'
+        });
     }
 
-    const estrategia = estrategia_logistica || 'PULL';
-    if (!['PUSH', 'PULL'].includes(estrategia)) return res.status(400).json({ error: 'La estrategia logística debe ser PUSH o PULL.' });
-    
-    const estadoFinal = estado || 'disponible';
-    if (!['disponible', 'agotado', 'inactivo'].includes(estadoFinal)) return res.status(400).json({ error: 'Estado de producto no válido.' });
+    const pNum =
+        Number(precio || 0);
 
-    const proveedorFinal = proveedor_id ? Number(proveedor_id) : null;
-    const insertarProducto = () => {
-        db.run(`INSERT INTO productos (nombre, descripcion, categoria, precio, stock_actual, stock_minimo, proveedor_id, costo_unitario, estrategia_logistica, estado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [nombre.trim(), descripcion?.trim() || null, categoria?.trim() || null, pNum, sAct, sMin, proveedorFinal, cNum, estrategia, estadoFinal], function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            registrarActividad(usuario_id, 'ALTA', 'Productos', `Registró el producto ${nombre.trim()}`, 'producto', this.lastID);
-            res.status(201).json({ mensaje: 'Producto registrado correctamente', id: this.lastID });
+    const sAct =
+        Number(stock_actual || 0);
+
+    const sMin =
+        Number(stock_minimo || 0);
+
+    const cNum =
+        Number(costo_unitario || 0);
+
+    if (
+        [pNum, sAct, sMin, cNum]
+            .some(
+                n =>
+                    !Number.isFinite(n) ||
+                    n < 0
+            )
+    ) {
+        return res.status(400).json({
+            error:
+                'Precio, costo y existencias deben ser números no negativos.'
         });
-    };
+    }
 
-    if (!proveedorFinal) return insertarProducto();
-    db.get(`SELECT id FROM proveedores WHERE id = ? AND estado = 'activo'`, [proveedorFinal], (err, proveedor) => {
-        if (err || !proveedor) return res.status(400).json({ error: err ? err.message : 'Proveedor inactivo o inexistente.' });
-        insertarProducto();
-    });
+    const estrategia =
+        estrategia_logistica || 'PULL';
+
+    if (
+        !['PUSH', 'PULL']
+            .includes(estrategia)
+    ) {
+        return res.status(400).json({
+            error:
+                'La estrategia logística debe ser PUSH o PULL.'
+        });
+    }
+
+    const estadoFinal =
+        estado || 'disponible';
+
+    if (
+        ![
+            'disponible',
+            'agotado',
+            'inactivo'
+        ].includes(estadoFinal)
+    ) {
+        return res.status(400).json({
+            error:
+                'Estado de producto no válido.'
+        });
+    }
+
+    const proveedorFinal =
+        proveedor_id
+            ? Number(proveedor_id)
+            : null;
+
+    const publicadoFinal =
+        Number(publicado) === 1
+            ? 1
+            : 0;
+
+    const posicionesValidas = [
+        'top',
+        'center',
+        'bottom'
+    ];
+
+    const posicionFinal =
+        posicionesValidas.includes(
+            imagen_posicion
+        )
+            ? imagen_posicion
+            : 'center';
+
+    const tiposEtiquetaValidos = [
+        '',
+        'nuevo',
+        'vendido',
+        'oferta'
+    ];
+
+    const etiquetaTipoFinal =
+        tiposEtiquetaValidos.includes(
+            String(etiqueta_tipo || '')
+        )
+            ? String(etiqueta_tipo || '')
+            : '';
+
+    const ordenNumero =
+        Number(orden_catalogo);
+
+    const ordenFinal =
+        Number.isInteger(ordenNumero) &&
+        ordenNumero >= 0
+            ? ordenNumero
+            : 999;
+
+    const insertarProducto = () => {
+
+        db.run(
+            `
+            INSERT INTO productos (
+                nombre,
+                descripcion,
+                categoria,
+                precio,
+                stock_actual,
+                stock_minimo,
+                proveedor_id,
+                costo_unitario,
+                estrategia_logistica,
+                estado,
+
+                publicado,
+                imagen_posicion,
+                etiqueta,
+                etiqueta_tipo,
+                orden_catalogo
+            )
+
+            VALUES (
+                ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?,
+                ?, ?, ?, ?, ?
+            )
+            `,
+            [
+                nombre.trim(),
+                descripcion?.trim() || null,
+                categoria?.trim() || null,
+                pNum,
+                sAct,
+                sMin,
+                proveedorFinal,
+                cNum,
+                estrategia,
+                estadoFinal,
+
+                publicadoFinal,
+                posicionFinal,
+                etiqueta?.trim() || null,
+                etiquetaTipoFinal || null,
+                ordenFinal
+            ],
+            function(err) {
+
+                if (err) {
+                    return res.status(500).json({
+                        error: err.message
+                    });
+                }
+                registrarActividad(
+                    usuario_id,
+                    'ALTA',
+                    'Productos',
+                    `Registró el producto ${nombre.trim()}`,
+                    'producto',
+                    this.lastID
+                );
+                res.status(201).json({
+                    mensaje:
+                        'Producto registrado correctamente',
+                    id: this.lastID
+                });
+            }
+        );
+    };
+    if (!proveedorFinal) {
+        return insertarProducto();
+    }
+    db.get(
+        `
+        SELECT id
+        FROM proveedores
+        WHERE id = ?
+        AND estado = 'activo'
+        `,
+        [proveedorFinal],
+        (err, proveedor) => {
+
+            if (err) {
+                return res.status(500).json({
+                    error: err.message
+                });
+            }
+            if (!proveedor) {
+                return res.status(400).json({
+                    error:
+                        'Proveedor inactivo o inexistente.'
+                });
+            }
+            insertarProducto();
+        }
+    );
 });
 
 app.put('/api/productos/:id', (req, res) => {
-    const productoId = Number(req.params.id);
-    if (!Number.isInteger(productoId) || productoId <= 0) return res.status(400).json({ error: 'ID de producto no válido.' });
 
-    const { nombre, descripcion, categoria, precio, stock_actual, stock_minimo, proveedor_id, costo_unitario, estrategia_logistica, estado, usuario_id } = req.body;
-    if (!nombre?.trim()) return res.status(400).json({ error: 'El nombre del producto es obligatorio.' });
+    const productoId =
+        Number(req.params.id);
 
-    const [pNum, sAct, sMin, cNum] = [Number(precio||0), Number(stock_actual||0), Number(stock_minimo||0), Number(costo_unitario||0)];
-    if ([pNum, sAct, sMin, cNum].some(n => !Number.isFinite(n) || n < 0)) return res.status(400).json({ error: 'Valores numéricos no válidos o negativos.' });
-    if (!['PUSH', 'PULL'].includes(estrategia_logistica)) return res.status(400).json({ error: 'Estrategia debe ser PUSH o PULL.' });
-    if (!['disponible', 'agotado', 'inactivo'].includes(estado)) return res.status(400).json({ error: 'Estado no válido.' });
-
-    const proveedorFinal = proveedor_id ? Number(proveedor_id) : null;
-    const actualizarProducto = () => {
-        db.run(`UPDATE productos SET nombre=?, descripcion=?, categoria=?, precio=?, stock_actual=?, stock_minimo=?, proveedor_id=?, costo_unitario=?, estrategia_logistica=?, estado=? WHERE id=?`,
-        [nombre.trim(), descripcion?.trim() || null, categoria?.trim() || null, pNum, sAct, sMin, proveedorFinal, cNum, estrategia_logistica, estado, productoId], function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            registrarActividad(usuario_id, 'EDICION', 'Productos', `Actualizó el producto ${nombre.trim()}`, 'producto', productoId);
-            res.json({ mensaje: 'Producto actualizado correctamente' });
+    if (
+        !Number.isInteger(productoId) ||
+        productoId <= 0
+    ) {
+        return res.status(400).json({
+            error: 'ID de producto no válido.'
         });
+    }
+
+    const {
+        nombre,
+        descripcion,
+        categoria,
+        precio,
+        stock_actual,
+        stock_minimo,
+        proveedor_id,
+        costo_unitario,
+        estrategia_logistica,
+        estado,
+        usuario_id,
+
+        publicado,
+        imagen_posicion,
+        etiqueta,
+        etiqueta_tipo,
+        orden_catalogo
+
+    } = req.body;
+
+    if (!nombre?.trim()) {
+
+        return res.status(400).json({
+            error:
+                'El nombre del producto es obligatorio.'
+        });
+    }
+
+    const pNum =
+        Number(precio || 0);
+
+    const sAct =
+        Number(stock_actual || 0);
+
+    const sMin =
+        Number(stock_minimo || 0);
+
+    const cNum =
+        Number(costo_unitario || 0);
+
+    if (
+        [pNum, sAct, sMin, cNum]
+            .some(
+                n =>
+                    !Number.isFinite(n) ||
+                    n < 0
+            )
+    ) {
+        return res.status(400).json({
+            error:
+                'Valores numéricos no válidos o negativos.'
+        });
+    }
+
+    const estrategiaFinal =
+        estrategia_logistica || 'PULL';
+
+    if (
+        !['PUSH', 'PULL']
+            .includes(estrategiaFinal)
+    ) {
+        return res.status(400).json({
+            error:
+                'Estrategia debe ser PUSH o PULL.'
+        });
+    }
+
+    const estadoFinal =
+        estado || 'disponible';
+
+    if (
+        ![
+            'disponible',
+            'agotado',
+            'inactivo'
+        ].includes(estadoFinal)
+    ) {
+        return res.status(400).json({
+            error:
+                'Estado no válido.'
+        });
+    }
+
+    const proveedorFinal =
+        proveedor_id
+            ? Number(proveedor_id)
+            : null;
+
+    const publicadoFinal =
+        Number(publicado) === 1
+            ? 1
+            : 0;
+
+    const posicionesValidas = [
+        'top',
+        'center',
+        'bottom'
+    ];
+
+    const posicionFinal =
+        posicionesValidas.includes(
+            imagen_posicion
+        )
+            ? imagen_posicion
+            : 'center';
+
+    const tiposEtiquetaValidos = [
+        '',
+        'nuevo',
+        'vendido',
+        'oferta'
+    ];
+
+    const etiquetaTipoFinal =
+        tiposEtiquetaValidos.includes(
+            String(etiqueta_tipo || '')
+        )
+            ? String(etiqueta_tipo || '')
+            : '';
+
+    const ordenNumero =
+        Number(orden_catalogo);
+
+    const ordenFinal =
+        Number.isInteger(ordenNumero) &&
+        ordenNumero >= 0
+            ? ordenNumero
+            : 999;
+
+    const actualizarProducto = () => {
+
+        db.run(
+            `
+            UPDATE productos
+
+            SET
+                nombre = ?,
+                descripcion = ?,
+                categoria = ?,
+                precio = ?,
+                stock_actual = ?,
+                stock_minimo = ?,
+                proveedor_id = ?,
+                costo_unitario = ?,
+                estrategia_logistica = ?,
+                estado = ?,
+
+                publicado = ?,
+                imagen_posicion = ?,
+                etiqueta = ?,
+                etiqueta_tipo = ?,
+                orden_catalogo = ?
+
+            WHERE id = ?
+            `,
+            [
+                nombre.trim(),
+                descripcion?.trim() || null,
+                categoria?.trim() || null,
+                pNum,
+                sAct,
+                sMin,
+                proveedorFinal,
+                cNum,
+                estrategiaFinal,
+                estadoFinal,
+
+                publicadoFinal,
+                posicionFinal,
+                etiqueta?.trim() || null,
+                etiquetaTipoFinal || null,
+                ordenFinal,
+
+                productoId
+            ],
+            function(err) {
+
+                if (err) {
+
+                    return res.status(500).json({
+                        error: err.message
+                    });
+                }
+
+                registrarActividad(
+                    usuario_id,
+                    'EDICION',
+                    'Productos',
+                    `Actualizó el producto ${nombre.trim()}`,
+                    'producto',
+                    productoId
+                );
+
+                res.json({
+                    mensaje:
+                        'Producto actualizado correctamente'
+                });
+            }
+        );
     };
 
-    db.get('SELECT id FROM productos WHERE id = ?', [productoId], (err, producto) => {
-        if (err || !producto) return res.status(err ? 500 : 404).json({ error: err ? err.message : 'Producto no encontrado.' });
-        if (!proveedorFinal) return actualizarProducto();
-        
-        db.get('SELECT id FROM proveedores WHERE id = ?', [proveedorFinal], (errP, proveedor) => {
-            if (errP || !proveedor) return res.status(400).json({ error: errP ? errP.message : 'El proveedor no existe.' });
-            actualizarProducto();
-        });
-    });
+    db.get(
+        `
+        SELECT id
+        FROM productos
+        WHERE id = ?
+        `,
+        [productoId],
+        (err, producto) => {
+
+            if (err) {
+
+                return res.status(500).json({
+                    error: err.message
+                });
+            }
+
+            if (!producto) {
+
+                return res.status(404).json({
+                    error:
+                        'Producto no encontrado.'
+                });
+            }
+
+            if (!proveedorFinal) {
+
+                return actualizarProducto();
+            }
+
+            db.get(
+                `
+                SELECT id
+                FROM proveedores
+                WHERE id = ?
+                `,
+                [proveedorFinal],
+                (errP, proveedor) => {
+
+                    if (errP) {
+
+                        return res.status(500).json({
+                            error: errP.message
+                        });
+                    }
+
+                    if (!proveedor) {
+
+                        return res.status(400).json({
+                            error:
+                                'El proveedor no existe.'
+                        });
+                    }
+
+                    actualizarProducto();
+                }
+            );
+        }
+    );
 });
 
 app.delete('/api/productos/:id', (req, res) => {
@@ -425,13 +993,106 @@ app.delete('/api/productos/:id', (req, res) => {
 
     db.get('SELECT nombre FROM productos WHERE id = ?', [productoId], (err, producto) => {
         if (err || !producto) return res.status(err ? 500 : 404).json({ error: err ? err.message : 'Producto no encontrado.' });
-        db.run(`UPDATE productos SET estado = 'inactivo' WHERE id = ?`, [productoId], function(errEl) {
+        db.run(`UPDATE productos SET estado = 'inactivo', publicado = 0 WHERE id = ?`, [productoId], function(errEl) {
             if (errEl) return res.status(500).json({ error: errEl.message });
             registrarActividad(req.body?.usuario_id, 'BAJA', 'Productos', `Dio de baja el producto ${producto.nombre}`, 'producto', productoId);
             res.json({ mensaje: 'Producto dado de baja correctamente' });
         });
     });
 });
+
+// ============================================================
+// SUBIR / CAMBIAR IMAGEN DE PRODUCTO
+// ============================================================
+
+app.post(
+    '/api/productos/:id/imagen',
+    subirImagenProducto.single('imagen'),
+    (req, res) => {
+
+        const productoId =
+            Number(req.params.id);
+
+        if (
+            !Number.isInteger(productoId) ||
+            productoId <= 0
+        ) {
+            return res.status(400).json({
+                error: 'Producto no válido.'
+            });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({
+                error: 'No se recibió ninguna imagen.'
+            });
+        }
+
+        db.get(
+            `
+            SELECT
+                id,
+                nombre,
+                imagen
+            FROM productos
+            WHERE id = ?
+            `,
+            [productoId],
+            (err, producto) => {
+
+                if (err) {
+                    return res.status(500).json({
+                        error: err.message
+                    });
+                }
+
+                if (!producto) {
+                    return res.status(404).json({
+                        error: 'Producto no encontrado.'
+                    });
+                }
+
+                const nuevaRuta =
+                    `img/productos/${req.file.filename}`;
+
+                db.run(
+                    `
+                    UPDATE productos
+                    SET imagen = ?
+                    WHERE id = ?
+                    `,
+                    [
+                        nuevaRuta,
+                        productoId
+                    ],
+                    function(errorUpdate) {
+
+                        if (errorUpdate) {
+                            return res.status(500).json({
+                                error: errorUpdate.message
+                            });
+                        }
+
+                        registrarActividad(
+                            req.body?.usuario_id || null,
+                            'EDICION',
+                            'Productos',
+                            `Actualizó la imagen de ${producto.nombre}`,
+                            'producto',
+                            productoId
+                        );
+
+                        res.json({
+                            mensaje:
+                                'Imagen actualizada correctamente.',
+                            imagen: nuevaRuta
+                        });
+                    }
+                );
+            }
+        );
+    }
+);
 
 // ============================================================
 // MÓDULO SCM - PROVEEDORES
@@ -488,29 +1149,76 @@ app.delete('/api/proveedores/:id', (req, res) => {
     });
 });
 
-
 // ============================================================
 // SCM: INSUMOS, INVENTARIO Y RECETAS
 // ============================================================
 
 function recalcularDisponibilidadProducto(productoId, callback = () => {}) {
     const sql = `
-        SELECT pi.porciones_requeridas, COALESCE(inv.stock_actual, 0) AS stock_actual
+        SELECT
+            pi.porciones_requeridas,
+            COALESCE(inv.stock_actual, 0) AS stock_actual
+
         FROM producto_insumo pi
-        LEFT JOIN inventario inv ON inv.insumo_id = pi.insumo_id
+
+        LEFT JOIN inventario inv
+            ON inv.insumo_id = pi.insumo_id
+
         WHERE pi.producto_id = ?
     `;
 
     db.all(sql, [productoId], (err, rows) => {
-        if (err) return callback(err);
 
-        const disponibles = rows.length === 0
-            ? 0
-            : Math.min(...rows.map(row => Math.floor(Number(row.stock_actual || 0) / Number(row.porciones_requeridas || 1))));
+        if (err) {
+            return callback(err);
+        }
 
-        db.run('UPDATE productos SET stock_actual = ? WHERE id = ?', [disponibles, productoId], (errUpdate) => {
-            callback(errUpdate, disponibles);
-        });
+        const disponibles =
+            rows.length === 0
+                ? 0
+                : Math.min(
+                    ...rows.map(row =>
+                        Math.floor(
+                            Number(row.stock_actual || 0)
+                            /
+                            Number(row.porciones_requeridas || 1)
+                        )
+                    )
+                );
+
+        db.run(
+            `
+            UPDATE productos
+
+            SET
+                stock_actual = ?,
+
+                estado =
+                    CASE
+                        WHEN estado = 'inactivo'
+                            THEN 'inactivo'
+
+                        WHEN ? > 0
+                            THEN 'disponible'
+
+                        ELSE 'agotado'
+                    END
+
+            WHERE id = ?
+            `,
+            [
+                disponibles,
+                disponibles,
+                productoId
+            ],
+            errUpdate => {
+
+                callback(
+                    errUpdate,
+                    disponibles
+                );
+            }
+        );
     });
 }
 
@@ -519,6 +1227,53 @@ function recalcularProductosPorInsumo(insumoId) {
         if (err) return console.error('Error recalculando productos:', err.message);
         rows.forEach(row => recalcularDisponibilidadProducto(row.producto_id));
     });
+}
+
+function recalcularDisponibilidadTodosProductos(callback = () => {}) {
+
+    db.all(
+        `
+        SELECT id
+        FROM productos
+        ORDER BY id
+        `,
+        [],
+        (err, productos) => {
+
+            if (err) {
+                return callback(err);
+            }
+
+            if (!productos.length) {
+                return callback(null);
+            }
+
+            let pendientes = productos.length;
+            let primerError = null;
+
+            productos.forEach(producto => {
+
+                recalcularDisponibilidadProducto(
+                    producto.id,
+                    errCalc => {
+
+                        if (
+                            errCalc &&
+                            !primerError
+                        ) {
+                            primerError = errCalc;
+                        }
+
+                        pendientes--;
+
+                        if (pendientes === 0) {
+                            callback(primerError);
+                        }
+                    }
+                );
+            });
+        }
+    );
 }
 
 // -------------------- INSUMOS --------------------
@@ -676,7 +1431,7 @@ app.get('/api/inventario', (req, res) => {
             i.estado AS insumo_estado,
             i.proveedor_id,
             p.nombre AS proveedor_nombre,
-            COALESCE(NULLIF(UPPER(i.estrategia_reposicion), ''), 'PULL') AS estrategia_reposicion,
+            COALESCE(NULLIF(UPPER(i.estrategia_reposicion), ''), 'PUSH') AS estrategia_reposicion,
             COALESCE(i.dias_cobertura, 7) AS dias_cobertura,
             inv.stock_actual,
             inv.stock_minimo,
@@ -772,7 +1527,11 @@ app.post('/api/inventario/movimiento', (req, res) => {
                                         'insumo',
                                         insumoId
                                     );
-
+                                    if(tipoFinal==='salida'){
+                                        verificarReposicionAutomaticaPush(insumoId,usuario_id||null).then(resultado=>{
+                                            if(resultado.creado) console.log(`Pedido PUSH automático creado: #${resultado.pedido_id}`);
+                                        }).catch(error=>console.error('Error verificando PUSH automático:',error.message));
+                                    }
                                     res.status(201).json({
                                         mensaje: 'Movimiento registrado correctamente',
                                         stock_anterior: Number(inventario.stock_actual),
@@ -853,6 +1612,136 @@ app.get('/api/productos/:id/insumos', (req, res) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ mensaje: 'Éxito', data: rows });
     });
+});
+
+// ============================================================
+// CATÁLOGO PÚBLICO
+// ============================================================
+
+app.get('/api/catalogo/productos', async (req, res) => {
+
+    try {
+
+        const productos = await dbAllSCM(
+            `
+            SELECT
+                id,
+                nombre,
+                descripcion,
+                categoria,
+                precio,
+                estado,
+                stock_actual,
+                imagen,
+                imagen_posicion,
+                etiqueta,
+                etiqueta_tipo,
+                orden_catalogo
+
+            FROM productos
+
+            WHERE publicado = 1
+              AND estado <> 'inactivo'
+              AND imagen IS NOT NULL
+              AND TRIM(imagen) <> ''
+
+            ORDER BY
+
+                CASE categoria
+
+                    WHEN 'alimentos'
+                        THEN 1
+
+                    WHEN 'calientes'
+                        THEN 2
+
+                    WHEN 'frias'
+                        THEN 3
+
+                    WHEN 'postres'
+                        THEN 4
+
+                    ELSE 5
+
+                END,
+
+                orden_catalogo ASC,
+                id ASC
+            `
+        );
+
+        for (const producto of productos) {
+
+            try {
+
+                const grupos = await dbAllSCM(
+                    `
+                    SELECT
+                        id,
+                        producto_id,
+                        nombre,
+                        seleccion_minima,
+                        seleccion_maxima
+
+                    FROM producto_grupo
+
+                    WHERE producto_id = ?
+
+                    ORDER BY id ASC
+                    `,
+                    [producto.id]
+                );
+
+                for (const grupo of grupos) {
+
+                    grupo.opciones = await dbAllSCM(
+                        `
+                        SELECT
+                            id,
+                            grupo_id,
+                            nombre,
+                            precio_extra
+
+                        FROM producto_opcion
+
+                        WHERE grupo_id = ?
+
+                        ORDER BY id ASC
+                        `,
+                        [grupo.id]
+                    );
+                }
+
+                producto.grupos = grupos;
+
+            } catch (errorVariantes) {
+
+                console.warn(
+                    `No se pudieron cargar variantes del producto ${producto.id}:`,
+                    errorVariantes.message
+                );
+
+                producto.grupos = [];
+            }
+        }
+
+        res.json({
+            mensaje: 'Éxito',
+            data: productos
+        });
+
+    } catch (error) {
+
+        console.error(
+            'Error cargando catálogo:',
+            error
+        );
+
+        res.status(500).json({
+            error:
+                'No se pudo cargar el catálogo.'
+        });
+    }
 });
 
 app.post('/api/productos/:id/insumos', (req, res) => {
@@ -979,6 +1868,56 @@ function dbAllSCM(sql, params = []) {
         });
     });
 }
+async function verificarReposicionAutomaticaPush(insumoId,usuarioId=null){
+    try{
+        const insumo=await dbGetSCM(`
+            SELECT i.id,i.nombre,i.estado,i.proveedor_id,i.costo_porcion,
+                   COALESCE(NULLIF(UPPER(i.estrategia_reposicion),''),'PUSH') AS estrategia_reposicion,
+                   COALESCE(i.dias_cobertura,7) AS dias_cobertura,
+                   p.nombre AS proveedor_nombre,p.estado AS proveedor_estado,
+                   COALESCE(inv.stock_actual,0) AS stock_actual,COALESCE(inv.stock_minimo,0) AS stock_minimo,
+                   COALESCE((SELECT SUM(m.cantidad) FROM movimientos_inventario m
+                             WHERE m.insumo_id=i.id AND m.tipo='salida'
+                             AND datetime(m.fecha)>=datetime('now','-30 days')),0) AS consumo_30d
+            FROM insumos i
+            LEFT JOIN proveedores p ON p.id=i.proveedor_id
+            LEFT JOIN inventario inv ON inv.insumo_id=i.id
+            WHERE i.id=?`,[insumoId]);
+        if(!insumo) return {creado:false,motivo:'Insumo no encontrado.'};
+        if(insumo.estado!=='activo') return {creado:false,motivo:'Insumo inactivo.'};
+        if(insumo.estrategia_reposicion!=='PUSH') return {creado:false,motivo:'La estrategia no es PUSH.'};
+        if(!insumo.proveedor_id||!insumo.proveedor_nombre) return {creado:false,motivo:'El insumo no tiene proveedor asignado.'};
+        if(insumo.proveedor_estado!=='activo') return {creado:false,motivo:'El proveedor está inactivo.'};
+        const stockActual=Number(insumo.stock_actual||0),stockMinimo=Number(insumo.stock_minimo||0);
+        const consumo30=Number(insumo.consumo_30d||0),diasCobertura=Math.max(1,Number(insumo.dias_cobertura||7));
+        if(consumo30<=0) return {creado:false,motivo:'No hay consumo registrado en los últimos 30 días para calcular PUSH.'};
+        const promedioDiario=consumo30/30;
+        const objetivo=Math.max(stockMinimo,Math.ceil(promedioDiario*diasCobertura));
+        if(stockActual>=objetivo) return {creado:false,motivo:`Stock suficiente para la cobertura PUSH de ${diasCobertura} días.`,objetivo_stock:objetivo};
+        const pedidoAbierto=await dbGetSCM(`SELECT id,estado FROM pedidos WHERE insumo_id=? AND estado IN ('pendiente','enviado','parcial') ORDER BY id DESC LIMIT 1`,[insumoId]);
+        if(pedidoAbierto) return {creado:false,pedido_id:pedidoAbierto.id,motivo:`Ya existe el pedido #${pedidoAbierto.id} en estado ${pedidoAbierto.estado}.`};
+        const cantidad=Math.max(1,Math.ceil(objetivo-stockActual));
+        const resultado=await dbRunSCM(`
+            INSERT INTO pedidos(producto_id,insumo_id,proveedor_id,cantidad,tipo,estado,origen,usuario_id,cantidad_recibida,costo_unitario,observaciones,fecha_pedido)
+            VALUES(NULL,?,?,?,'PUSH','enviado','AUTOMATICO',?,0,?,?,CURRENT_TIMESTAMP)`,[
+            insumoId,insumo.proveedor_id,cantidad,usuarioId,Number(insumo.costo_porcion||0),
+            `Pedido automático PUSH por cobertura de ${diasCobertura} días. Consumo 30d: ${consumo30}.`
+        ]);
+        const pedidoId=resultado.lastID;
+        await dbRunSCM(`INSERT INTO movimientos_logisticos(pedido_id,tipo,descripcion,estado,usuario_id) VALUES(?,'CREACION_AUTOMATICA',?,'enviado',?)`,[
+            pedidoId,`PUSH automático: ${cantidad} porciones de ${insumo.nombre}. Stock ${stockActual}, objetivo ${objetivo}, cobertura ${diasCobertura} días.`,usuarioId
+        ]);
+        await dbRunSCM(`INSERT INTO movimientos_logisticos(pedido_id,tipo,descripcion,estado,usuario_id) VALUES(?,'ENVIO_AUTOMATICO',?,'enviado',?)`,[
+            pedidoId,`Pedido #${pedidoId} enviado automáticamente al proveedor ${insumo.proveedor_nombre}.`,usuarioId
+        ]);
+        registrarActividad(usuarioId,'PEDIDO_AUTOMATICO','Logística',`El sistema creó y envió automáticamente el pedido #${pedidoId} de ${cantidad} porciones de ${insumo.nombre} mediante PUSH`,'pedido',pedidoId);
+        console.log(`PUSH automático: pedido #${pedidoId} creado para ${insumo.nombre} (${cantidad} porciones).`);
+        return {creado:true,pedido_id:pedidoId,cantidad,stock_actual:stockActual,stock_minimo:stockMinimo,consumo_30d:consumo30,dias_cobertura:diasCobertura,objetivo_stock:objetivo};
+    }catch(error){
+        console.error(`Error en reposición automática PUSH del insumo ${insumoId}:`,error.message);
+        return {creado:false,error:error.message};
+    }
+}
 
 function enteroPositivoSCM(valor) {
     const numero = Number(valor);
@@ -990,101 +1929,53 @@ function usuarioIdSCM(req) {
     return Number.isInteger(numero) && numero > 0 ? numero : null;
 }
 
-async function obtenerSugerenciasReposicion() {
-    const filas = await dbAllSCM(`
-        SELECT
-            i.id AS insumo_id,
-            i.nombre AS insumo_nombre,
-            i.estado AS insumo_estado,
-            i.proveedor_id,
-            p.nombre AS proveedor_nombre,
-            p.estado AS proveedor_estado,
-            COALESCE(i.costo_porcion, 0) AS costo_porcion,
-            COALESCE(NULLIF(UPPER(i.estrategia_reposicion), ''), 'PULL') AS estrategia_reposicion,
-            COALESCE(i.dias_cobertura, 7) AS dias_cobertura,
-            COALESCE(inv.stock_actual, 0) AS stock_actual,
-            COALESCE(inv.stock_minimo, 0) AS stock_minimo,
-            COALESCE(SUM(
-                CASE
-                    WHEN m.tipo = 'salida'
-                     AND datetime(m.fecha) >= datetime('now', '-30 days')
-                    THEN m.cantidad
-                    ELSE 0
-                END
-            ), 0) AS consumo_30d
+async function obtenerSugerenciasReposicion(){
+    const filas=await dbAllSCM(`
+        SELECT i.id AS insumo_id,i.nombre AS insumo_nombre,i.estado AS insumo_estado,i.proveedor_id,
+               p.nombre AS proveedor_nombre,p.estado AS proveedor_estado,COALESCE(i.costo_porcion,0) AS costo_porcion,
+               COALESCE(NULLIF(UPPER(i.estrategia_reposicion),''),'PUSH') AS estrategia_reposicion,
+               COALESCE(i.dias_cobertura,7) AS dias_cobertura,COALESCE(inv.stock_actual,0) AS stock_actual,
+               COALESCE(inv.stock_minimo,0) AS stock_minimo,
+               COALESCE(SUM(CASE WHEN m.tipo='salida' AND datetime(m.fecha)>=datetime('now','-30 days') THEN m.cantidad ELSE 0 END),0) AS consumo_30d
         FROM insumos i
-        LEFT JOIN proveedores p ON p.id = i.proveedor_id
-        LEFT JOIN inventario inv ON inv.insumo_id = i.id
-        LEFT JOIN movimientos_inventario m ON m.insumo_id = i.id
-        WHERE i.estado = 'activo'
-        GROUP BY
-            i.id, i.nombre, i.estado, i.proveedor_id,
-            p.nombre, p.estado, i.costo_porcion,
-            i.estrategia_reposicion, i.dias_cobertura,
-            inv.stock_actual, inv.stock_minimo
-        ORDER BY i.nombre ASC
-    `);
-
-    return filas.map(fila => {
-        let estrategia = String(fila.estrategia_reposicion || 'PULL').toUpperCase();
-        if (!['PUSH', 'PULL'].includes(estrategia)) estrategia = 'PULL';
-
-        const stockActual = Number(fila.stock_actual || 0);
-        const stockMinimo = Number(fila.stock_minimo || 0);
-        const consumo30 = Number(fila.consumo_30d || 0);
-        const diasCobertura = Math.max(1, Number(fila.dias_cobertura || 7));
-        const promedioDiario = consumo30 / 30;
-
-        let objetivoStock = 0;
-        let cantidadSugerida = 0;
-        let necesitaReposicion = false;
-        let configuracionPendiente = false;
-        let motivoSugerencia = '';
-
-        if (estrategia === 'PULL') {
-            // PULL: cuando llega al mínimo, se propone recuperar hasta 2 veces el mínimo.
-            if (stockMinimo <= 0) {
-                configuracionPendiente = true;
-                motivoSugerencia = 'Configura un stock mínimo mayor que cero.';
-            } else {
-                objetivoStock = stockMinimo * 2;
-                if (stockActual <= stockMinimo) {
-                    cantidadSugerida = Math.max(1, Math.ceil(objetivoStock - stockActual));
-                    necesitaReposicion = true;
-                    motivoSugerencia = `Stock actual (${stockActual}) alcanzó el mínimo (${stockMinimo}).`;
-                } else {
-                    motivoSugerencia = 'Existencia por encima del punto de reposición.';
-                }
+        LEFT JOIN proveedores p ON p.id=i.proveedor_id
+        LEFT JOIN inventario inv ON inv.insumo_id=i.id
+        LEFT JOIN movimientos_inventario m ON m.insumo_id=i.id
+        WHERE i.estado='activo'
+        GROUP BY i.id,i.nombre,i.estado,i.proveedor_id,p.nombre,p.estado,i.costo_porcion,i.estrategia_reposicion,i.dias_cobertura,inv.stock_actual,inv.stock_minimo
+        ORDER BY i.nombre ASC`);
+    return filas.map(fila=>{
+        let estrategia=String(fila.estrategia_reposicion||'PUSH').toUpperCase();
+        if(!['PUSH','PULL'].includes(estrategia)) estrategia='PUSH';
+        const stockActual=Number(fila.stock_actual||0),stockMinimo=Number(fila.stock_minimo||0),consumo30=Number(fila.consumo_30d||0);
+        const diasCobertura=Math.max(1,Number(fila.dias_cobertura||7)),promedioDiario=consumo30/30;
+        let objetivoStock=0,cantidadSugerida=0,necesitaReposicion=false,configuracionPendiente=false,motivoSugerencia='';
+        if(estrategia==='PUSH'){
+            if(consumo30<=0){
+                configuracionPendiente=true;
+                motivoSugerencia='PUSH requiere historial de salidas de los últimos 30 días.';
+            }else{
+                objetivoStock=Math.max(stockMinimo,Math.ceil(promedioDiario*diasCobertura));
+                cantidadSugerida=Math.max(0,Math.ceil(objetivoStock-stockActual));
+                necesitaReposicion=cantidadSugerida>0;
+                motivoSugerencia=necesitaReposicion
+                    ?`PUSH automático: faltan ${cantidadSugerida} porciones para cubrir ${diasCobertura} días.`
+                    :`PUSH: stock suficiente para ${diasCobertura} días de cobertura.`;
             }
-        } else {
-            // PUSH: usa las salidas reales registradas durante los últimos 30 días.
-            if (consumo30 <= 0) {
-                configuracionPendiente = true;
-                motivoSugerencia = 'No hay salidas registradas en los últimos 30 días.';
-            } else {
-                objetivoStock = Math.max(stockMinimo, Math.ceil(promedioDiario * diasCobertura));
-                cantidadSugerida = Math.max(0, Math.ceil(objetivoStock - stockActual));
-                necesitaReposicion = cantidadSugerida > 0;
-                motivoSugerencia = necesitaReposicion
-                    ? `Cobertura objetivo de ${diasCobertura} días.`
-                    : `Stock suficiente para ${diasCobertura} días.`;
+        }else{
+            if(stockMinimo<=0){
+                configuracionPendiente=true;
+                motivoSugerencia='PULL requiere configurar un stock mínimo mayor que cero.';
+            }else{
+                objetivoStock=stockMinimo*2;
+                if(stockActual<=stockMinimo){
+                    cantidadSugerida=Math.max(1,Math.ceil(objetivoStock-stockActual));
+                    necesitaReposicion=true;
+                    motivoSugerencia=`PULL por demanda: stock actual (${stockActual}) alcanzó el mínimo (${stockMinimo}).`;
+                }else motivoSugerencia='PULL: existencia por encima del punto de reposición.';
             }
         }
-
-        return {
-            ...fila,
-            estrategia_reposicion: estrategia,
-            stock_actual: stockActual,
-            stock_minimo: stockMinimo,
-            consumo_30d: consumo30,
-            promedio_diario: Number(promedioDiario.toFixed(2)),
-            dias_cobertura: diasCobertura,
-            objetivo_stock: objetivoStock,
-            cantidad_sugerida: cantidadSugerida,
-            necesita_reposicion: necesitaReposicion,
-            configuracion_pendiente: configuracionPendiente,
-            motivo_sugerencia: motivoSugerencia
-        };
+        return {...fila,estrategia_reposicion:estrategia,stock_actual:stockActual,stock_minimo:stockMinimo,consumo_30d:consumo30,promedio_diario:Number(promedioDiario.toFixed(2)),dias_cobertura:diasCobertura,objetivo_stock:objetivoStock,cantidad_sugerida:cantidadSugerida,necesita_reposicion:necesitaReposicion,configuracion_pendiente:configuracionPendiente,motivo_sugerencia:motivoSugerencia};
     });
 }
 
@@ -1144,7 +2035,22 @@ app.put('/api/scm/insumos/:id/configuracion', async (req, res) => {
             insumoId
         );
 
-        res.json({ mensaje: 'Configuración de reposición actualizada correctamente.' });
+        let pedidoAutomatico = null;
+        if(estrategia==='PUSH') pedidoAutomatico=await verificarReposicionAutomaticaPush(insumoId,usuarioId);
+        res.json({
+
+            mensaje:
+                pedidoAutomatico?.creado
+
+                    ? `Configuración actualizada. ` +
+                    `Se generó automáticamente el pedido ` +
+                    `#${pedidoAutomatico.pedido_id}.`
+
+                    : 'Configuración de reposición actualizada correctamente.',
+
+            pedido_automatico:
+                pedidoAutomatico
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -1202,7 +2108,7 @@ app.post('/api/scm/pedidos', async (req, res) => {
         const insumo = await dbGetSCM(`
             SELECT
                 i.id, i.nombre, i.proveedor_id, i.costo_porcion,
-                COALESCE(NULLIF(UPPER(i.estrategia_reposicion), ''), 'PULL') AS estrategia_reposicion,
+                COALESCE(NULLIF(UPPER(i.estrategia_reposicion), ''), 'PUSH') AS estrategia_reposicion,
                 p.nombre AS proveedor_nombre,
                 p.estado AS proveedor_estado
             FROM insumos i
@@ -1233,8 +2139,8 @@ app.post('/api/scm/pedidos', async (req, res) => {
             });
         }
 
-        let estrategia = String(insumo.estrategia_reposicion || 'PULL').toUpperCase();
-        if (!['PUSH', 'PULL'].includes(estrategia)) estrategia = 'PULL';
+        let estrategia = String(insumo.estrategia_reposicion || 'PUSH').toUpperCase();
+        if (!['PUSH','PULL'].includes(estrategia)) estrategia='PUSH';
 
         const resultado = await dbRunSCM(`
             INSERT INTO pedidos (
@@ -1528,7 +2434,6 @@ app.get('/api/scm/resumen', async (req, res) => {
     }
 });
 
-
 // ============================================================
 // SCM: ANALÍTICA OPERATIVA Y MADUREZ
 // ============================================================
@@ -1628,8 +2533,8 @@ app.get('/api/scm/analitica', async (req, res) => {
 
             dbGetSCM(`
                 SELECT
-                    SUM(CASE WHEN UPPER(COALESCE(estrategia_reposicion, 'PULL')) = 'PUSH' THEN 1 ELSE 0 END) AS push,
-                    SUM(CASE WHEN UPPER(COALESCE(estrategia_reposicion, 'PULL')) = 'PULL' THEN 1 ELSE 0 END) AS pull
+                    SUM(CASE WHEN UPPER(COALESCE(estrategia_reposicion, 'PUSH')) = 'PUSH' THEN 1 ELSE 0 END) AS push,
+                    SUM(CASE WHEN UPPER(COALESCE(estrategia_reposicion, 'PUSH')) = 'PULL' THEN 1 ELSE 0 END) AS pull
                 FROM insumos
                 WHERE estado = 'activo'
             `),
