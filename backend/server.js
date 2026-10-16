@@ -3207,7 +3207,8 @@ app.post('/api/ordenes',async(req,res)=>{
                     id,
                     nombre,
                     precio,
-                    estado
+                    estado,
+                    stock_actual
                 FROM productos
                 WHERE id=?
             `,[productoId]);
@@ -3221,6 +3222,27 @@ app.post('/api/ordenes',async(req,res)=>{
             if(producto.estado==='inactivo'){
                 return res.status(400).json({
                     error:`${producto.nombre} está inactivo.`
+                });
+            }
+            const disponibles=
+                Number(
+                    producto.stock_actual||0
+                );
+
+            if(
+                producto.estado!=='disponible' ||
+                disponibles<=0
+            ){
+                return res.status(400).json({
+                    error:
+                        `${producto.nombre} no está disponible actualmente.`
+                });
+            }
+
+            if(cantidad>disponibles){
+                return res.status(400).json({
+                    error:
+                        `Solo hay disponibilidad para ${disponibles} unidad(es) de ${producto.nombre}.`
                 });
             }
 
