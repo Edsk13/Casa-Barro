@@ -4879,24 +4879,6 @@ async function(ordenId){
     }
 }
 
-
-// ============================================================
-// NUEVA ORDEN - DÍA SIGUIENTE
-// ============================================================
-
-window.mostrarNuevaOrdenProximamente=
-function(){
-
-    Swal.fire({
-        icon:'info',
-        title:'Nueva orden',
-        text:
-            'La selección de cliente y productos se implementará en el siguiente avance del ERP.',
-        confirmButtonColor:'#3c4a45'
-    });
-}
-
-
 // ============================================================
 // DASHBOARD ERP INICIAL
 // ============================================================
@@ -5053,6 +5035,1436 @@ async function(){
             confirmButtonColor:'#3c4a45'
         });
     }
+}
+
+// ============================================================
+// ERP - NUEVA ORDEN
+// ============================================================
+
+let clientesNuevaOrdenERP=[];
+
+let productosNuevaOrdenERP=[];
+
+let nuevaOrdenERP={
+    paso:1,
+    cliente:null,
+    items:[]
+};
+
+
+// ============================================================
+// CARGAR DATOS
+// ============================================================
+
+window.cargarNuevaOrdenERP=
+async function(){
+
+    if(
+        !document.getElementById(
+            'erp-nueva-orden'
+        )
+    ){
+        return;
+    }
+
+
+    try{
+
+        const[
+            respuestaClientes,
+            respuestaProductos
+        ]=await Promise.all([
+
+            apiERP(
+                '/api/clientes'
+            ),
+
+            apiERP(
+                '/api/productos?todos=1'
+            )
+
+        ]);
+
+
+        clientesNuevaOrdenERP=
+            (
+                respuestaClientes.data||
+                []
+            )
+            .filter(
+                cliente=>
+                    cliente.estado===
+                    'activo'
+            );
+
+
+        productosNuevaOrdenERP=
+            (
+                respuestaProductos.data||
+                []
+            )
+            .filter(
+                producto=>
+                    producto.estado!==
+                    'inactivo'
+            );
+
+
+        renderClientesNuevaOrdenERP();
+
+        renderProductosNuevaOrdenERP();
+
+        renderCarritoNuevaOrdenERP();
+
+        actualizarPasosNuevaOrdenERP();
+
+
+    }catch(error){
+
+        console.error(
+            'Error cargando nueva orden:',
+            error
+        );
+
+
+        Swal.fire({
+
+            icon:
+                'error',
+
+            title:
+                'No se pudo preparar la orden',
+
+            text:
+                error.message,
+
+            confirmButtonColor:
+                '#3c4a45'
+
+        });
+    }
+}
+
+
+// ============================================================
+// CLIENTES
+// ============================================================
+
+window.filtrarClientesNuevaOrdenERP=
+function(){
+
+    renderClientesNuevaOrdenERP();
+
+}
+
+
+function renderClientesNuevaOrdenERP(){
+
+    const contenedor=
+        document.getElementById(
+            'erp-lista-clientes'
+        );
+
+
+    if(!contenedor){
+        return;
+    }
+
+
+    const texto=
+        normalizarTextoERP(
+            document.getElementById(
+                'erp-buscar-cliente'
+            )?.value||''
+        );
+
+
+    const clientes=
+        clientesNuevaOrdenERP.filter(
+            cliente=>{
+
+                const cadena=
+                    normalizarTextoERP(`
+                        ${cliente.nombre||''}
+                        ${cliente.correo||''}
+                        ${cliente.telefono||''}
+                        ${cliente.empresa||''}
+                    `);
+
+
+                return(
+                    !texto||
+                    cadena.includes(texto)
+                );
+            }
+        );
+
+
+    if(!clientes.length){
+
+        contenedor.innerHTML=`
+            <p
+                style="
+                    color:#777;
+                    grid-column:1/-1;
+                "
+            >
+                No se encontraron clientes.
+            </p>
+        `;
+
+        return;
+    }
+
+
+    contenedor.innerHTML=
+        clientes.map(
+            cliente=>{
+
+                const seleccionado=
+                    Number(
+                        nuevaOrdenERP
+                            .cliente?.id
+                    )===
+                    Number(
+                        cliente.id
+                    );
+
+
+                return `
+                    <div
+                        class="
+                            erp-cliente
+                            ${
+                                seleccionado
+                                    ?'seleccionado'
+                                    :''
+                            }
+                        "
+
+                        onclick="
+                            seleccionarClienteNuevaOrdenERP(
+                                ${cliente.id}
+                            )
+                        "
+                    >
+
+                        <h3>
+                            ${
+                                escaparHtmlERP(
+                                    cliente.nombre
+                                )
+                            }
+                        </h3>
+
+
+                        <p>
+                            <strong>
+                                Correo:
+                            </strong>
+
+                            ${
+                                escaparHtmlERP(
+                                    cliente.correo||
+                                    'Sin correo'
+                                )
+                            }
+                        </p>
+
+
+                        <p>
+                            <strong>
+                                Teléfono:
+                            </strong>
+
+                            ${
+                                escaparHtmlERP(
+                                    cliente.telefono||
+                                    'Sin teléfono'
+                                )
+                            }
+                        </p>
+
+
+                        ${
+                            cliente.empresa
+                                ?`
+                                    <p>
+                                        <strong>
+                                            Empresa:
+                                        </strong>
+
+                                        ${
+                                            escaparHtmlERP(
+                                                cliente.empresa
+                                            )
+                                        }
+                                    </p>
+                                `
+                                :''
+                        }
+
+
+                        ${
+                            cliente.etapa_crm
+                                ?`
+                                    <p>
+                                        <strong>
+                                            CRM:
+                                        </strong>
+
+                                        ${
+                                            escaparHtmlERP(
+                                                cliente.etapa_crm
+                                            )
+                                        }
+                                    </p>
+                                `
+                                :''
+                        }
+
+                    </div>
+                `;
+            }
+        )
+        .join('');
+}
+
+
+window.seleccionarClienteNuevaOrdenERP=
+function(clienteId){
+
+    const cliente=
+        clientesNuevaOrdenERP.find(
+            item=>
+                Number(item.id)===
+                Number(clienteId)
+        );
+
+
+    if(!cliente){
+        return;
+    }
+
+
+    nuevaOrdenERP.cliente=
+        cliente;
+
+
+    renderClientesNuevaOrdenERP();
+
+
+    const boton=
+        document.getElementById(
+            'erp-btn-cliente-siguiente'
+        );
+
+
+    if(boton){
+        boton.disabled=
+            false;
+    }
+}
+
+
+// ============================================================
+// PRODUCTOS
+// ============================================================
+
+window.filtrarProductosNuevaOrdenERP=
+function(){
+
+    renderProductosNuevaOrdenERP();
+
+}
+
+
+function renderProductosNuevaOrdenERP(){
+
+    const contenedor=
+        document.getElementById(
+            'erp-lista-productos'
+        );
+
+
+    if(!contenedor){
+        return;
+    }
+
+
+    const texto=
+        normalizarTextoERP(
+            document.getElementById(
+                'erp-buscar-producto'
+            )?.value||''
+        );
+
+
+    const productos=
+        productosNuevaOrdenERP.filter(
+            producto=>{
+
+                const cadena=
+                    normalizarTextoERP(`
+                        ${producto.nombre||''}
+                        ${producto.descripcion||''}
+                        ${producto.categoria||''}
+                    `);
+
+
+                return(
+                    !texto||
+                    cadena.includes(texto)
+                );
+            }
+        );
+
+
+    if(!productos.length){
+
+        contenedor.innerHTML=`
+            <p
+                style="
+                    color:#777;
+                    grid-column:1/-1;
+                "
+            >
+                No se encontraron productos.
+            </p>
+        `;
+
+        return;
+    }
+
+
+    contenedor.innerHTML=
+        productos.map(
+            producto=>{
+
+                const disponibles=
+                    Number(
+                        producto.stock_actual||
+                        0
+                    );
+
+
+                const agotado=
+                    producto.estado!==
+                        'disponible' ||
+                    disponibles<=0;
+
+
+                const imagen=
+                    producto.imagen
+                        ?escaparHtmlERP(
+                            producto.imagen
+                        )
+                        :'';
+
+
+                return `
+                    <article
+                        class="
+                            erp-producto
+                            ${
+                                agotado
+                                    ?'agotado'
+                                    :''
+                            }
+                        "
+                    >
+
+                        ${
+                            imagen
+                                ?`
+                                    <img
+                                        src="${imagen}"
+                                        alt="${
+                                            escaparHtmlERP(
+                                                producto.nombre
+                                            )
+                                        }"
+
+                                        style="
+                                            object-position:
+                                                ${
+                                                    escaparHtmlERP(
+                                                        producto.imagen_posicion||
+                                                        'center'
+                                                    )
+                                                };
+                                        "
+                                    >
+                                `
+                                :`
+                                    <div
+                                        style="
+                                            height:145px;
+                                            display:flex;
+                                            align-items:center;
+                                            justify-content:center;
+                                            background:#eee;
+                                            color:#777;
+                                        "
+                                    >
+                                        Sin imagen
+                                    </div>
+                                `
+                        }
+
+
+                        <div class="erp-producto-info">
+
+                            <h3>
+                                ${
+                                    escaparHtmlERP(
+                                        producto.nombre
+                                    )
+                                }
+                            </h3>
+
+
+                            <div class="erp-producto-precio">
+
+                                $${
+                                    Number(
+                                        producto.precio||
+                                        0
+                                    ).toFixed(2)
+                                }
+
+                            </div>
+
+
+                            ${
+                                agotado
+                                    ?`
+                                        <span class="erp-agotado">
+                                            Agotado
+                                        </span>
+                                    `
+                                    :`
+                                        <div class="erp-stock">
+                                            Disponibles:
+                                            <strong>
+                                                ${disponibles}
+                                            </strong>
+                                        </div>
+                                    `
+                            }
+
+
+                            <button
+                                class="erp-agregar"
+
+                                ${
+                                    agotado
+                                        ?'disabled'
+                                        :''
+                                }
+
+                                onclick="
+                                    agregarProductoNuevaOrdenERP(
+                                        ${producto.id}
+                                    )
+                                "
+                            >
+                                ${
+                                    agotado
+                                        ?'No disponible'
+                                        :'Agregar'
+                                }
+                            </button>
+
+                        </div>
+
+                    </article>
+                `;
+            }
+        )
+        .join('');
+}
+
+
+// ============================================================
+// AGREGAR PRODUCTO
+// ============================================================
+
+window.agregarProductoNuevaOrdenERP=
+function(productoId){
+
+    const producto=
+        productosNuevaOrdenERP.find(
+            item=>
+                Number(item.id)===
+                Number(productoId)
+        );
+
+
+    if(!producto){
+        return;
+    }
+
+
+    const disponibles=
+        Number(
+            producto.stock_actual||
+            0
+        );
+
+
+    if(
+        producto.estado!==
+            'disponible' ||
+        disponibles<=0
+    ){
+
+        return Swal.fire({
+            icon:'warning',
+            title:'Producto no disponible',
+            confirmButtonColor:'#3c4a45'
+        });
+    }
+
+
+    const existente=
+        nuevaOrdenERP.items.find(
+            item=>
+                Number(item.producto_id)===
+                Number(productoId)
+        );
+
+
+    if(existente){
+
+        if(
+            existente.cantidad>=
+            disponibles
+        ){
+
+            return Swal.fire({
+
+                icon:'warning',
+
+                title:'Límite disponible',
+
+                text:
+                    `Solo hay ${disponibles} unidad(es) disponibles de ${producto.nombre}.`,
+
+                confirmButtonColor:
+                    '#3c4a45'
+            });
+        }
+
+
+        existente.cantidad++;
+
+    }else{
+
+        nuevaOrdenERP.items.push({
+
+            producto_id:
+                producto.id,
+
+            nombre:
+                producto.nombre,
+
+            precio:
+                Number(
+                    producto.precio||
+                    0
+                ),
+
+            disponibles,
+
+            cantidad:
+                1
+        });
+    }
+
+
+    renderCarritoNuevaOrdenERP();
+}
+
+
+// ============================================================
+// CAMBIAR CANTIDAD
+// ============================================================
+
+window.cambiarCantidadNuevaOrdenERP=
+function(
+    productoId,
+    cambio
+){
+
+    const item=
+        nuevaOrdenERP.items.find(
+            producto=>
+                Number(
+                    producto.producto_id
+                )===
+                Number(productoId)
+        );
+
+
+    if(!item){
+        return;
+    }
+
+
+    const nuevaCantidad=
+        item.cantidad+
+        Number(cambio);
+
+
+    if(nuevaCantidad<=0){
+
+        nuevaOrdenERP.items=
+            nuevaOrdenERP.items.filter(
+                producto=>
+                    Number(
+                        producto.producto_id
+                    )!==
+                    Number(productoId)
+            );
+
+
+        renderCarritoNuevaOrdenERP();
+
+        return;
+    }
+
+
+    if(
+        nuevaCantidad>
+        item.disponibles
+    ){
+
+        return Swal.fire({
+
+            icon:'warning',
+
+            title:'No hay más disponibilidad',
+
+            text:
+                `El máximo disponible es ${item.disponibles}.`,
+
+            confirmButtonColor:
+                '#3c4a45'
+        });
+    }
+
+
+    item.cantidad=
+        nuevaCantidad;
+
+
+    renderCarritoNuevaOrdenERP();
+}
+
+
+// ============================================================
+// ELIMINAR PRODUCTO
+// ============================================================
+
+window.eliminarProductoNuevaOrdenERP=
+function(productoId){
+
+    nuevaOrdenERP.items=
+        nuevaOrdenERP.items.filter(
+            producto=>
+                Number(
+                    producto.producto_id
+                )!==
+                Number(productoId)
+        );
+
+
+    renderCarritoNuevaOrdenERP();
+}
+
+
+// ============================================================
+// RENDER CARRITO
+// ============================================================
+
+function renderCarritoNuevaOrdenERP(){
+
+    const contenedor=
+        document.getElementById(
+            'erp-carrito-items'
+        );
+
+
+    const totalElemento=
+        document.getElementById(
+            'erp-total-orden'
+        );
+
+
+    const btnSiguiente=
+        document.getElementById(
+            'erp-btn-productos-siguiente'
+        );
+
+
+    if(!contenedor){
+        return;
+    }
+
+
+    if(!nuevaOrdenERP.items.length){
+
+        contenedor.innerHTML=`
+            <p style="color:#777;">
+                No has agregado productos.
+            </p>
+        `;
+
+    }else{
+
+        contenedor.innerHTML=
+            nuevaOrdenERP.items.map(
+                item=>`
+
+                    <div class="erp-item">
+
+                        <div class="erp-item-titulo">
+
+                            ${
+                                escaparHtmlERP(
+                                    item.nombre
+                                )
+                            }
+
+                        </div>
+
+
+                        <small style="color:#777;">
+
+                            $${
+                                Number(
+                                    item.precio
+                                ).toFixed(2)
+                            }
+
+                            c/u
+
+                        </small>
+
+
+                        <div class="erp-item-controles">
+
+
+                            <div class="erp-cantidad">
+
+                                <button
+                                    class="erp-menos"
+
+                                    onclick="
+                                        cambiarCantidadNuevaOrdenERP(
+                                            ${item.producto_id},
+                                            -1
+                                        )
+                                    "
+                                >
+                                    −
+                                </button>
+
+
+                                <strong>
+                                    ${item.cantidad}
+                                </strong>
+
+
+                                <button
+                                    class="erp-mas"
+
+                                    onclick="
+                                        cambiarCantidadNuevaOrdenERP(
+                                            ${item.producto_id},
+                                            1
+                                        )
+                                    "
+                                >
+                                    +
+                                </button>
+
+                            </div>
+
+
+                            <strong>
+
+                                $${
+                                    (
+                                        item.precio*
+                                        item.cantidad
+                                    ).toFixed(2)
+                                }
+
+                            </strong>
+
+
+                            <button
+                                class="erp-eliminar"
+
+                                onclick="
+                                    eliminarProductoNuevaOrdenERP(
+                                        ${item.producto_id}
+                                    )
+                                "
+                            >
+                                Quitar
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                `
+            )
+            .join('');
+    }
+
+
+    const total=
+        calcularTotalNuevaOrdenERP();
+
+
+    if(totalElemento){
+
+        totalElemento.textContent=
+            `$${total.toFixed(2)}`;
+    }
+
+
+    if(btnSiguiente){
+
+        btnSiguiente.disabled=
+            nuevaOrdenERP.items.length===
+            0;
+    }
+}
+
+
+// ============================================================
+// TOTAL
+// ============================================================
+
+function calcularTotalNuevaOrdenERP(){
+
+    return nuevaOrdenERP.items.reduce(
+        (total,item)=>
+            total+
+            (
+                Number(item.precio)*
+                Number(item.cantidad)
+            ),
+        0
+    );
+}
+
+
+// ============================================================
+// PASOS
+// ============================================================
+
+window.irPasoOrdenERP=
+function(paso){
+
+    const numero=
+        Number(paso);
+
+
+    if(
+        numero===2 &&
+        !nuevaOrdenERP.cliente
+    ){
+
+        return Swal.fire({
+
+            icon:'warning',
+
+            title:'Selecciona un cliente',
+
+            confirmButtonColor:
+                '#3c4a45'
+        });
+    }
+
+
+    if(
+        numero===3 &&
+        !nuevaOrdenERP.items.length
+    ){
+
+        return Swal.fire({
+
+            icon:'warning',
+
+            title:'Agrega al menos un producto',
+
+            confirmButtonColor:
+                '#3c4a45'
+        });
+    }
+
+
+    nuevaOrdenERP.paso=
+        numero;
+
+
+    actualizarPasosNuevaOrdenERP();
+
+
+    if(numero===3){
+
+        renderResumenNuevaOrdenERP();
+    }
+
+
+    window.scrollTo({
+        top:0,
+        behavior:'smooth'
+    });
+}
+
+
+function actualizarPasosNuevaOrdenERP(){
+
+    for(
+        let paso=1;
+        paso<=3;
+        paso++
+    ){
+
+        const seccion=
+            document.getElementById(
+                `erp-paso-${paso}`
+            );
+
+
+        const indicador=
+            document.getElementById(
+                `erp-paso-indicador-${paso}`
+            );
+
+
+        if(seccion){
+
+            seccion.style.display=
+                paso===
+                nuevaOrdenERP.paso
+                    ?'block'
+                    :'none';
+        }
+
+
+        if(indicador){
+
+            indicador.classList.remove(
+                'activo',
+                'completado'
+            );
+
+
+            if(
+                paso===
+                nuevaOrdenERP.paso
+            ){
+
+                indicador.classList.add(
+                    'activo'
+                );
+
+            }else if(
+                paso<
+                nuevaOrdenERP.paso
+            ){
+
+                indicador.classList.add(
+                    'completado'
+                );
+            }
+        }
+    }
+}
+
+
+// ============================================================
+// RESUMEN FINAL
+// ============================================================
+
+function renderResumenNuevaOrdenERP(){
+
+    const cliente=
+        nuevaOrdenERP.cliente;
+
+
+    const contenedorCliente=
+        document.getElementById(
+            'erp-resumen-cliente'
+        );
+
+
+    const tabla=
+        document.getElementById(
+            'erp-resumen-productos'
+        );
+
+
+    const total=
+        document.getElementById(
+            'erp-resumen-total'
+        );
+
+
+    if(
+        !cliente||
+        !contenedorCliente||
+        !tabla
+    ){
+        return;
+    }
+
+
+    contenedorCliente.innerHTML=`
+
+        <h3>
+            Cliente
+        </h3>
+
+
+        <strong>
+            ${
+                escaparHtmlERP(
+                    cliente.nombre
+                )
+            }
+        </strong>
+
+
+        <p>
+
+            ${
+                escaparHtmlERP(
+                    cliente.correo||
+                    'Sin correo'
+                )
+            }
+
+        </p>
+
+
+        ${
+            cliente.telefono
+                ?`
+                    <p>
+                        ${
+                            escaparHtmlERP(
+                                cliente.telefono
+                            )
+                        }
+                    </p>
+                `
+                :''
+        }
+
+
+        ${
+            cliente.empresa
+                ?`
+                    <p>
+                        <strong>
+                            Empresa:
+                        </strong>
+
+                        ${
+                            escaparHtmlERP(
+                                cliente.empresa
+                            )
+                        }
+                    </p>
+                `
+                :''
+        }
+
+    `;
+
+
+    tabla.innerHTML=
+        nuevaOrdenERP.items.map(
+            item=>`
+
+                <tr>
+
+                    <td>
+
+                        ${
+                            escaparHtmlERP(
+                                item.nombre
+                            )
+                        }
+
+                    </td>
+
+                    <td>
+                        ${item.cantidad}
+                    </td>
+
+                    <td>
+
+                        $${
+                            Number(
+                                item.precio
+                            ).toFixed(2)
+                        }
+
+                    </td>
+
+                    <td>
+
+                        <strong>
+
+                            $${
+                                (
+                                    item.precio*
+                                    item.cantidad
+                                ).toFixed(2)
+                            }
+
+                        </strong>
+
+                    </td>
+
+                </tr>
+
+            `
+        )
+        .join('');
+
+
+    if(total){
+
+        total.textContent=
+            `$${calcularTotalNuevaOrdenERP().toFixed(2)}`;
+    }
+}
+
+
+// ============================================================
+// CONFIRMAR ORDEN
+// ============================================================
+
+window.confirmarNuevaOrdenERP=
+async function(){
+
+    if(
+        !nuevaOrdenERP.cliente||
+        !nuevaOrdenERP.items.length
+    ){
+
+        return;
+    }
+
+
+    const boton=
+        document.getElementById(
+            'erp-btn-confirmar-orden'
+        );
+
+
+    const confirmacion=
+        await Swal.fire({
+
+            icon:'question',
+
+            title:'Confirmar orden',
+
+            html:`
+                <p>
+                    Cliente:
+                    <strong>
+                        ${
+                            escaparHtmlERP(
+                                nuevaOrdenERP
+                                    .cliente
+                                    .nombre
+                            )
+                        }
+                    </strong>
+                </p>
+
+                <p>
+                    Total:
+                    <strong>
+                        $${calcularTotalNuevaOrdenERP().toFixed(2)}
+                    </strong>
+                </p>
+
+                <p>
+                    La orden se registrará inicialmente como
+                    <strong>Pendiente</strong>.
+                </p>
+            `,
+
+            showCancelButton:true,
+
+            confirmButtonText:
+                'Registrar orden',
+
+            cancelButtonText:
+                'Revisar',
+
+            confirmButtonColor:
+                '#3c4a45'
+        });
+
+
+    if(!confirmacion.isConfirmed){
+        return;
+    }
+
+
+    if(boton){
+
+        boton.disabled=
+            true;
+
+        boton.textContent=
+            'Registrando...';
+    }
+
+
+    try{
+
+        const respuesta=
+            await apiERP(
+                '/api/ordenes',
+                {
+                    method:'POST',
+
+                    body:
+                        JSON.stringify({
+
+                            cliente_id:
+                                nuevaOrdenERP
+                                    .cliente
+                                    .id,
+
+                            usuario_id:
+                                usuarioERPActual()?.id||
+                                null,
+
+                            productos:
+                                nuevaOrdenERP
+                                    .items
+                                    .map(
+                                        item=>({
+
+                                            producto_id:
+                                                item.producto_id,
+
+                                            cantidad:
+                                                item.cantidad
+                                        })
+                                    )
+                        })
+                }
+            );
+
+
+        await Swal.fire({
+
+            icon:'success',
+
+            title:
+                'Orden registrada',
+
+            html:`
+                <p>
+                    La orden
+                    <strong>
+                        #${respuesta.id}
+                    </strong>
+                    se creó correctamente.
+                </p>
+
+                <p>
+                    Total:
+                    <strong>
+                        $${Number(
+                            respuesta.total||
+                            0
+                        ).toFixed(2)}
+                    </strong>
+                </p>
+
+                <p>
+                    Estado:
+                    <strong>
+                        Pendiente
+                    </strong>
+                </p>
+            `,
+
+            confirmButtonText:
+                'Ver órdenes',
+
+            confirmButtonColor:
+                '#3c4a45'
+        });
+
+
+        window.location.href=
+            'admin-ordenes.html';
+
+
+    }catch(error){
+
+        Swal.fire({
+
+            icon:'error',
+
+            title:
+                'No se pudo registrar la orden',
+
+            text:
+                error.message,
+
+            confirmButtonColor:
+                '#3c4a45'
+        });
+
+
+        if(boton){
+
+            boton.disabled=
+                false;
+
+            boton.textContent=
+                'Confirmar Orden';
+        }
+    }
+}
+
+
+// ============================================================
+// NORMALIZAR TEXTO
+// ============================================================
+
+function normalizarTextoERP(texto){
+
+    return String(
+        texto||
+        ''
+    )
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(
+        /[\u0300-\u036f]/g,
+        ''
+    );
 }
 
 // INICIALIZADOR DE SEGURIDAD Y VISTAS
@@ -5435,6 +6847,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         cargarResumenERP();
     }
+
+    if(
+    document.getElementById(
+        'erp-nueva-orden'
+    )
+){
+    await cargarNuevaOrdenERP();
+}
 
 });
 
