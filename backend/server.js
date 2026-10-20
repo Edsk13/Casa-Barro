@@ -2910,6 +2910,23 @@ function usuarioIdERP(req){
     return Number.isInteger(n)&&n>0?n:null;
 }
 
+function crearErrorERP(mensaje,status=400){
+    const error=new Error(mensaje);
+    error.status=status;
+    return error;
+}
+
+function recalcularProductosERP(){
+    return new Promise((resolve,reject)=>{
+        recalcularDisponibilidadTodosProductos(error=>{
+            if(error){
+                return reject(error);
+            }
+            resolve();
+        });
+    });
+}
+
 // ============================================================
 // GET /api/ordenes
 // ============================================================
@@ -3432,14 +3449,13 @@ app.put('/api/ordenes/:id/estado',async(req,res)=>{
 
         // FLUJO OPERATIVO
         const transiciones={
+
             pendiente:[
-                'preparacion',
                 'cancelado'
             ],
 
             preparacion:[
-                'entregado',
-                'cancelado'
+                'entregado'
             ],
 
             entregado:[],
@@ -3524,6 +3540,564 @@ app.put('/api/ordenes/:id/estado',async(req,res)=>{
         });
     }
 });
+
+
+// ============================================================
+// POST /api/ordenes/:id/procesar
+// AUTOMATIZACIÓN ERP: CRM + SCM + INVENTARIO
+// ============================================================
+
+async function procesarOrdenERPBackend(req,res){
+    const ordenId=
+        enteroPositivoERP(
+            req.params?.id ||
+            req.body?.orden_id
+        );
+
+    const usuarioId=
+        usuarioIdERP(req);
+
+    let transaccion=false;
+    let ordenCargada=null;
+
+    if(!ordenId){
+        return res.status(400).json({
+            error:'ID de orden no válido.'
+        });
+    }
+
+    try{
+        // Bloquea escrituras concurrentes mientras validamos y descontamos.
+        await dbRunSCM(
+            'BEGIN IMMEDIATE TRANSACTION'
+        );
+        transaccion=true;
+
+        // ----------------------------------------------------
+        // 1. ORDEN + CLIENTE CRM
+        // ----------------------------------------------------
+        const orden=await dbGetSCM(`
+            SELECT
+                o.id,
+                o.cliente_id,
+                o.estado,
+                o.total,
+                o.usuario_id,
+                o.inventario_aplicado,
+                o.fecha,
+                c.nombre AS cliente_nombre,
+                c.correo AS cliente_correo,
+                c.estado AS cliente_estado
+            FROM ordenes_empresariales o
+            INNER JOIN clientes c
+                ON c.id=o.cliente_id
+            WHERE o.id=?
+        `,[ordenId]);
+
+        ordenCargada=orden;
+
+        if(!orden){
+            throw crearErrorERP(
+                'Orden no encontrada.',
+                404
+            );
+        }
+
+        if(orden.estado!=='pendiente'){
+            throw crearErrorERP(
+                'Solo una orden pendiente puede iniciar preparación.',
+                409
+            );
+        }
+
+        if(Number(orden.inventario_aplicado||0)===1){
+            throw crearErrorERP(
+                'El inventario de esta orden ya fue procesado.',
+                409
+            );
+        }
+
+        if(orden.cliente_estado!=='activo'){
+            throw crearErrorERP(
+                'El cliente asociado a la orden está inactivo.',
+                409
+            );
+        }
+
+        // ----------------------------------------------------
+        // 2. PRODUCTOS DE LA ORDEN
+        // ----------------------------------------------------
+        const productos=await dbAllSCM(`
+            SELECT
+                od.producto_id,
+                od.cantidad,
+                od.precio_unitario,
+                od.subtotal,
+                p.nombre AS producto_nombre,
+                p.estado AS producto_estado
+            FROM orden_detalle od
+            INNER JOIN productos p
+                ON p.id=od.producto_id
+            WHERE od.orden_id=?
+            ORDER BY od.id ASC
+        `,[ordenId]);
+
+        if(!productos.length){
+            throw crearErrorERP(
+                'La orden no contiene productos.',
+                409
+            );
+        }
+
+        // ----------------------------------------------------
+        // 3. RECETAS Y REQUERIMIENTOS DE INSUMOS
+        // ----------------------------------------------------
+        const requerimientos=new Map();
+        const movimientosDetalle=[];
+
+        for(const producto of productos){
+            if(producto.producto_estado==='inactivo'){
+                throw crearErrorERP(
+                    `El producto ${producto.producto_nombre} se encuentra inactivo.`,
+                    409
+                );
+            }
+
+            const receta=await dbAllSCM(`
+                SELECT
+                    pi.insumo_id,
+                    pi.porciones_requeridas,
+                    i.nombre AS insumo_nombre,
+                    i.estado AS insumo_estado,
+                    COALESCE(inv.stock_actual,0) AS stock_actual,
+                    COALESCE(inv.stock_minimo,0) AS stock_minimo
+                FROM producto_insumo pi
+                INNER JOIN insumos i
+                    ON i.id=pi.insumo_id
+                LEFT JOIN inventario inv
+                    ON inv.insumo_id=i.id
+                WHERE pi.producto_id=?
+            `,[producto.producto_id]);
+
+            if(!receta.length){
+                throw crearErrorERP(
+                    `El producto ${producto.producto_nombre} no tiene una receta configurada.`,
+                    409
+                );
+            }
+
+            for(const ingrediente of receta){
+                if(ingrediente.insumo_estado!=='activo'){
+                    throw crearErrorERP(
+                        `El insumo ${ingrediente.insumo_nombre} está inactivo.`,
+                        409
+                    );
+                }
+
+                const cantidadNecesaria=
+                    Number(ingrediente.porciones_requeridas||0) *
+                    Number(producto.cantidad||0);
+
+                if(!Number.isInteger(cantidadNecesaria) || cantidadNecesaria<=0){
+                    throw crearErrorERP(
+                        `La receta de ${producto.producto_nombre} contiene una cantidad inválida.`,
+                        409
+                    );
+                }
+
+                const actual=
+                    requerimientos.get(
+                        ingrediente.insumo_id
+                    );
+
+                if(actual){
+                    actual.cantidad+=cantidadNecesaria;
+                }else{
+                    requerimientos.set(
+                        ingrediente.insumo_id,
+                        {
+                            insumo_id:ingrediente.insumo_id,
+                            nombre:ingrediente.insumo_nombre,
+                            stock_actual:Number(ingrediente.stock_actual||0),
+                            stock_minimo:Number(ingrediente.stock_minimo||0),
+                            cantidad:cantidadNecesaria
+                        }
+                    );
+                }
+
+                movimientosDetalle.push({
+                    producto_id:producto.producto_id,
+                    producto_nombre:producto.producto_nombre,
+                    insumo_id:ingrediente.insumo_id,
+                    insumo_nombre:ingrediente.insumo_nombre,
+                    cantidad:cantidadNecesaria
+                });
+            }
+        }
+
+        if(requerimientos.size===0){
+            throw crearErrorERP(
+                'No se encontraron insumos para procesar la orden.',
+                409
+            );
+        }
+
+        // ----------------------------------------------------
+        // 4. VALIDAR TODO EL INVENTARIO ANTES DE DESCONTAR
+        // ----------------------------------------------------
+        for(const requerimiento of requerimientos.values()){
+            if(requerimiento.stock_actual < requerimiento.cantidad){
+                const faltante=
+                    requerimiento.cantidad -
+                    requerimiento.stock_actual;
+
+                throw crearErrorERP(
+                    `Inventario insuficiente de ${requerimiento.nombre}. ` +
+                    `Se necesitan ${requerimiento.cantidad}, ` +
+                    `hay ${requerimiento.stock_actual} y faltan ${faltante}.`,
+                    409
+                );
+            }
+        }
+
+        // ----------------------------------------------------
+        // 5. HISTORIAL: INICIO + VALIDACIONES
+        // ----------------------------------------------------
+        await dbRunSCM(`
+            INSERT INTO procesos_erp(
+                orden_id,tipo,descripcion,estado,usuario_id
+            )
+            VALUES(
+                ?,'PROCESAMIENTO',?,'procesando',?
+            )
+        `,[
+            ordenId,
+            `Se inició el procesamiento automático de la orden #${ordenId}.`,
+            usuarioId
+        ]);
+
+        await dbRunSCM(`
+            INSERT INTO procesos_erp(
+                orden_id,tipo,descripcion,estado,usuario_id
+            )
+            VALUES(
+                ?,'VALIDACION_CLIENTE',?,'correcto',?
+            )
+        `,[
+            ordenId,
+            `Cliente ${orden.cliente_nombre} validado correctamente.`,
+            usuarioId
+        ]);
+
+        await dbRunSCM(`
+            INSERT INTO procesos_erp(
+                orden_id,tipo,descripcion,estado,usuario_id
+            )
+            VALUES(
+                ?,'VALIDACION_INVENTARIO',?,'correcto',?
+            )
+        `,[
+            ordenId,
+            `Existencias suficientes para ${requerimientos.size} insumo(s).`,
+            usuarioId
+        ]);
+
+        // ----------------------------------------------------
+        // 6. DESCONTAR INVENTARIO
+        // ----------------------------------------------------
+        const insumosDescontados=[];
+
+        for(const requerimiento of requerimientos.values()){
+            const resultado=await dbRunSCM(`
+                UPDATE inventario
+                SET
+                    stock_actual=stock_actual-?,
+                    fecha_actualizacion=CURRENT_TIMESTAMP
+                WHERE
+                    insumo_id=?
+                    AND stock_actual>=?
+            `,[
+                requerimiento.cantidad,
+                requerimiento.insumo_id,
+                requerimiento.cantidad
+            ]);
+
+            if(resultado.changes!==1){
+                throw crearErrorERP(
+                    `El inventario de ${requerimiento.nombre} cambió durante el procesamiento.`,
+                    409
+                );
+            }
+
+            insumosDescontados.push({
+                insumo_id:requerimiento.insumo_id,
+                nombre:requerimiento.nombre,
+                stock_anterior:requerimiento.stock_actual,
+                utilizado:requerimiento.cantidad,
+                stock_actual:
+                    requerimiento.stock_actual-
+                    requerimiento.cantidad
+            });
+        }
+
+        // ----------------------------------------------------
+        // 7. MOVIMIENTOS DE INVENTARIO
+        // ----------------------------------------------------
+        for(const movimiento of movimientosDetalle){
+            await dbRunSCM(`
+                INSERT INTO movimientos_inventario(
+                    producto_id,
+                    insumo_id,
+                    tipo,
+                    cantidad,
+                    motivo,
+                    usuario_id
+                )
+                VALUES(
+                    ?,?,'salida',?,?,?
+                )
+            `,[
+                movimiento.producto_id,
+                movimiento.insumo_id,
+                movimiento.cantidad,
+                `venta ERP orden #${ordenId}`,
+                usuarioId
+            ]);
+        }
+
+        await dbRunSCM(`
+            INSERT INTO procesos_erp(
+                orden_id,tipo,descripcion,estado,usuario_id
+            )
+            VALUES(
+                ?,'ACTUALIZACION_INVENTARIO',?,'correcto',?
+            )
+        `,[
+            ordenId,
+            `Se descontaron existencias de ${requerimientos.size} insumo(s).`,
+            usuarioId
+        ]);
+
+        await dbRunSCM(`
+            INSERT INTO procesos_erp(
+                orden_id,tipo,descripcion,estado,usuario_id
+            )
+            VALUES(
+                ?,'MOVIMIENTOS_INVENTARIO',?,'correcto',?
+            )
+        `,[
+            ordenId,
+            `Se registraron ${movimientosDetalle.length} movimiento(s) de salida.`,
+            usuarioId
+        ]);
+
+        // ----------------------------------------------------
+        // 8. INTEGRACIÓN CRM
+        // ----------------------------------------------------
+        await dbRunSCM(`
+            INSERT INTO interacciones(
+                cliente_id,
+                usuario_id,
+                tipo,
+                descripcion
+            )
+            VALUES(
+                ?,?,'Venta ERP',?
+            )
+        `,[
+            orden.cliente_id,
+            usuarioId,
+            `Orden #${ordenId} enviada a preparación por $${Number(orden.total||0).toFixed(2)}.`
+        ]);
+
+        await dbRunSCM(`
+            INSERT INTO procesos_erp(
+                orden_id,tipo,descripcion,estado,usuario_id
+            )
+            VALUES(
+                ?,'INTEGRACION_CRM',?,'correcto',?
+            )
+        `,[
+            ordenId,
+            `La operación fue registrada en el historial CRM de ${orden.cliente_nombre}.`,
+            usuarioId
+        ]);
+
+        // ----------------------------------------------------
+        // 9. FINALIZAR ORDEN
+        // ----------------------------------------------------
+        const actualizacionOrden=await dbRunSCM(`
+            UPDATE ordenes_empresariales
+            SET
+                estado='preparacion',
+                inventario_aplicado=1,
+                fecha_procesado=CURRENT_TIMESTAMP
+            WHERE
+                id=?
+                AND estado='pendiente'
+                AND COALESCE(inventario_aplicado,0)=0
+        `,[ordenId]);
+
+        if(actualizacionOrden.changes!==1){
+            throw crearErrorERP(
+                'La orden cambió durante el procesamiento. Intenta nuevamente.',
+                409
+            );
+        }
+
+        await dbRunSCM(`
+            INSERT INTO procesos_erp(
+                orden_id,tipo,descripcion,estado,usuario_id
+            )
+            VALUES(
+                ?,'FINALIZACION',?,'preparacion',?
+            )
+        `,[
+            ordenId,
+            `Orden #${ordenId} procesada correctamente y enviada a preparación.`,
+            usuarioId
+        ]);
+
+        // ----------------------------------------------------
+        // 10. CONFIRMAR TRANSACCIÓN
+        // ----------------------------------------------------
+        await dbRunSCM('COMMIT');
+        transaccion=false;
+
+        // ----------------------------------------------------
+        // 11. RECALCULAR DISPONIBILIDAD SCM
+        // ----------------------------------------------------
+        try{
+            await recalcularProductosERP();
+        }catch(errorRecalculo){
+            console.warn(
+                'La orden se procesó, pero hubo un error recalculando productos:',
+                errorRecalculo.message
+            );
+        }
+
+        // ----------------------------------------------------
+        // 12. VERIFICAR REPOSICIÓN AUTOMÁTICA PUSH
+        // ----------------------------------------------------
+        const reposicionesAutomaticas=[];
+
+        for(const requerimiento of requerimientos.values()){
+            try{
+                const resultadoPush=
+                    await verificarReposicionAutomaticaPush(
+                        requerimiento.insumo_id,
+                        usuarioId
+                    );
+
+                if(resultadoPush?.creado){
+                    reposicionesAutomaticas.push({
+                        insumo_id:requerimiento.insumo_id,
+                        insumo:requerimiento.nombre,
+                        pedido_id:resultadoPush.pedido_id
+                    });
+                }
+            }catch(errorPush){
+                console.warn(
+                    `No se pudo verificar PUSH del insumo ${requerimiento.insumo_id}:`,
+                    errorPush.message
+                );
+            }
+        }
+
+        registrarActividad(
+            usuarioId,
+            'INVENTARIO',
+            'ERP',
+            `Procesó automáticamente la orden #${ordenId}; se descontaron ${requerimientos.size} insumos`,
+            'orden',
+            ordenId
+        );
+
+        return res.json({
+            mensaje:'Orden procesada correctamente.',
+            orden_id:ordenId,
+            estado:'preparacion',
+            inventario_aplicado:true,
+            cliente:{
+                id:orden.cliente_id,
+                nombre:orden.cliente_nombre
+            },
+            total:Number(orden.total||0),
+            insumos_descontados:insumosDescontados,
+            movimientos_registrados:movimientosDetalle.length,
+            reposiciones_automaticas:reposicionesAutomaticas,
+            pasos:[
+                {paso:'Cliente validado',estado:'correcto'},
+                {paso:'Productos y recetas validados',estado:'correcto'},
+                {paso:'Inventario validado',estado:'correcto'},
+                {paso:'Inventario actualizado',estado:'correcto'},
+                {paso:'Movimientos registrados',estado:'correcto'},
+                {paso:'CRM actualizado',estado:'correcto'},
+                {paso:'Disponibilidad recalculada',estado:'correcto'},
+                {paso:'Orden enviada a preparación',estado:'correcto'}
+            ]
+        });
+
+    }catch(error){
+        if(transaccion){
+            try{
+                await dbRunSCM('ROLLBACK');
+            }catch(errorRollback){
+                console.error(
+                    'Error ejecutando ROLLBACK:',
+                    errorRollback
+                );
+            }
+        }
+
+        // El intento fallido se registra fuera de la transacción.
+        if(ordenCargada){
+            try{
+                await dbRunSCM(`
+                    INSERT INTO procesos_erp(
+                        orden_id,tipo,descripcion,estado,usuario_id
+                    )
+                    VALUES(
+                        ?,'ERROR_PROCESAMIENTO',?,'error',?
+                    )
+                `,[
+                    ordenId,
+                    error.message,
+                    usuarioId
+                ]);
+            }catch(errorHistorial){
+                console.warn(
+                    'No se pudo registrar el fallo ERP:',
+                    errorHistorial.message
+                );
+            }
+        }
+
+        console.error(
+            `Error procesando orden #${ordenId}:`,
+            error
+        );
+
+        return res.status(
+            error.status||500
+        ).json({
+            error:
+                error.message||
+                'No se pudo procesar la orden.'
+        });
+    }
+}
+
+app.post(
+    '/api/ordenes/:id/procesar',
+    procesarOrdenERPBackend
+);
+
+// Alias compatible con la especificación académica.
+app.post(
+    '/api/ordenes/procesar',
+    procesarOrdenERPBackend
+);
 
 
 // ============================================================
