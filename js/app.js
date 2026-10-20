@@ -4088,6 +4088,23 @@ function textoEstadoOrdenERP(estado){
     return nombres[estado]||estado||'—';
 }
 
+function textoTipoProcesoERP(tipo){
+    const nombres={
+        CREACION:'Creación de orden',
+        PROCESAMIENTO:'Inicio del procesamiento',
+        VALIDACION_CLIENTE:'Validación de cliente',
+        VALIDACION_INVENTARIO:'Validación de inventario',
+        ACTUALIZACION_INVENTARIO:'Actualización de inventario',
+        MOVIMIENTOS_INVENTARIO:'Movimientos de inventario',
+        INTEGRACION_CRM:'Integración CRM',
+        FINALIZACION:'Finalización',
+        CAMBIO_ESTADO:'Cambio de estado',
+        ERROR_PROCESAMIENTO:'Error de procesamiento'
+    };
+
+    return nombres[tipo]||tipo||'Movimiento';
+}
+
 
 // ============================================================
 // CARGAR ÓRDENES
@@ -4193,7 +4210,6 @@ function renderOrdenesAdmin(){
     const ordenes=
         ordenesAdminCache.filter(
             orden=>{
-
                 const cadena=
                     `#${orden.id} ${orden.cliente_nombre||''}`
                     .toLowerCase();
@@ -4206,16 +4222,11 @@ function renderOrdenesAdmin(){
                     estado==='todos'||
                     orden.estado===estado;
 
-                return(
-                    coincideTexto&&
-                    coincideEstado
-                );
+                return coincideTexto&&coincideEstado;
             }
         );
 
-
     if(!ordenes.length){
-
         tabla.innerHTML=`
             <tr>
                 <td
@@ -4226,96 +4237,71 @@ function renderOrdenesAdmin(){
                 </td>
             </tr>
         `;
-
         return;
     }
-
 
     tabla.innerHTML=
         ordenes.map(
             orden=>{
-
                 let acciones=`
                     <button
                         class="orden-btn orden-ver"
-                        onclick="
-                            verDetallePedidoAdmin(
-                                ${orden.id}
-                            )
-                        "
+                        onclick="verDetallePedidoAdmin(${orden.id})"
                     >
                         Ver
                     </button>
                 `;
 
-
-                if(
-                    orden.estado==='pendiente'||
-                    orden.estado==='preparacion'
-                ){
-
+                // Una orden pendiente todavía no ha descontado inventario.
+                if(orden.estado==='pendiente'){
                     acciones+=`
                         <button
                             class="orden-btn orden-avanzar"
-                            onclick="
-                                cambiarEstadoPedidoAdmin(
-                                    ${orden.id}
-                                )
-                            "
+                            onclick="cambiarEstadoPedidoAdmin(${orden.id})"
                         >
-                            ${
-                                orden.estado==='pendiente'
-                                    ?'Iniciar preparación'
-                                    :'Marcar entregado'
-                            }
+                            Iniciar preparación
                         </button>
                     `;
 
                     acciones+=`
                         <button
                             class="orden-btn orden-cancelar"
-                            onclick="
-                                cancelarOrdenAdmin(
-                                    ${orden.id}
-                                )
-                            "
+                            onclick="cancelarOrdenAdmin(${orden.id})"
                         >
                             Cancelar
                         </button>
                     `;
                 }
 
+                // Después de aplicar inventario ya no mostramos cancelar.
+                if(orden.estado==='preparacion'){
+                    acciones+=`
+                        <button
+                            class="orden-btn orden-avanzar"
+                            onclick="cambiarEstadoPedidoAdmin(${orden.id})"
+                        >
+                            Marcar entregado
+                        </button>
+                    `;
+                }
 
                 return `
                     <tr>
-
                         <td>
-                            <strong>
-                                #${orden.id}
-                            </strong>
+                            <strong>#${orden.id}</strong>
                         </td>
 
                         <td>
                             <strong>
-                                ${
-                                    escaparHtmlERP(
-                                        orden.cliente_nombre
-                                    )
-                                }
+                                ${escaparHtmlERP(orden.cliente_nombre)}
                             </strong>
 
                             ${
                                 orden.cliente_empresa
                                     ?`
                                         <br>
-                                        <small
-                                            style="color:#777;"
-                                        >
-                                            ${
-                                                escaparHtmlERP(
-                                                    orden.cliente_empresa
-                                                )
-                                            }
+                                        <small style="color:#777;">
+                                            ${escaparHtmlERP(orden.cliente_empresa)}
                                         </small>
                                     `
                                     :''
@@ -4323,52 +4309,30 @@ function renderOrdenesAdmin(){
                         </td>
 
                         <td>
-                            ${
-                                fechaERP(
-                                    orden.fecha
-                                )
-                            }
+                            ${fechaERP(orden.fecha)}
                         </td>
 
                         <td>
-                            ${
-                                Number(
-                                    orden.productos_total||
-                                    0
-                                )
-                            }
+                            ${Number(orden.productos_total||0)}
                         </td>
 
                         <td>
                             <strong>
-                                $${
-                                    Number(
-                                        orden.total||
-                                        0
-                                    ).toFixed(2)
-                                }
+                                $${Number(orden.total||0).toFixed(2)}
                             </strong>
                         </td>
 
                         <td>
                             <span
-                                class="
-                                    badge-status
-                                    ${orden.estado}
-                                "
+                                class="badge-status ${orden.estado}"
                             >
-                                ${
-                                    textoEstadoOrdenERP(
-                                        orden.estado
-                                    )
-                                }
+                                ${textoEstadoOrdenERP(orden.estado)}
                             </span>
                         </td>
 
                         <td class="admin-actions">
                             ${acciones}
                         </td>
-
                     </tr>
                 `;
             }
@@ -4398,156 +4362,109 @@ async function(ordenId){
         const historial=
             orden.historial||[];
 
-
         const productosHtml=
             productos.length
-
                 ?productos.map(
                     producto=>`
                         <tr>
-
-                            <td
-                                style="
-                                    padding:8px;
-                                    text-align:left;
-                                "
-                            >
-                                ${
-                                    escaparHtmlERP(
-                                        producto.producto_nombre
-                                    )
-                                }
+                            <td style="padding:8px;text-align:left;">
+                                ${escaparHtmlERP(producto.producto_nombre)}
                             </td>
 
                             <td style="padding:8px;">
-                                ${
-                                    Number(
-                                        producto.cantidad
-                                    )
-                                }
+                                ${Number(producto.cantidad)}
                             </td>
 
                             <td style="padding:8px;">
-                                $${
-                                    Number(
-                                        producto.precio_unitario
-                                    ).toFixed(2)
-                                }
+                                $${Number(producto.precio_unitario).toFixed(2)}
                             </td>
 
                             <td style="padding:8px;">
                                 <strong>
-                                    $${
-                                        Number(
-                                            producto.subtotal
-                                        ).toFixed(2)
-                                    }
+                                    $${Number(producto.subtotal).toFixed(2)}
                                 </strong>
                             </td>
-
                         </tr>
                     `
                 ).join('')
-
                 :`
                     <tr>
-                        <td
-                            colspan="4"
-                            style="
-                                padding:15px;
-                                color:#777;
-                            "
-                        >
+                        <td colspan="4" style="padding:15px;color:#777;">
                             Sin productos.
                         </td>
                     </tr>
                 `;
 
-
         const historialHtml=
             historial.length
-
                 ?historial.map(
-                    movimiento=>`
-                        <div
-                            style="
-                                padding:9px 0;
-                                border-bottom:
-                                    1px solid #eee;
-                            "
-                        >
+                    movimiento=>{
+                        const esError=
+                            movimiento.estado==='error'||
+                            movimiento.tipo==='ERROR_PROCESAMIENTO';
 
-                            <strong>
-                                ${
-                                    escaparHtmlERP(
-                                        movimiento.tipo
-                                    )
-                                }
-                            </strong>
-
-                            <div>
-                                ${
-                                    escaparHtmlERP(
-                                        movimiento.descripcion||
-                                        ''
-                                    )
-                                }
-                            </div>
-
-                            <small
-                                style="color:#777;"
+                        return `
+                            <div
+                                style="
+                                    padding:10px 0;
+                                    border-bottom:1px solid #eee;
+                                "
                             >
-                                ${
-                                    fechaERP(
-                                        movimiento.fecha
-                                    )
-                                }
+                                <strong
+                                    style="color:${esError?'#a83c21':'#3c4a45'};"
+                                >
+                                    ${
+                                        escaparHtmlERP(
+                                            textoTipoProcesoERP(
+                                                movimiento.tipo
+                                            )
+                                        )
+                                    }
+                                </strong>
 
-                                ${
-                                    movimiento.usuario_nombre
-                                        ?` · ${escaparHtmlERP(movimiento.usuario_nombre)}`
-                                        :''
-                                }
-                            </small>
+                                <div style="margin-top:3px;">
+                                    ${escaparHtmlERP(movimiento.descripcion||'')}
+                                </div>
 
-                        </div>
-                    `
+                                <small style="color:#777;">
+                                    ${fechaERP(movimiento.fecha)}
+                                    ${
+                                        movimiento.usuario_nombre
+                                            ?` · ${escaparHtmlERP(movimiento.usuario_nombre)}`
+                                            :''
+                                    }
+                                </small>
+                            </div>
+                        `;
+                    }
                 ).join('')
-
                 :`
                     <p style="color:#777;">
                         Sin movimientos registrados.
                     </p>
                 `;
 
+        const inventarioAplicado=
+            Number(
+                orden.inventario_aplicado||0
+            )===1;
 
         Swal.fire({
-
-            title:
-                `Orden #${orden.id}`,
-
-            width:
-                '760px',
-
+            title:`Orden #${orden.id}`,
+            width:'780px',
             html:`
                 <div style="text-align:left;">
-
                     <div
                         style="
                             background:#f8f6f1;
                             padding:14px;
                             border-radius:10px;
                             margin-bottom:15px;
+                            line-height:1.7;
                         "
                     >
-
                         <strong>Cliente:</strong>
-                        ${
-                            escaparHtmlERP(
-                                orden.cliente_nombre
-                            )
-                        }
-
+                        ${escaparHtmlERP(orden.cliente_nombre)}
                         <br>
 
                         ${
@@ -4572,66 +4489,74 @@ async function(ordenId){
 
                         <strong>Fecha:</strong>
                         ${fechaERP(orden.fecha)}
-
                         <br>
 
                         <strong>Estado:</strong>
-
-                        <span
-                            class="
-                                badge-status
-                                ${orden.estado}
-                            "
-                        >
-                            ${
-                                textoEstadoOrdenERP(
-                                    orden.estado
-                                )
-                            }
+                        <span class="badge-status ${orden.estado}">
+                            ${textoEstadoOrdenERP(orden.estado)}
                         </span>
+                        <br>
 
+                        <strong>Inventario:</strong>
+                        ${
+                            inventarioAplicado
+                                ?`
+                                    <span
+                                        style="
+                                            color:#2f6b46;
+                                            font-weight:bold;
+                                        "
+                                    >
+                                        Aplicado ✓
+                                    </span>
+                                `
+                                :`
+                                    <span
+                                        style="
+                                            color:#7a5b00;
+                                            font-weight:bold;
+                                        "
+                                    >
+                                        Pendiente
+                                    </span>
+                                `
+                        }
+
+                        ${
+                            orden.fecha_procesado
+                                ?`
+                                    <br>
+                                    <strong>Procesada:</strong>
+                                    ${fechaERP(orden.fecha_procesado)}
+                                `
+                                :''
+                        }
                     </div>
 
+                    <div style="overflow-x:auto;">
+                        <table
+                            style="
+                                width:100%;
+                                border-collapse:collapse;
+                                text-align:center;
+                            "
+                        >
+                            <thead>
+                                <tr style="border-bottom:1px solid #ddd;">
+                                    <th style="padding:8px;text-align:left;">
+                                        Producto
+                                    </th>
+                                    <th style="padding:8px;">Cant.</th>
+                                    <th style="padding:8px;">Precio</th>
+                                    <th style="padding:8px;">Subtotal</th>
+                                </tr>
+                            </thead>
 
-                    <table
-                        style="
-                            width:100%;
-                            border-collapse:collapse;
-                            text-align:center;
-                        "
-                    >
-
-                        <thead>
-                            <tr
-                                style="
-                                    border-bottom:
-                                        1px solid #ddd;
-                                "
-                            >
-                                <th style="padding:8px;">
-                                    Producto
-                                </th>
-
-                                <th style="padding:8px;">
-                                    Cant.
-                                </th>
-
-                                <th style="padding:8px;">
-                                    Precio
-                                </th>
-
-                                <th style="padding:8px;">
-                                    Subtotal
-                                </th>
-                            </tr>
-                        </thead>
-
-                        <tbody>
-                            ${productosHtml}
-                        </tbody>
-
-                    </table>
-
+                            <tbody>
+                                ${productosHtml}
+                            </tbody>
+                        </table>
+                    </div>
 
                     <div
                         style="
@@ -4641,35 +4566,22 @@ async function(ordenId){
                         "
                     >
                         <strong>
-                            Total:
-                            $${
-                                Number(
-                                    orden.total||
-                                    0
-                                ).toFixed(2)
-                            }
+                            Total: $${Number(orden.total||0).toFixed(2)}
                         </strong>
                     </div>
 
-
                     <h3 style="margin-top:22px;">
-                        Historial de la orden
+                        Historial ERP
                     </h3>
 
                     ${historialHtml}
-
                 </div>
             `,
-
-            confirmButtonText:
-                'Cerrar',
-
-            confirmButtonColor:
-                '#3c4a45'
+            confirmButtonText:'Cerrar',
+            confirmButtonColor:'#3c4a45'
         });
 
     }catch(error){
-
         Swal.fire({
             icon:'error',
             title:'No se pudo cargar la orden',
@@ -4695,89 +4607,324 @@ async function(ordenId){
         );
 
     if(!orden){
-        return;
+        return Swal.fire({
+            icon:'error',
+            title:'Orden no encontrada',
+            confirmButtonColor:'#3c4a45'
+        });
     }
 
-    let nuevoEstado=null;
-    let titulo='';
-    let textoBoton='';
-
+    // Pendiente -> procesamiento automático ERP.
     if(orden.estado==='pendiente'){
-        nuevoEstado='preparacion';
-        titulo='Iniciar preparación';
-        textoBoton='Sí, iniciar';
+        return procesarOrdenERP(
+            ordenId
+        );
     }
 
+    // Preparación -> entregado.
     if(orden.estado==='preparacion'){
-        nuevoEstado='entregado';
-        titulo='Marcar como entregada';
-        textoBoton='Sí, entregar';
-    }
+        const confirmacion=
+            await Swal.fire({
+                icon:'question',
+                title:`Entregar orden #${ordenId}`,
+                text:'La orden se marcará como entregada al cliente.',
+                showCancelButton:true,
+                confirmButtonText:'Sí, entregar',
+                cancelButtonText:'Cancelar',
+                confirmButtonColor:'#3c4a45'
+            });
 
-    if(!nuevoEstado){
-        return;
+        if(!confirmacion.isConfirmed){
+            return;
+        }
+
+        try{
+            await apiERP(
+                `/api/ordenes/${ordenId}/estado`,
+                {
+                    method:'PUT',
+                    body:JSON.stringify({
+                        estado:'entregado',
+                        usuario_id:
+                            usuarioERPActual()?.id||
+                            null
+                    })
+                }
+            );
+
+            await Swal.fire({
+                icon:'success',
+                title:'Orden entregada',
+                text:`La orden #${ordenId} se marcó como entregada.`,
+                confirmButtonColor:'#3c4a45'
+            });
+
+            await cargarOrdenesAdmin();
+
+            if(
+                document.getElementById(
+                    'erp-resumen-panel'
+                )
+            ){
+                await cargarResumenERP();
+            }
+
+        }catch(error){
+            Swal.fire({
+                icon:'error',
+                title:'No se pudo actualizar la orden',
+                text:error.message,
+                confirmButtonColor:'#3c4a45'
+            });
+        }
     }
+}
+
+
+// ============================================================
+// ERP - PROCESAMIENTO AUTOMÁTICO DE ORDEN
+// ============================================================
+
+window.procesarOrdenERP=
+async function(ordenId){
 
     const confirmacion=
         await Swal.fire({
-
             icon:'question',
+            title:`Iniciar preparación #${ordenId}`,
+            html:`
+                <div style="text-align:left;line-height:1.7;">
+                    <p>
+                        El ERP realizará automáticamente:
+                    </p>
 
-            title:
-                `${titulo} #${ordenId}`,
+                    <div
+                        style="
+                            background:#f8f6f1;
+                            padding:14px;
+                            border-radius:10px;
+                        "
+                    >
+                        ✓ Validar cliente CRM<br>
+                        ✓ Consultar productos y recetas SCM<br>
+                        ✓ Validar inventario completo<br>
+                        ✓ Descontar insumos<br>
+                        ✓ Registrar movimientos de salida<br>
+                        ✓ Registrar la operación en CRM<br>
+                        ✓ Recalcular disponibilidad<br>
+                        ✓ Verificar reposición automática PUSH
+                    </div>
 
-            text:
-                nuevoEstado==='preparacion'
-                    ?'La orden cambiará a En Preparación.'
-                    :'La orden quedará marcada como Entregada.',
-
+                    <p
+                        style="
+                            color:#777;
+                            margin-top:12px;
+                        "
+                    >
+                        Si una validación falla, la transacción se revierte
+                        y no se realizan descuentos parciales.
+                    </p>
+                </div>
+            `,
             showCancelButton:true,
-
-            confirmButtonText:
-                textoBoton,
-
-            cancelButtonText:
-                'Cancelar',
-
-            confirmButtonColor:
-                '#3c4a45'
+            confirmButtonText:'Procesar orden',
+            cancelButtonText:'Cancelar',
+            confirmButtonColor:'#3c4a45'
         });
-
 
     if(!confirmacion.isConfirmed){
         return;
     }
 
+    Swal.fire({
+        title:'Procesando orden...',
+        html:`
+            <div
+                style="
+                    text-align:left;
+                    line-height:2;
+                    margin-top:10px;
+                "
+            >
+                <div>○ Validando cliente</div>
+                <div>○ Consultando recetas</div>
+                <div>○ Validando inventario</div>
+                <div>○ Actualizando inventario</div>
+                <div>○ Registrando movimientos</div>
+                <div>○ Actualizando CRM</div>
+                <div>○ Recalculando disponibilidad</div>
+                <div>○ Finalizando operación</div>
+            </div>
+        `,
+        allowOutsideClick:false,
+        allowEscapeKey:false,
+        showConfirmButton:false,
+        didOpen:()=>{
+            Swal.showLoading();
+        }
+    });
 
     try{
-        await apiERP(
-            `/api/ordenes/${ordenId}/estado`,
-            {
-                method:'PUT',
-
-                body:
-                    JSON.stringify({
-
-                        estado:
-                            nuevoEstado,
-
+        const respuesta=
+            await apiERP(
+                `/api/ordenes/${ordenId}/procesar`,
+                {
+                    method:'POST',
+                    body:JSON.stringify({
                         usuario_id:
                             usuarioERPActual()?.id||
                             null
                     })
-            }
-        );
+                }
+            );
 
-        Swal.fire({
-            toast:true,
-            position:'top-end',
+        const pasos=
+            (respuesta.pasos||[])
+            .map(
+                paso=>`
+                    <div
+                        style="
+                            padding:6px 0;
+                            border-bottom:1px solid #eee;
+                        "
+                    >
+                        <span
+                            style="
+                                color:#2f6b46;
+                                font-weight:bold;
+                            "
+                        >
+                            ✓
+                        </span>
+                        ${escaparHtmlERP(paso.paso)}
+                    </div>
+                `
+            )
+            .join('');
+
+        const insumos=
+            (respuesta.insumos_descontados||[])
+            .map(
+                insumo=>`
+                    <tr>
+                        <td style="padding:6px;text-align:left;">
+                            ${escaparHtmlERP(insumo.nombre)}
+                        </td>
+                        <td style="padding:6px;">
+                            ${Number(insumo.stock_anterior)}
+                        </td>
+                        <td style="padding:6px;">
+                            -${Number(insumo.utilizado)}
+                        </td>
+                        <td style="padding:6px;">
+                            <strong>
+                                ${Number(insumo.stock_actual)}
+                            </strong>
+                        </td>
+                    </tr>
+                `
+            )
+            .join('');
+
+        const reposiciones=
+            respuesta.reposiciones_automaticas||[];
+
+        const reposicionHtml=
+            reposiciones.length
+                ?`
+                    <div
+                        style="
+                            margin-top:15px;
+                            padding:12px;
+                            background:#f2ecfa;
+                            border-radius:10px;
+                        "
+                    >
+                        <strong>
+                            Reposición automática SCM
+                        </strong>
+                        <br>
+                        ${
+                            reposiciones
+                                .map(
+                                    pedido=>
+                                        `${escaparHtmlERP(pedido.insumo)} → pedido #${pedido.pedido_id}`
+                                )
+                                .join('<br>')
+                        }
+                    </div>
+                `
+                :'';
+
+        await Swal.fire({
             icon:'success',
-            title:
-                nuevoEstado==='preparacion'
-                    ?'Orden en preparación'
-                    :'Orden entregada',
-            showConfirmButton:false,
-            timer:1600
+            title:'Operación exitosa',
+            width:'780px',
+            html:`
+                <div style="text-align:left;">
+                    <p>
+                        La orden
+                        <strong>#${respuesta.orden_id}</strong>
+                        fue procesada correctamente.
+                    </p>
+
+                    <div
+                        style="
+                            background:#f1f5f2;
+                            padding:14px;
+                            border-radius:10px;
+                            margin-bottom:15px;
+                            line-height:1.7;
+                        "
+                    >
+                        <strong>Estado:</strong>
+                        En Preparación
+                        <br>
+
+                        <strong>Cliente:</strong>
+                        ${escaparHtmlERP(respuesta.cliente?.nombre||'')}
+                        <br>
+
+                        <strong>Total:</strong>
+                        $${Number(respuesta.total||0).toFixed(2)}
+                    </div>
+
+                    <h3>Proceso ERP</h3>
+                    ${pasos}
+
+                    <h3 style="margin-top:18px;">
+                        Inventario utilizado
+                    </h3>
+
+                    <div style="overflow-x:auto;">
+                        <table
+                            style="
+                                width:100%;
+                                border-collapse:collapse;
+                                text-align:center;
+                            "
+                        >
+                            <thead>
+                                <tr>
+                                    <th style="padding:6px;text-align:left;">
+                                        Insumo
+                                    </th>
+                                    <th style="padding:6px;">Antes</th>
+                                    <th style="padding:6px;">Salida</th>
+                                    <th style="padding:6px;">Ahora</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${insumos}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    ${reposicionHtml}
+                </div>
+            `,
+            confirmButtonText:'Aceptar',
+            confirmButtonColor:'#3c4a45'
         });
 
         await cargarOrdenesAdmin();
@@ -4791,13 +4938,31 @@ async function(ordenId){
         }
 
     }catch(error){
-
-        Swal.fire({
+        await Swal.fire({
             icon:'error',
-            title:'No se pudo cambiar el estado',
-            text:error.message,
+            title:'No se pudo procesar la orden',
+            html:`
+                <div style="text-align:left;">
+                    <p>
+                        ${escaparHtmlERP(error.message)}
+                    </p>
+
+                    <div
+                        style="
+                            background:#fff3cd;
+                            padding:12px;
+                            border-radius:10px;
+                            margin-top:12px;
+                        "
+                    >
+                        No se realizaron cambios parciales en el inventario.
+                    </div>
+                </div>
+            `,
             confirmButtonColor:'#3c4a45'
         });
+
+        await cargarOrdenesAdmin();
     }
 }
 

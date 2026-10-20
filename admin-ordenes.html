@@ -105,6 +105,28 @@
     padding:30px;
     color:#777;
 }
+
+.orden-proceso-info{
+    margin-top:16px;
+    padding:12px 14px;
+    border-radius:10px;
+    background:#f8f6f1;
+    color:#5f625f;
+    font-size:.9rem;
+    line-height:1.5;
+}
+
+@media(max-width:700px){
+    .ordenes-toolbar{
+        align-items:stretch;
+    }
+
+    .ordenes-toolbar input,
+    .ordenes-toolbar select,
+    .ordenes-toolbar button{
+        width:100% !important;
+    }
+}
 </style>
 </head>
 
@@ -161,8 +183,7 @@
                 width:auto;
                 padding:9px 17px;
                 font-size:0.9rem;
-                border-radius:17px
-
+                border-radius:17px;
             "
             onclick="window.location.href='admin-orden-nueva.html'"
         >
@@ -171,6 +192,12 @@
 
     </div>
 
+    <div class="orden-proceso-info">
+        <strong>Automatización ERP:</strong>
+        al iniciar la preparación de una orden pendiente, el sistema valida recetas e inventario,
+        descuenta los insumos necesarios, registra movimientos, actualiza el historial CRM y recalcula
+        la disponibilidad de productos. Una orden en preparación ya no puede cancelarse desde este panel.
+    </div>
 
     <div class="ordenes-toolbar">
 
@@ -180,7 +207,6 @@
             placeholder="Buscar por # de orden o cliente..."
             oninput="filtrarOrdenesAdmin()"
         >
-
 
         <select
             id="ordenes-estado"
@@ -209,7 +235,6 @@
 
         </select>
 
-
         <button
             class="btn-primary"
             style="
@@ -225,7 +250,6 @@
 
     </div>
 
-
     <div
         class="admin-table-container ordenes-scroll"
         style="margin-top:20px;"
@@ -234,41 +258,26 @@
         <table class="admin-table">
 
             <thead>
-
                 <tr>
-
                     <th># Orden</th>
-
                     <th>Cliente</th>
-
                     <th>Fecha y Hora</th>
-
                     <th>Productos</th>
-
                     <th>Total</th>
-
                     <th>Estado</th>
-
                     <th>Acciones</th>
-
                 </tr>
-
             </thead>
 
-
             <tbody id="tabla-ordenes-admin">
-
                 <tr>
-
                     <td
                         colspan="7"
                         class="orden-vacio"
                     >
                         Cargando...
                     </td>
-
                 </tr>
-
             </tbody>
 
         </table>
