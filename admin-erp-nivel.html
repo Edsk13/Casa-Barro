@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Nivel ERP | Casa Barro</title>
+
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<style>
+.erp-nivel-layout{
+    display:grid;
+    gap:20px;
+    margin-top:20px;
+}
+
+.erp-nivel-resumen{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:16px;
+}
+
+.erp-dato{
+    padding:18px;
+    border-radius:12px;
+    background:#f8f6f1;
+}
+
+.erp-dato span{
+    display:block;
+    color:#777;
+    margin-bottom:6px;
+}
+
+.erp-dato strong{
+    color:var(--verde-logo);
+    font-size:1.8rem;
+}
+
+.erp-progress-shell{
+    height:15px;
+    background:#ebe7df;
+    border-radius:999px;
+    overflow:hidden;
+    margin-top:16px;
+}
+
+.erp-progress-bar{
+    height:100%;
+    width:25%;
+    background:var(--verde-logo);
+    transition:.35s;
+}
+
+.erp-etapas{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:13px;
+    margin-top:20px;
+}
+
+.erp-etapa{
+    padding:18px;
+    border-radius:12px;
+    border:2px solid #e4dfd6;
+    background:white;
+    min-height:145px;
+    transition:.2s;
+}
+
+.erp-etapa-numero{
+    width:31px;
+    height:31px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:#e9e5de;
+    color:#555;
+    font-weight:800;
+    margin-bottom:10px;
+}
+
+.erp-etapa h3{
+    margin:0 0 7px;
+    color:#3c4a45;
+}
+
+.erp-etapa p{
+    margin:0;
+    color:#777;
+    font-size:.87rem;
+    line-height:1.4;
+}
+
+.erp-etapa.completa{
+    border-color:#aac4b5;
+    background:#f1f6f2;
+}
+
+.erp-etapa.completa .erp-etapa-numero{
+    background:#d8eadf;
+    color:#2f6b46;
+}
+
+.erp-etapa.actual{
+    border-color:var(--verde-logo);
+    box-shadow:0 4px 14px rgba(60,74,69,.12);
+}
+
+.erp-etapa.actual .erp-etapa-numero{
+    background:var(--verde-logo);
+    color:white;
+}
+
+.erp-criterios{
+    display:grid;
+    gap:10px;
+}
+
+.erp-criterio{
+    display:grid;
+    grid-template-columns:38px 1fr;
+    gap:10px;
+    align-items:start;
+    padding:13px;
+    border-radius:10px;
+    border:1px solid #e4dfd6;
+}
+
+.erp-criterio-icono{
+    width:30px;
+    height:30px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:800;
+}
+
+.erp-criterio.cumplido{
+    background:#f2f7f3;
+}
+
+.erp-criterio.cumplido .erp-criterio-icono{
+    background:#d8eadf;
+    color:#2f6b46;
+}
+
+.erp-criterio.pendiente{
+    background:#fffaf0;
+}
+
+.erp-criterio.pendiente .erp-criterio-icono{
+    background:#fff0c7;
+    color:#8a6a12;
+}
+
+.erp-criterio p{
+    margin:4px 0 0;
+    color:#777;
+    font-size:.88rem;
+}
+
+.erp-config-grid{
+    display:grid;
+    grid-template-columns:minmax(220px,1fr) auto auto;
+    gap:10px;
+    align-items:end;
+}
+
+.erp-config-grid select{
+    width:100%;
+    padding:10px 12px;
+    border:1px solid #ccc;
+    border-radius:8px;
+    background:white;
+}
+
+.erp-config-grid label{
+    display:block;
+    margin-bottom:6px;
+    color:#555;
+    font-weight:700;
+}
+
+.erp-mini-grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:12px;
+}
+
+.erp-mini{
+    background:#f8f6f1;
+    padding:14px;
+    border-radius:10px;
+}
+
+.erp-mini span{
+    color:#777;
+    font-size:.84rem;
+}
+
+.erp-mini strong{
+    display:block;
+    color:#3c4a45;
+    font-size:1.45rem;
+    margin-top:5px;
+}
+
+@media(max-width:900px){
+    .erp-etapas,
+    .erp-mini-grid{
+        grid-template-columns:repeat(2,1fr);
+    }
+
+    .erp-config-grid{
+        grid-template-columns:1fr;
+    }
+}
+
+@media(max-width:650px){
+    .erp-nivel-resumen,
+    .erp-etapas,
+    .erp-mini-grid{
+        grid-template-columns:1fr;
+    }
+}
+</style>
+</head>
+
+<body class="admin-body">
+
+<div class="admin-layout">
+
+<div id="admin-sidebar-container"></div>
+
+<main
+    class="admin-main crm-main-bg"
+    id="erp-nivel-panel"
+>
+
+<header class="admin-header">
+    <div>
+        <h1>Nivel de Implementación ERP</h1>
+        <p style="color:#777;">
+            Evalúa el avance empresarial desde Básico hasta Optimizado.
+        </p>
+    </div>
+
+    <div class="admin-user">
+        <span id="admin-user-name">Cargando...</span>
+    </div>
+</header>
+
+<div class="erp-nivel-layout">
+
+    <section class="crm-card">
+
+        <div style="display:flex;justify-content:space-between;gap:15px;align-items:flex-start;flex-wrap:wrap;">
+            <div>
+                <h2 style="margin:0;">Estado actual</h2>
+                <p style="color:#777;margin:5px 0 0;">
+                    El nivel registrado puede compararse con la evaluación calculada por el sistema.
+                </p>
+            </div>
+
+            <button
+                class="btn-primary"
+                style="width:auto;padding:9px 16px;border-radius:16px;font-size:.9rem;"
+                onclick="window.location.href='admin-erp-resumen.html'"
+            >
+                Volver al Dashboard
+            </button>
+        </div>
+
+        <div class="erp-nivel-resumen" style="margin-top:18px;">
+
+            <div class="erp-dato">
+                <span>Nivel registrado</span>
+                <strong id="erp-nivel-actual">—</strong>
+            </div>
+
+            <div class="erp-dato">
+                <span>Nivel sugerido por evaluación</span>
+                <strong id="erp-nivel-sugerido">—</strong>
+            </div>
+
+        </div>
+
+        <div class="erp-progress-shell">
+            <div
+                class="erp-progress-bar"
+                id="erp-nivel-barra"
+            ></div>
+        </div>
+
+        <p style="text-align:right;color:#777;margin:7px 0 0;">
+            Progreso registrado:
+            <strong id="erp-nivel-porcentaje">—</strong>
+        </p>
+
+    </section>
+
+
+    <section class="crm-card">
+        <h2>Etapas de adopción</h2>
+        <p style="color:#777;">
+            Modelo utilizado para representar la evolución del ERP en Casa Barro.
+        </p>
+
+        <div class="erp-etapas">
+
+            <div class="erp-etapa" id="erp-etapa-0">
+                <div class="erp-etapa-numero">1</div>
+                <h3>Básico</h3>
+                <p>
+                    Información central disponible y módulos principales registrados.
+                </p>
+            </div>
+
+            <div class="erp-etapa" id="erp-etapa-1">
+                <div class="erp-etapa-numero">2</div>
+                <h3>Integrado</h3>
+                <p>
+                    Órdenes empresariales conectan clientes CRM con productos SCM.
+                </p>
+            </div>
+
+            <div class="erp-etapa" id="erp-etapa-2">
+                <div class="erp-etapa-numero">3</div>
+                <h3>Automatizado</h3>
+                <p>
+                    Las órdenes procesan inventario, movimientos e historial automáticamente.
+                </p>
+            </div>
+
+            <div class="erp-etapa" id="erp-etapa-3">
+                <div class="erp-etapa-numero">4</div>
+                <h3>Optimizado</h3>
+                <p>
+                    La operación cuenta con automatización, datos suficientes y reposición SCM configurada.
+                </p>
+            </div>
+
+        </div>
+    </section>
+
+
+    <section class="crm-card">
+        <h2>Evaluación del sistema</h2>
+        <p style="color:#777;">
+            Estos criterios se calculan con los datos reales almacenados en la base de datos.
+        </p>
+
+        <div
+            class="erp-criterios"
+            id="erp-criterios-lista"
+            style="margin-top:16px;"
+        >
+            <p>Cargando evaluación...</p>
+        </div>
+    </section>
+
+
+    <section class="crm-card">
+        <h2>Evidencia cuantitativa</h2>
+
+        <div class="erp-mini-grid" style="margin-top:15px;">
+            <div class="erp-mini">
+                <span>Órdenes registradas</span>
+                <strong id="erp-nivel-ordenes">0</strong>
+            </div>
+
+            <div class="erp-mini">
+                <span>Órdenes automatizadas</span>
+                <strong id="erp-nivel-procesadas">0</strong>
+            </div>
+
+            <div class="erp-mini">
+                <span>Movimientos ERP</span>
+                <strong id="erp-nivel-movimientos">0</strong>
+            </div>
+
+            <div class="erp-mini">
+                <span>Ventas registradas en CRM</span>
+                <strong id="erp-nivel-crm">0</strong>
+            </div>
+        </div>
+    </section>
+
+
+    <section class="crm-card">
+        <h2>Actualizar nivel registrado</h2>
+        <p style="color:#777;">
+            Puedes establecerlo manualmente o sincronizarlo con el nivel sugerido por la evaluación.
+        </p>
+
+        <div class="erp-config-grid" style="margin-top:16px;">
+
+            <div>
+                <label for="erp-nivel-select">
+                    Nivel ERP
+                </label>
+
+                <select id="erp-nivel-select">
+                    <option value="Básico">Básico</option>
+                    <option value="Integrado">Integrado</option>
+                    <option value="Automatizado">Automatizado</option>
+                    <option value="Optimizado">Optimizado</option>
+                </select>
+            </div>
+
+            <button
+                class="btn-primary"
+                style="width:auto;padding:10px 17px;border-radius:17px;font-size:.9rem;"
+                onclick="guardarNivelERP()"
+            >
+                Guardar nivel
+            </button>
+
+            <button
+                class="btn-primary"
+                style="width:auto;padding:10px 17px;border-radius:17px;font-size:.9rem;"
+                onclick="sincronizarNivelERP()"
+            >
+                Usar nivel sugerido
+            </button>
+
+        </div>
+    </section>
+
+</div>
+
+</main>
+
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>

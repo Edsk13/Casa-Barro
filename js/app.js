@@ -5045,8 +5045,55 @@ async function(ordenId){
 }
 
 // ============================================================
-// DASHBOARD ERP INICIAL
+// ERP - DASHBOARD EMPRESARIAL Y NIVEL DE IMPLEMENTACIÓN
 // ============================================================
+
+let graficaVentasERP=null;
+let graficaProductosERP=null;
+
+function monedaERP(valor){
+    return Number(valor||0).toLocaleString(
+        'es-MX',
+        {
+            style:'currency',
+            currency:'MXN',
+            minimumFractionDigits:2
+        }
+    );
+}
+
+function nombrePeriodoERP(periodo){
+    if(!periodo){
+        return '';
+    }
+
+    const [anio,mes]=
+        String(periodo).split('-');
+
+    const fecha=
+        new Date(
+            Number(anio),
+            Number(mes)-1,
+            1
+        );
+
+    return fecha.toLocaleDateString(
+        'es-MX',
+        {
+            month:'short',
+            year:'numeric'
+        }
+    );
+}
+
+function establecerTextoERP(id,valor){
+    const elemento=
+        document.getElementById(id);
+
+    if(elemento){
+        elemento.textContent=valor;
+    }
+}
 
 window.cargarResumenERP=
 async function(){
@@ -5060,134 +5107,172 @@ async function(){
     }
 
     try{
-        const respuesta=
-            await apiERP(
-                '/api/erp/resumen'
-            );
+        const [
+            respuestaMetricas,
+            respuestaEstado
+        ]=await Promise.all([
+            apiERP('/api/erp/metricas'),
+            apiERP('/api/erp/estado')
+        ]);
 
         const data=
-            respuesta.data||{};
+            respuestaMetricas.data||{};
 
-        const valores={
-            'erp-k-clientes':
-                data.clientes_activos||0,
+        const estado=
+            respuestaEstado.data||{};
 
-            'erp-k-ordenes':
-                data.ordenes_total||0,
+        establecerTextoERP(
+            'erp-k-ventas',
+            monedaERP(
+                data.ventas_totales
+            )
+        );
 
-            'erp-k-pendientes':
-                data.ordenes_pendientes||0,
+        establecerTextoERP(
+            'erp-k-procesadas',
+            Number(
+                data.ordenes_procesadas||0
+            )
+        );
 
-            'erp-k-preparacion':
-                data.ordenes_preparacion||0,
+        establecerTextoERP(
+            'erp-k-productos-vendidos',
+            Number(
+                data.productos_vendidos||0
+            )
+        );
 
-            'erp-k-entregadas':
-                data.ordenes_entregadas||0,
+        establecerTextoERP(
+            'erp-k-clientes',
+            Number(
+                data.clientes_activos||0
+            )
+        );
 
-            'erp-k-productos':
-                data.productos_disponibles||0,
+        establecerTextoERP(
+            'erp-k-inventario',
+            Number(
+                data.inventario_disponible||0
+            )
+        );
 
-            'erp-k-inventario':
-                data.inventario_porciones||0,
+        establecerTextoERP(
+            'erp-k-ticket',
+            monedaERP(
+                data.ticket_promedio
+            )
+        );
 
-            'erp-k-atencion':
-                data.insumos_atencion||0
-        };
+        establecerTextoERP(
+            'erp-k-pendientes',
+            Number(
+                data.ordenes?.pendientes||0
+            )
+        );
 
-        Object.entries(valores)
-        .forEach(([id,valor])=>{
-            const elemento=
-                document.getElementById(id);
+        establecerTextoERP(
+            'erp-k-preparacion',
+            Number(
+                data.ordenes?.preparacion||0
+            )
+        );
 
-            if(elemento){
-                elemento.textContent=
-                    valor;
-            }
-        });
+        establecerTextoERP(
+            'erp-k-entregadas',
+            Number(
+                data.ordenes?.entregadas||0
+            )
+        );
 
+        establecerTextoERP(
+            'erp-k-canceladas',
+            Number(
+                data.ordenes?.canceladas||0
+            )
+        );
 
-        const tabla=
+        establecerTextoERP(
+            'erp-k-stock-bajo',
+            Number(
+                data.inventario?.bajos||0
+            )
+        );
+
+        establecerTextoERP(
+            'erp-k-stock-agotado',
+            Number(
+                data.inventario?.agotados||0
+            )
+        );
+
+        establecerTextoERP(
+            'erp-k-productos-disponibles',
+            Number(
+                data.productos_disponibles||0
+            )
+        );
+
+        const nivel=
             document.getElementById(
-                'erp-ordenes-recientes'
+                'erp-nivel-actual-resumen'
             );
 
-        if(tabla){
-
-            const ordenes=
-                data.ordenes_recientes||
-                [];
-
-            tabla.innerHTML=
-                ordenes.length
-
-                    ?ordenes.map(
-                        orden=>`
-                            <tr>
-
-                                <td>
-                                    <strong>
-                                        #${orden.id}
-                                    </strong>
-                                </td>
-
-                                <td>
-                                    ${fechaERP(orden.fecha)}
-                                </td>
-
-                                <td>
-                                    ${
-                                        escaparHtmlERP(
-                                            orden.cliente_nombre
-                                        )
-                                    }
-                                </td>
-
-                                <td>
-                                    $${
-                                        Number(
-                                            orden.total||
-                                            0
-                                        ).toFixed(2)
-                                    }
-                                </td>
-
-                                <td>
-                                    <span
-                                        class="
-                                            badge-status
-                                            ${orden.estado}
-                                        "
-                                    >
-                                        ${
-                                            textoEstadoOrdenERP(
-                                                orden.estado
-                                            )
-                                        }
-                                    </span>
-                                </td>
-
-                            </tr>
-                        `
-                    ).join('')
-
-                    :`
-                        <tr>
-                            <td
-                                colspan="5"
-                                style="
-                                    text-align:center;
-                                    padding:25px;
-                                    color:#777;
-                                "
-                            >
-                                Aún no hay órdenes registradas.
-                            </td>
-                        </tr>
-                    `;
+        if(nivel){
+            nivel.textContent=
+                estado.nivel||
+                'Básico';
         }
 
-    }catch(error){
+        const sugerido=
+            document.getElementById(
+                'erp-nivel-sugerido-resumen'
+            );
 
+        if(sugerido){
+            sugerido.textContent=
+                estado.nivel_sugerido||
+                'Básico';
+        }
+
+        const progreso=
+            document.getElementById(
+                'erp-progreso-resumen'
+            );
+
+        if(progreso){
+            progreso.style.width=
+                `${Number(
+                    estado.progreso||25
+                )}%`;
+        }
+
+        const progresoTexto=
+            document.getElementById(
+                'erp-progreso-texto-resumen'
+            );
+
+        if(progresoTexto){
+            progresoTexto.textContent=
+                `${Number(
+                    estado.progreso||25
+                )}%`;
+        }
+
+        renderIntegracionERP(
+            data.integracion||{}
+        );
+
+        renderOrdenesRecientesERP(
+            data.ordenes_recientes||[]
+        );
+
+        renderTopProductosTablaERP(
+            data.productos_mas_vendidos||[]
+        );
+
+        renderGraficasERP(data);
+
+    }catch(error){
         console.error(
             'Error cargando Dashboard ERP:',
             error
@@ -5195,7 +5280,590 @@ async function(){
 
         Swal.fire({
             icon:'error',
-            title:'No se pudo cargar el ERP',
+            title:'No se pudo cargar el Dashboard ERP',
+            text:error.message,
+            confirmButtonColor:'#3c4a45'
+        });
+    }
+}
+
+function renderIntegracionERP(integracion){
+    const mapa={
+        'erp-int-crm':integracion.crm,
+        'erp-int-erp':integracion.erp,
+        'erp-int-scm':integracion.scm,
+        'erp-int-auto':integracion.automatizacion
+    };
+
+    Object.entries(mapa)
+    .forEach(([id,activo])=>{
+        const elemento=
+            document.getElementById(id);
+
+        if(!elemento){
+            return;
+        }
+
+        elemento.innerHTML=
+            activo
+                ?'<span class="erp-ok">✓ Conectado</span>'
+                :'<span class="erp-pendiente">○ Pendiente</span>';
+    });
+}
+
+function renderOrdenesRecientesERP(ordenes){
+    const tabla=
+        document.getElementById(
+            'erp-ordenes-recientes'
+        );
+
+    if(!tabla){
+        return;
+    }
+
+    tabla.innerHTML=
+        ordenes.length
+            ?ordenes.map(
+                orden=>`
+                    <tr>
+                        <td>
+                            <strong>#${orden.id}</strong>
+                        </td>
+
+                        <td>
+                            ${fechaERP(orden.fecha)}
+                        </td>
+
+                        <td>
+                            ${escaparHtmlERP(
+                                orden.cliente_nombre
+                            )}
+                        </td>
+
+                        <td>
+                            ${Number(
+                                orden.productos_total||0
+                            )}
+                        </td>
+
+                        <td>
+                            <strong>
+                                ${monedaERP(
+                                    orden.total
+                                )}
+                            </strong>
+                        </td>
+
+                        <td>
+                            <span
+                                class="badge-status ${orden.estado}"
+                            >
+                                ${textoEstadoOrdenERP(
+                                    orden.estado
+                                )}
+                            </span>
+                        </td>
+                    </tr>
+                `
+            ).join('')
+            :`
+                <tr>
+                    <td
+                        colspan="6"
+                        style="
+                            text-align:center;
+                            padding:25px;
+                            color:#777;
+                        "
+                    >
+                        Aún no hay órdenes registradas.
+                    </td>
+                </tr>
+            `;
+}
+
+function renderTopProductosTablaERP(productos){
+    const tabla=
+        document.getElementById(
+            'erp-top-productos-tabla'
+        );
+
+    if(!tabla){
+        return;
+    }
+
+    tabla.innerHTML=
+        productos.length
+            ?productos.map(
+                (producto,index)=>`
+                    <tr>
+                        <td>${index+1}</td>
+                        <td>
+                            ${escaparHtmlERP(
+                                producto.nombre
+                            )}
+                        </td>
+                        <td>
+                            ${Number(
+                                producto.cantidad||0
+                            )}
+                        </td>
+                        <td>
+                            ${monedaERP(
+                                producto.importe
+                            )}
+                        </td>
+                    </tr>
+                `
+            ).join('')
+            :`
+                <tr>
+                    <td
+                        colspan="4"
+                        style="
+                            text-align:center;
+                            padding:20px;
+                            color:#777;
+                        "
+                    >
+                        Aún no hay productos vendidos.
+                    </td>
+                </tr>
+            `;
+}
+
+function renderGraficasERP(data){
+    if(
+        typeof Chart===
+        'undefined'
+    ){
+        return;
+    }
+
+    const canvasVentas=
+        document.getElementById(
+            'erp-grafica-ventas'
+        );
+
+    const canvasProductos=
+        document.getElementById(
+            'erp-grafica-productos'
+        );
+
+    if(canvasVentas){
+        if(graficaVentasERP){
+            graficaVentasERP.destroy();
+        }
+
+        const ventasMes=
+            data.ventas_por_mes||[];
+
+        graficaVentasERP=
+            new Chart(
+                canvasVentas,
+                {
+                    type:'line',
+                    data:{
+                        labels:
+                            ventasMes.length
+                                ?ventasMes.map(
+                                    item=>
+                                        nombrePeriodoERP(
+                                            item.periodo
+                                        )
+                                )
+                                :['Sin ventas'],
+                        datasets:[
+                            {
+                                label:'Ventas MXN',
+                                data:
+                                    ventasMes.length
+                                        ?ventasMes.map(
+                                            item=>
+                                                Number(
+                                                    item.ventas||0
+                                                )
+                                        )
+                                        :[0],
+                                borderColor:'#3c4a45',
+                                backgroundColor:'rgba(60,74,69,.12)',
+                                fill:true,
+                                tension:.35
+                            }
+                        ]
+                    },
+                    options:{
+                        responsive:true,
+                        maintainAspectRatio:false,
+                        plugins:{
+                            legend:{
+                                display:false
+                            }
+                        },
+                        scales:{
+                            y:{
+                                beginAtZero:true
+                            }
+                        }
+                    }
+                }
+            );
+    }
+
+    if(canvasProductos){
+        if(graficaProductosERP){
+            graficaProductosERP.destroy();
+        }
+
+        const productos=
+            data.productos_mas_vendidos||[];
+
+        graficaProductosERP=
+            new Chart(
+                canvasProductos,
+                {
+                    type:'bar',
+                    data:{
+                        labels:
+                            productos.length
+                                ?productos.map(
+                                    item=>item.nombre
+                                )
+                                :['Sin ventas'],
+                        datasets:[
+                            {
+                                label:'Unidades vendidas',
+                                data:
+                                    productos.length
+                                        ?productos.map(
+                                            item=>
+                                                Number(
+                                                    item.cantidad||0
+                                                )
+                                        )
+                                        :[0],
+                                backgroundColor:'rgba(85,114,104,.75)'
+                            }
+                        ]
+                    },
+                    options:{
+                        responsive:true,
+                        maintainAspectRatio:false,
+                        indexAxis:'y',
+                        plugins:{
+                            legend:{
+                                display:false
+                            }
+                        },
+                        scales:{
+                            x:{
+                                beginAtZero:true,
+                                ticks:{
+                                    precision:0
+                                }
+                            }
+                        }
+                    }
+                }
+            );
+    }
+}
+
+// ============================================================
+// ERP - NIVEL DE IMPLEMENTACIÓN
+// ============================================================
+
+window.cargarNivelERP=
+async function(){
+    if(
+        !document.getElementById(
+            'erp-nivel-panel'
+        )
+    ){
+        return;
+    }
+
+    try{
+        const respuesta=
+            await apiERP(
+                '/api/erp/estado'
+            );
+
+        renderNivelERP(
+            respuesta.data||{}
+        );
+
+    }catch(error){
+        Swal.fire({
+            icon:'error',
+            title:'No se pudo cargar el nivel ERP',
+            text:error.message,
+            confirmButtonColor:'#3c4a45'
+        });
+    }
+}
+
+function renderNivelERP(data){
+    establecerTextoERP(
+        'erp-nivel-actual',
+        data.nivel||'Básico'
+    );
+
+    establecerTextoERP(
+        'erp-nivel-sugerido',
+        data.nivel_sugerido||'Básico'
+    );
+
+    establecerTextoERP(
+        'erp-nivel-porcentaje',
+        `${Number(data.progreso||25)}%`
+    );
+
+    const barra=
+        document.getElementById(
+            'erp-nivel-barra'
+        );
+
+    if(barra){
+        barra.style.width=
+            `${Number(data.progreso||25)}%`;
+    }
+
+    const select=
+        document.getElementById(
+            'erp-nivel-select'
+        );
+
+    if(select){
+        select.value=
+            data.nivel||'Básico';
+    }
+
+    const niveles=[
+        'Básico',
+        'Integrado',
+        'Automatizado',
+        'Optimizado'
+    ];
+
+    const indiceActual=
+        niveles.indexOf(
+            data.nivel||'Básico'
+        );
+
+    niveles.forEach(
+        (nivel,index)=>{
+            const tarjeta=
+                document.getElementById(
+                    `erp-etapa-${index}`
+                );
+
+            if(!tarjeta){
+                return;
+            }
+
+            tarjeta.classList.remove(
+                'actual',
+                'completa'
+            );
+
+            if(index===indiceActual){
+                tarjeta.classList.add(
+                    'actual'
+                );
+            }else if(index<indiceActual){
+                tarjeta.classList.add(
+                    'completa'
+                );
+            }
+        }
+    );
+
+    const criterios=
+        document.getElementById(
+            'erp-criterios-lista'
+        );
+
+    if(criterios){
+        const lista=
+            data.criterios||[];
+
+        criterios.innerHTML=
+            lista.length
+                ?lista.map(
+                    criterio=>`
+                        <div
+                            class="erp-criterio ${
+                                criterio.cumplido
+                                    ?'cumplido'
+                                    :'pendiente'
+                            }"
+                        >
+                            <div class="erp-criterio-icono">
+                                ${
+                                    criterio.cumplido
+                                        ?'✓'
+                                        :'○'
+                                }
+                            </div>
+
+                            <div>
+                                <strong>
+                                    ${escaparHtmlERP(
+                                        criterio.nombre
+                                    )}
+                                </strong>
+
+                                <p>
+                                    ${escaparHtmlERP(
+                                        criterio.descripcion
+                                    )}
+                                </p>
+                            </div>
+                        </div>
+                    `
+                ).join('')
+                :'<p>No hay criterios disponibles.</p>';
+    }
+
+    const resumen=
+        data.resumen||{};
+
+    establecerTextoERP(
+        'erp-nivel-ordenes',
+        Number(
+            resumen.ordenes_total||0
+        )
+    );
+
+    establecerTextoERP(
+        'erp-nivel-procesadas',
+        Number(
+            resumen.ordenes_procesadas||0
+        )
+    );
+
+    establecerTextoERP(
+        'erp-nivel-movimientos',
+        Number(
+            resumen.movimientos_venta||0
+        )
+    );
+
+    establecerTextoERP(
+        'erp-nivel-crm',
+        Number(
+            resumen.interacciones_venta||0
+        )
+    );
+}
+
+window.guardarNivelERP=
+async function(){
+    const select=
+        document.getElementById(
+            'erp-nivel-select'
+        );
+
+    if(!select){
+        return;
+    }
+
+    const nivel=
+        select.value;
+
+    const confirmar=
+        await Swal.fire({
+            icon:'question',
+            title:'Actualizar nivel ERP',
+            text:`El nivel registrado cambiará a ${nivel}.`,
+            showCancelButton:true,
+            confirmButtonText:'Guardar',
+            cancelButtonText:'Cancelar',
+            confirmButtonColor:'#3c4a45'
+        });
+
+    if(!confirmar.isConfirmed){
+        return;
+    }
+
+    try{
+        const respuesta=
+            await apiERP(
+                '/api/erp/estado',
+                {
+                    method:'PUT',
+                    body:JSON.stringify({
+                        nivel,
+                        usuario_id:
+                            usuarioERPActual()?.id||null
+                    })
+                }
+            );
+
+        renderNivelERP(
+            respuesta.data||{}
+        );
+
+        Swal.fire({
+            toast:true,
+            position:'top-end',
+            icon:'success',
+            title:'Nivel ERP actualizado',
+            showConfirmButton:false,
+            timer:1700
+        });
+
+    }catch(error){
+        Swal.fire({
+            icon:'error',
+            title:'No se pudo actualizar',
+            text:error.message,
+            confirmButtonColor:'#3c4a45'
+        });
+    }
+}
+
+window.sincronizarNivelERP=
+async function(){
+    try{
+        const evaluacion=
+            await apiERP(
+                '/api/erp/estado'
+            );
+
+        const nivel=
+            evaluacion.data?.nivel_sugerido||
+            'Básico';
+
+        const respuesta=
+            await apiERP(
+                '/api/erp/estado',
+                {
+                    method:'PUT',
+                    body:JSON.stringify({
+                        nivel,
+                        usuario_id:
+                            usuarioERPActual()?.id||null
+                    })
+                }
+            );
+
+        renderNivelERP(
+            respuesta.data||{}
+        );
+
+        Swal.fire({
+            icon:'success',
+            title:'Nivel sincronizado',
+            text:`El nivel ERP se actualizó a ${nivel} según la evaluación actual del sistema.`,
+            confirmButtonColor:'#3c4a45'
+        });
+
+    }catch(error){
+        Swal.fire({
+            icon:'error',
+            title:'No se pudo sincronizar',
             text:error.message,
             confirmButtonColor:'#3c4a45'
         });
@@ -7010,16 +7678,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         )
     ) {
 
-        cargarResumenERP();
+        await cargarResumenERP();
     }
 
+
+    // NIVEL DE IMPLEMENTACIÓN ERP
+    if (
+        document.getElementById(
+            'erp-nivel-panel'
+        )
+    ) {
+
+        await cargarNivelERP();
+    }
+
+
+    // NUEVA ORDEN ERP
     if(
-    document.getElementById(
-        'erp-nueva-orden'
-    )
-){
-    await cargarNuevaOrdenERP();
-}
+        document.getElementById(
+            'erp-nueva-orden'
+        )
+    ){
+        await cargarNuevaOrdenERP();
+    }
 
 });
 
