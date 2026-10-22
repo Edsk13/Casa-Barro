@@ -4101,6 +4101,482 @@ app.post(
 
 
 // ============================================================
+// ERP - NIVEL DE IMPLEMENTACIÓN Y MÉTRICAS EMPRESARIALES
+// ============================================================
+
+const NIVELES_ERP = [
+    'Básico',
+    'Integrado',
+    'Automatizado',
+    'Optimizado'
+];
+
+function porcentajeNivelERP(nivel){
+    const mapa={
+        'Básico':25,
+        'Integrado':50,
+        'Automatizado':75,
+        'Optimizado':100
+    };
+
+    return mapa[nivel]||25;
+}
+
+async function evaluarEstadoERP(){
+    const [
+        configuracion,
+        clientes,
+        productos,
+        inventario,
+        ordenes,
+        automatizacion,
+        crmVentas,
+        scmEstrategias
+    ]=await Promise.all([
+
+        dbGetSCM(`
+            SELECT
+                id,
+                nivel,
+                fecha_actualizacion
+            FROM erp_config
+            WHERE id=1
+        `),
+
+        dbGetSCM(`
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN estado='activo' THEN 1 ELSE 0 END) AS activos
+            FROM clientes
+        `),
+
+        dbGetSCM(`
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN estado<>'inactivo' THEN 1 ELSE 0 END) AS operativos
+            FROM productos
+        `),
+
+        dbGetSCM(`
+            SELECT
+                COUNT(*) AS registros,
+                COALESCE(SUM(stock_actual),0) AS existencias
+            FROM inventario
+        `),
+
+        dbGetSCM(`
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN inventario_aplicado=1 THEN 1 ELSE 0 END) AS procesadas
+            FROM ordenes_empresariales
+        `),
+
+        dbGetSCM(`
+            SELECT
+                COUNT(*) AS movimientos
+            FROM movimientos_inventario
+            WHERE tipo='salida'
+              AND motivo LIKE 'venta ERP orden #%'
+        `),
+
+        dbGetSCM(`
+            SELECT
+                COUNT(*) AS interacciones
+            FROM interacciones
+            WHERE tipo='Venta ERP'
+        `),
+
+        dbGetSCM(`
+            SELECT
+                COUNT(*) AS configurados
+            FROM insumos
+            WHERE estado='activo'
+              AND UPPER(COALESCE(estrategia_reposicion,'')) IN ('PUSH','PULL')
+        `)
+    ]);
+
+    const totalClientes=Number(clientes?.total||0);
+    const clientesActivos=Number(clientes?.activos||0);
+    const totalProductos=Number(productos?.total||0);
+    const productosOperativos=Number(productos?.operativos||0);
+    const registrosInventario=Number(inventario?.registros||0);
+    const ordenesTotal=Number(ordenes?.total||0);
+    const ordenesProcesadas=Number(ordenes?.procesadas||0);
+    const movimientosVenta=Number(automatizacion?.movimientos||0);
+    const interaccionesVenta=Number(crmVentas?.interacciones||0);
+    const estrategiasConfiguradas=Number(scmEstrategias?.configurados||0);
+
+    const criterios=[
+        {
+            id:'centralizacion',
+            nombre:'Datos centrales disponibles',
+            descripcion:'CRM, productos SCM e inventario están disponibles para el ERP.',
+            cumplido:
+                totalClientes>0 &&
+                totalProductos>0 &&
+                registrosInventario>0
+        },
+        {
+            id:'integracion',
+            nombre:'Integración CRM + ERP + SCM',
+            descripcion:'Existen órdenes que relacionan clientes con productos.',
+            cumplido:ordenesTotal>0
+        },
+        {
+            id:'automatizacion',
+            nombre:'Automatización de inventario',
+            descripcion:'Al menos una orden ha descontado inventario y generado movimientos automáticamente.',
+            cumplido:
+                ordenesProcesadas>0 &&
+                movimientosVenta>0
+        },
+        {
+            id:'crm',
+            nombre:'Historial comercial integrado',
+            descripcion:'Las ventas ERP quedan registradas en el historial CRM del cliente.',
+            cumplido:interaccionesVenta>0
+        },
+        {
+            id:'scm',
+            nombre:'SCM conectado a reposición',
+            descripcion:'Los insumos activos cuentan con estrategia PUSH o PULL.',
+            cumplido:estrategiasConfiguradas>0
+        },
+        {
+            id:'optimizacion',
+            nombre:'Operación con datos suficientes',
+            descripcion:'Existen al menos tres órdenes procesadas para analizar comportamiento operativo.',
+            cumplido:ordenesProcesadas>=3
+        }
+    ];
+
+    let nivelSugerido='Básico';
+
+    if(
+        criterios.find(c=>c.id==='centralizacion')?.cumplido &&
+        criterios.find(c=>c.id==='integracion')?.cumplido
+    ){
+        nivelSugerido='Integrado';
+    }
+
+    if(
+        nivelSugerido==='Integrado' &&
+        criterios.find(c=>c.id==='automatizacion')?.cumplido &&
+        criterios.find(c=>c.id==='crm')?.cumplido
+    ){
+        nivelSugerido='Automatizado';
+    }
+
+    if(
+        nivelSugerido==='Automatizado' &&
+        criterios.find(c=>c.id==='scm')?.cumplido &&
+        criterios.find(c=>c.id==='optimizacion')?.cumplido
+    ){
+        nivelSugerido='Optimizado';
+    }
+
+    const nivelActual=
+        NIVELES_ERP.includes(configuracion?.nivel)
+            ?configuracion.nivel
+            :'Básico';
+
+    return {
+        nivel:nivelActual,
+        nivel_sugerido:nivelSugerido,
+        progreso:porcentajeNivelERP(nivelActual),
+        progreso_sugerido:porcentajeNivelERP(nivelSugerido),
+        fecha_actualizacion:configuracion?.fecha_actualizacion||null,
+        criterios,
+        resumen:{
+            clientes_total:totalClientes,
+            clientes_activos:clientesActivos,
+            productos_total:totalProductos,
+            productos_operativos:productosOperativos,
+            registros_inventario:registrosInventario,
+            ordenes_total:ordenesTotal,
+            ordenes_procesadas:ordenesProcesadas,
+            movimientos_venta:movimientosVenta,
+            interacciones_venta:interaccionesVenta,
+            estrategias_configuradas:estrategiasConfiguradas
+        }
+    };
+}
+
+app.get('/api/erp/estado',async(req,res)=>{
+    try{
+        const estado=await evaluarEstadoERP();
+
+        res.json({
+            mensaje:'Éxito',
+            data:estado
+        });
+
+    }catch(error){
+        console.error('Error evaluando estado ERP:',error);
+        res.status(500).json({
+            error:'No se pudo evaluar el nivel ERP.'
+        });
+    }
+});
+
+app.put('/api/erp/estado',async(req,res)=>{
+    try{
+        const nivel=String(req.body?.nivel||'').trim();
+        const usuarioId=usuarioIdERP(req);
+
+        if(!NIVELES_ERP.includes(nivel)){
+            return res.status(400).json({
+                error:'Nivel ERP no válido.'
+            });
+        }
+
+        await dbRunSCM(`
+            INSERT INTO erp_config(
+                id,
+                nivel,
+                fecha_actualizacion
+            )
+            VALUES(
+                1,
+                ?,
+                CURRENT_TIMESTAMP
+            )
+            ON CONFLICT(id)
+            DO UPDATE SET
+                nivel=excluded.nivel,
+                fecha_actualizacion=CURRENT_TIMESTAMP
+        `,[nivel]);
+
+        registrarActividad(
+            usuarioId,
+            'EDICION',
+            'ERP',
+            `Actualizó el nivel de implementación ERP a ${nivel}`,
+            'erp_config',
+            1
+        );
+
+        const estado=await evaluarEstadoERP();
+
+        res.json({
+            mensaje:'Nivel ERP actualizado correctamente.',
+            data:estado
+        });
+
+    }catch(error){
+        console.error('Error actualizando nivel ERP:',error);
+        res.status(500).json({
+            error:'No se pudo actualizar el nivel ERP.'
+        });
+    }
+});
+
+app.get('/api/erp/metricas',async(req,res)=>{
+    try{
+        const [
+            ventas,
+            productosVendidos,
+            clientes,
+            inventario,
+            estados,
+            ventasPorMes,
+            topProductos,
+            ventasPorCategoria,
+            recientes
+        ]=await Promise.all([
+
+            dbGetSCM(`
+                SELECT
+                    COUNT(*) AS ordenes_procesadas,
+                    ROUND(COALESCE(SUM(total),0),2) AS ventas_totales,
+                    ROUND(
+                        CASE
+                            WHEN COUNT(*)>0
+                            THEN COALESCE(SUM(total),0)/COUNT(*)
+                            ELSE 0
+                        END,
+                        2
+                    ) AS ticket_promedio,
+                    COUNT(DISTINCT cliente_id) AS clientes_con_compra
+                FROM ordenes_empresariales
+                WHERE inventario_aplicado=1
+            `),
+
+            dbGetSCM(`
+                SELECT
+                    COALESCE(SUM(od.cantidad),0) AS total
+                FROM orden_detalle od
+                INNER JOIN ordenes_empresariales o
+                    ON o.id=od.orden_id
+                WHERE o.inventario_aplicado=1
+            `),
+
+            dbGetSCM(`
+                SELECT
+                    COUNT(*) AS total,
+                    SUM(CASE WHEN estado='activo' THEN 1 ELSE 0 END) AS activos
+                FROM clientes
+            `),
+
+            dbGetSCM(`
+                SELECT
+                    COUNT(*) AS insumos_total,
+                    COALESCE(SUM(stock_actual),0) AS inventario_disponible,
+                    SUM(CASE WHEN stock_actual<=0 THEN 1 ELSE 0 END) AS agotados,
+                    SUM(
+                        CASE
+                            WHEN stock_actual>0
+                             AND stock_actual<=stock_minimo
+                            THEN 1 ELSE 0
+                        END
+                    ) AS bajos,
+                    SUM(CASE WHEN stock_actual>stock_minimo THEN 1 ELSE 0 END) AS normales
+                FROM inventario
+            `),
+
+            dbGetSCM(`
+                SELECT
+                    COUNT(*) AS total,
+                    SUM(CASE WHEN estado='pendiente' THEN 1 ELSE 0 END) AS pendientes,
+                    SUM(CASE WHEN estado='preparacion' THEN 1 ELSE 0 END) AS preparacion,
+                    SUM(CASE WHEN estado='entregado' THEN 1 ELSE 0 END) AS entregadas,
+                    SUM(CASE WHEN estado='cancelado' THEN 1 ELSE 0 END) AS canceladas
+                FROM ordenes_empresariales
+            `),
+
+            dbAllSCM(`
+                SELECT
+                    strftime(
+                        '%Y-%m',
+                        COALESCE(fecha_procesado,fecha),
+                        'localtime'
+                    ) AS periodo,
+                    ROUND(SUM(total),2) AS ventas,
+                    COUNT(*) AS ordenes
+                FROM ordenes_empresariales
+                WHERE inventario_aplicado=1
+                  AND datetime(COALESCE(fecha_procesado,fecha)) >= datetime('now','-6 months')
+                GROUP BY periodo
+                ORDER BY periodo ASC
+            `),
+
+            dbAllSCM(`
+                SELECT
+                    p.id,
+                    p.nombre,
+                    SUM(od.cantidad) AS cantidad,
+                    ROUND(SUM(od.subtotal),2) AS importe
+                FROM orden_detalle od
+                INNER JOIN ordenes_empresariales o
+                    ON o.id=od.orden_id
+                INNER JOIN productos p
+                    ON p.id=od.producto_id
+                WHERE o.inventario_aplicado=1
+                GROUP BY p.id,p.nombre
+                ORDER BY cantidad DESC,importe DESC
+                LIMIT 7
+            `),
+
+            dbAllSCM(`
+                SELECT
+                    COALESCE(NULLIF(TRIM(p.categoria),''),'Sin categoría') AS categoria,
+                    SUM(od.cantidad) AS cantidad,
+                    ROUND(SUM(od.subtotal),2) AS ventas
+                FROM orden_detalle od
+                INNER JOIN ordenes_empresariales o
+                    ON o.id=od.orden_id
+                INNER JOIN productos p
+                    ON p.id=od.producto_id
+                WHERE o.inventario_aplicado=1
+                GROUP BY COALESCE(NULLIF(TRIM(p.categoria),''),'Sin categoría')
+                ORDER BY ventas DESC
+            `),
+
+            dbAllSCM(`
+                SELECT
+                    o.id,
+                    o.fecha,
+                    o.fecha_procesado,
+                    o.estado,
+                    o.total,
+                    o.inventario_aplicado,
+                    c.nombre AS cliente_nombre,
+                    COALESCE(SUM(od.cantidad),0) AS productos_total
+                FROM ordenes_empresariales o
+                INNER JOIN clientes c
+                    ON c.id=o.cliente_id
+                LEFT JOIN orden_detalle od
+                    ON od.orden_id=o.id
+                GROUP BY
+                    o.id,
+                    o.fecha,
+                    o.fecha_procesado,
+                    o.estado,
+                    o.total,
+                    o.inventario_aplicado,
+                    c.nombre
+                ORDER BY o.fecha DESC,o.id DESC
+                LIMIT 8
+            `)
+        ]);
+
+        const productosDisponibles=await dbGetSCM(`
+            SELECT COUNT(*) AS total
+            FROM productos
+            WHERE estado='disponible'
+              AND COALESCE(stock_actual,0)>0
+        `);
+
+        const estadoERP=await evaluarEstadoERP();
+
+        res.json({
+            mensaje:'Éxito',
+            data:{
+                ventas_totales:Number(ventas?.ventas_totales||0),
+                ordenes_procesadas:Number(ventas?.ordenes_procesadas||0),
+                productos_vendidos:Number(productosVendidos?.total||0),
+                clientes_activos:Number(clientes?.activos||0),
+                clientes_con_compra:Number(ventas?.clientes_con_compra||0),
+                inventario_disponible:Number(inventario?.inventario_disponible||0),
+                productos_disponibles:Number(productosDisponibles?.total||0),
+                ticket_promedio:Number(ventas?.ticket_promedio||0),
+                ordenes:{
+                    total:Number(estados?.total||0),
+                    pendientes:Number(estados?.pendientes||0),
+                    preparacion:Number(estados?.preparacion||0),
+                    entregadas:Number(estados?.entregadas||0),
+                    canceladas:Number(estados?.canceladas||0)
+                },
+                inventario:{
+                    insumos_total:Number(inventario?.insumos_total||0),
+                    agotados:Number(inventario?.agotados||0),
+                    bajos:Number(inventario?.bajos||0),
+                    normales:Number(inventario?.normales||0)
+                },
+                ventas_por_mes:ventasPorMes,
+                productos_mas_vendidos:topProductos,
+                ventas_por_categoria:ventasPorCategoria,
+                ordenes_recientes:recientes,
+                nivel_erp:estadoERP.nivel,
+                nivel_sugerido:estadoERP.nivel_sugerido,
+                integracion:{
+                    crm:Number(clientes?.total||0)>0,
+                    erp:Number(estados?.total||0)>0,
+                    scm:Number(inventario?.insumos_total||0)>0,
+                    automatizacion:Number(ventas?.ordenes_procesadas||0)>0
+                }
+            }
+        });
+
+    }catch(error){
+        console.error('Error cargando métricas ERP:',error);
+        res.status(500).json({
+            error:'No se pudieron cargar las métricas ERP.'
+        });
+    }
+});
+
+// ============================================================
 // GET /api/erp/resumen
 // ============================================================
 
