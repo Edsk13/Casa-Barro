@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = 3000;
@@ -339,16 +340,249 @@ function registrarActividad(usuarioId, accion, modulo, descripcion, entidad = nu
     });
 }
 
-const esRolInterno = (rol) => ['admin', 'vendedor', 'logistica'].includes(rol);
+const ROLES_INTERNOS = ['admin', 'vendedor', 'logistica'];
+
+const PERMISOS_POR_ROL = {
+    admin: {
+        etiqueta: 'Administrador',
+        crm: { ver: true, gestionar: true },
+        scm: { ver: true, gestionar: true },
+        erp: {
+            ver: true,
+            crear_orden: true,
+            cancelar_orden: true,
+            procesar_orden: true,
+            entregar_orden: true,
+            configurar_nivel: true
+        },
+        administracion: {
+            personal: true,
+            reportes: true,
+            actividad: true,
+            configuracion: true,
+            roles: true
+        }
+    },
+    vendedor: {
+        etiqueta: 'Ventas',
+        crm: { ver: true, gestionar: true },
+        scm: { ver: false, gestionar: false },
+        erp: {
+            ver: true,
+            crear_orden: true,
+            cancelar_orden: true,
+            procesar_orden: false,
+            entregar_orden: false,
+            configurar_nivel: false
+        },
+        administracion: {
+            personal: false,
+            reportes: false,
+            actividad: true,
+            configuracion: true,
+            roles: false
+        }
+    },
+    logistica: {
+        etiqueta: 'Logística',
+        crm: { ver: false, gestionar: false },
+        scm: { ver: true, gestionar: true },
+        erp: {
+            ver: true,
+            crear_orden: false,
+            cancelar_orden: false,
+            procesar_orden: true,
+            entregar_orden: true,
+            configurar_nivel: false
+        },
+        administracion: {
+            personal: false,
+            reportes: false,
+            actividad: true,
+            configuracion: true,
+            roles: false
+        }
+    }
+};
+
+const sesionesCasaBarro = new Map();
+
+const esRolInterno = (rol) => ROLES_INTERNOS.includes(rol);
+
+function permisosRolSistema(rol) {
+    return PERMISOS_POR_ROL[rol] || {
+        etiqueta: 'Cliente',
+        crm: { ver: false, gestionar: false },
+        scm: { ver: false, gestionar: false },
+        erp: {
+            ver: false,
+            crear_orden: false,
+            cancelar_orden: false,
+            procesar_orden: false,
+            entregar_orden: false,
+            configurar_nivel: false
+        },
+        administracion: {
+            personal: false,
+            reportes: false,
+            actividad: false,
+            configuracion: true,
+            roles: false
+        }
+    };
+}
+
+function crearSesionCasaBarro(usuario) {
+    const token = crypto.randomUUID();
+    sesionesCasaBarro.set(token, {
+        usuario_id: Number(usuario.id),
+        creada_en: Date.now()
+    });
+    return token;
+}
+
+function tokenDesdeRequest(req) {
+    const autorizacion = String(req.headers.authorization || '');
+    if (autorizacion.startsWith('Bearer ')) {
+        return autorizacion.slice(7).trim();
+    }
+    return null;
+}
+
+function obtenerUsuarioSesion(req) {
+    return new Promise((resolve, reject) => {
+        const token = tokenDesdeRequest(req);
+        if (!token || !sesionesCasaBarro.has(token)) {
+            return resolve(null);
+        }
+
+        const sesion = sesionesCasaBarro.get(token);
+        db.get(
+            `SELECT id, nombre, correo, rol, empresa, telefono
+             FROM usuarios
+             WHERE id = ?`,
+            [sesion.usuario_id],
+            (err, usuario) => {
+                if (err) return reject(err);
+                if (!usuario) {
+                    sesionesCasaBarro.delete(token);
+                    return resolve(null);
+                }
+                resolve({ ...usuario, token });
+            }
+        );
+    });
+}
+
+function reglaAccesoCasaBarro(req) {
+    const ruta = req.path;
+    const metodo = req.method.toUpperCase();
+
+    // Perfil propio: cualquier usuario autenticado puede editar solo su cuenta.
+    if (/^\/api\/usuarios\/\d+$/.test(ruta)) {
+        if (metodo === 'PUT') return { tipo: 'usuario-propio-o-admin' };
+        if (metodo === 'DELETE') return { roles: ['admin'] };
+    }
+
+    if (ruta === '/api/usuarios/rol') {
+        return metodo === 'PUT'
+            ? { roles: ['admin'] }
+            : { roles: ROLES_INTERNOS };
+    }
+
+    if (ruta.startsWith('/api/personal')) {
+        return { roles: ['admin'] };
+    }
+
+    if (ruta.startsWith('/api/mis-actividades/')) {
+        return { roles: ROLES_INTERNOS, soloPropioSalvoAdmin: true };
+    }
+
+    if (ruta.startsWith('/api/mis-interacciones/')) {
+        return { roles: ['admin', 'vendedor'], soloPropioSalvoAdmin: true };
+    }
+
+    if (
+        ruta.startsWith('/api/clientes') ||
+        ruta === '/api/interacciones' ||
+        ruta === '/api/metricas-crm'
+    ) {
+        return { roles: ['admin', 'vendedor'] };
+    }
+
+    // El catálogo público usa este endpoint para validar existencias.
+    if (
+        metodo === 'GET' &&
+        /^\/api\/productos\/\d+\/disponibilidad$/.test(ruta)
+    ) {
+        return null;
+    }
+
+    if (ruta.startsWith('/api/productos')) {
+        return metodo === 'GET'
+            ? { roles: ROLES_INTERNOS }
+            : { roles: ['admin', 'logistica'] };
+    }
+
+    if (
+        ruta.startsWith('/api/proveedores') ||
+        ruta.startsWith('/api/insumos') ||
+        ruta.startsWith('/api/inventario') ||
+        ruta.startsWith('/api/scm/')
+    ) {
+        return { roles: ['admin', 'logistica'] };
+    }
+
+    if (ruta.startsWith('/api/ordenes')) {
+        if (metodo === 'GET') {
+            return { roles: ROLES_INTERNOS };
+        }
+
+        if (metodo === 'POST' && ruta === '/api/ordenes') {
+            return { roles: ['admin', 'vendedor'] };
+        }
+
+        if (
+            metodo === 'POST' &&
+            (ruta.endsWith('/procesar') || ruta === '/api/ordenes/procesar')
+        ) {
+            return { roles: ['admin', 'logistica'] };
+        }
+
+        if (metodo === 'PUT' && ruta.endsWith('/estado')) {
+            const estado = String(req.body?.estado || '').toLowerCase();
+            if (estado === 'cancelado') {
+                return { roles: ['admin', 'vendedor'] };
+            }
+            if (estado === 'entregado') {
+                return { roles: ['admin', 'logistica'] };
+            }
+            return { roles: ['admin'] };
+        }
+
+        return { roles: ['admin'] };
+    }
+
+    if (ruta.startsWith('/api/erp/')) {
+        if (metodo === 'PUT') {
+            return { roles: ['admin'] };
+        }
+        return { roles: ROLES_INTERNOS };
+    }
+
+    return null;
+}
 
 // ============================================================
 // AUTENTICACIÓN PÚBLICA
 // ============================================================
 app.post('/api/registro', (req, res) => {
-    const { nombre, correo, password, rol, empresa } = req.body;
+    const { nombre, correo, password, empresa } = req.body;
     if (!nombre || !correo || !password) return res.status(400).json({ error: 'Datos incompletos' });
 
-    const rolUsuario = rol || 'cliente';
+    // El registro público siempre crea cuentas de cliente.
+    // Los roles internos solo pueden asignarse desde Personal / Roles por un administrador.
+    const rolUsuario = 'cliente';
     db.run(`INSERT INTO usuarios (nombre, correo, password, rol, empresa) VALUES (?, ?, ?, ?, ?)`, 
     [nombre, correo, password, rolUsuario, empresa], function(err) {
         if (err) return res.status(400).json({ error: 'El correo ya está registrado.' });
@@ -361,24 +595,145 @@ app.post('/api/registro', (req, res) => {
     });
 });
 
-app.post('/api/login', (req, res) => {
+function loginCasaBarro(req, res) {
     const { correo, password } = req.body;
-    if (!correo || !password) return res.status(400).json({ error: 'Datos incompletos' });
+    if (!correo || !password) {
+        return res.status(400).json({ error: 'Datos incompletos' });
+    }
 
-    db.get(`SELECT id, nombre, correo, rol, empresa, password, telefono FROM usuarios WHERE correo = ? AND password = ?`, 
-    [correo, password], (err, row) => {
-        if (err) return res.status(500).json({ error: err.message });
-        if (!row) return res.status(401).json({ error: 'Credenciales incorrectas' });
+    db.get(
+        `SELECT id, nombre, correo, rol, empresa, telefono
+         FROM usuarios
+         WHERE correo = ? AND password = ?`,
+        [correo, password],
+        (err, row) => {
+            if (err) return res.status(500).json({ error: err.message });
+            if (!row) return res.status(401).json({ error: 'Credenciales incorrectas' });
 
-        if (esRolInterno(row.rol)) registrarActividad(row.id, 'SESION', 'Sistema', 'Inició sesión en el sistema', 'usuario', row.id);
-        res.json({ mensaje: 'Éxito', usuario: row });
-    });
+            const token = crearSesionCasaBarro(row);
+
+            if (esRolInterno(row.rol)) {
+                registrarActividad(
+                    row.id,
+                    'SESION',
+                    'Sistema',
+                    'Inició sesión en el sistema',
+                    'usuario',
+                    row.id
+                );
+            }
+
+            res.json({
+                mensaje: 'Éxito',
+                usuario: row,
+                token,
+                permisos: permisosRolSistema(row.rol)
+            });
+        }
+    );
+}
+
+// Ruta conservada para no romper el frontend existente.
+app.post('/api/login', loginCasaBarro);
+
+// Alias solicitado por la integración ERP.
+app.post('/api/auth/login', loginCasaBarro);
+
+app.post('/api/logout', async (req, res) => {
+    const token = tokenDesdeRequest(req);
+    let usuarioId = Number(req.body?.usuario_id) || null;
+
+    if (token && sesionesCasaBarro.has(token)) {
+        usuarioId = sesionesCasaBarro.get(token).usuario_id;
+        sesionesCasaBarro.delete(token);
+    }
+
+    if (usuarioId) {
+        registrarActividad(
+            usuarioId,
+            'SESION',
+            'Sistema',
+            'Cerró sesión en el sistema',
+            'usuario',
+            usuarioId
+        );
+    }
+
+    res.json({ mensaje: 'Sesión cerrada' });
 });
 
-app.post('/api/logout', (req, res) => {
-    const { usuario_id } = req.body;
-    if (usuario_id) registrarActividad(usuario_id, 'SESION', 'Sistema', 'Cerró sesión en el sistema', 'usuario', usuario_id);
-    res.json({ mensaje: 'Sesión cerrada' });
+// ============================================================
+// AUTORIZACIÓN POR ROLES
+// ============================================================
+app.use(async (req, res, next) => {
+    const regla = reglaAccesoCasaBarro(req);
+    if (!regla) return next();
+
+    try {
+        const usuario = await obtenerUsuarioSesion(req);
+
+        if (!usuario) {
+            return res.status(401).json({
+                error: 'Sesión no válida o expirada. Inicia sesión nuevamente.'
+            });
+        }
+
+        req.usuarioAutenticado = usuario;
+
+        // Evita que el frontend suplante al actor de una operación.
+        if (req.body && typeof req.body === 'object') {
+            if ('usuario_id' in req.body) {
+                req.body.usuario_id = usuario.id;
+            }
+            if ('usuario_id_actor' in req.body) {
+                req.body.usuario_id_actor = usuario.id;
+            }
+        }
+
+        if (regla.tipo === 'usuario-propio-o-admin') {
+            const objetivo = Number(req.params.id);
+            const esPropio = objetivo === Number(usuario.id);
+            const esAdmin = usuario.rol === 'admin';
+
+            if (!esPropio && !esAdmin) {
+                return res.status(403).json({
+                    error: 'No tienes permiso para modificar esta cuenta.'
+                });
+            }
+
+            if (!esAdmin && req.body?.rol) {
+                return res.status(403).json({
+                    error: 'Solo un administrador puede cambiar roles.'
+                });
+            }
+
+            return next();
+        }
+
+        if (regla.soloPropioSalvoAdmin) {
+            const partes = req.path.split('/');
+            const objetivo = Number(partes[partes.length - 1]);
+            if (usuario.rol !== 'admin' && objetivo !== Number(usuario.id)) {
+                return res.status(403).json({
+                    error: 'Solo puedes consultar tu propia actividad.'
+                });
+            }
+        }
+
+        if (regla.roles && !regla.roles.includes(usuario.rol)) {
+            return res.status(403).json({
+                error: 'Tu rol no tiene permiso para realizar esta operación.'
+            });
+        }
+
+        next();
+
+    } catch (error) {
+        console.error('Error validando permisos:', error);
+        res.status(500).json({
+            error: 'No se pudo validar la autorización.'
+        });
+    }
 });
 
 // ============================================================
@@ -403,6 +758,96 @@ app.get('/api/personal', (req, res) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ mensaje: 'Éxito', data: rows });
     });
+});
+
+// ============================================================
+// ROL Y PERMISOS DEL USUARIO ACTUAL
+// ============================================================
+app.get('/api/usuarios/rol', (req, res) => {
+    const usuario = req.usuarioAutenticado;
+
+    res.json({
+        mensaje: 'Éxito',
+        usuario: {
+            id: usuario.id,
+            nombre: usuario.nombre,
+            correo: usuario.correo,
+            rol: usuario.rol,
+            etiqueta_rol: permisosRolSistema(usuario.rol).etiqueta
+        },
+        permisos: permisosRolSistema(usuario.rol)
+    });
+});
+
+app.put('/api/usuarios/rol', async (req, res) => {
+    try {
+        const objetivoId = Number(req.body?.usuario_id_objetivo);
+        const rol = String(req.body?.rol || '').trim();
+        const actor = req.usuarioAutenticado;
+
+        if (!Number.isInteger(objetivoId) || objetivoId <= 0) {
+            return res.status(400).json({ error: 'Usuario objetivo no válido.' });
+        }
+
+        if (!ROLES_INTERNOS.includes(rol)) {
+            return res.status(400).json({ error: 'Rol interno no válido.' });
+        }
+
+        if (objetivoId === Number(actor.id)) {
+            return res.status(400).json({
+                error: 'No puedes cambiar tu propio rol desde el panel de accesos.'
+            });
+        }
+
+        const objetivo = await new Promise((resolve, reject) => {
+            db.get(
+                `SELECT id, nombre, rol FROM usuarios WHERE id = ?`,
+                [objetivoId],
+                (err, row) => err ? reject(err) : resolve(row || null)
+            );
+        });
+
+        if (!objetivo) {
+            return res.status(404).json({ error: 'Usuario no encontrado.' });
+        }
+
+        if (!esRolInterno(objetivo.rol)) {
+            return res.status(400).json({
+                error: 'Solo se pueden administrar roles de personal interno.'
+            });
+        }
+
+        await new Promise((resolve, reject) => {
+            db.run(
+                `UPDATE usuarios SET rol = ? WHERE id = ?`,
+                [rol, objetivoId],
+                err => err ? reject(err) : resolve()
+            );
+        });
+
+        registrarActividad(
+            actor.id,
+            'EDICION',
+            'Roles',
+            `Cambió el rol de ${objetivo.nombre} de ${objetivo.rol} a ${rol}`,
+            'usuario',
+            objetivoId
+        );
+
+        res.json({
+            mensaje: 'Rol actualizado correctamente.',
+            usuario: {
+                id: objetivoId,
+                nombre: objetivo.nombre,
+                rol,
+                etiqueta_rol: permisosRolSistema(rol).etiqueta
+            }
+        });
+
+    } catch (error) {
+        console.error('Error actualizando rol:', error);
+        res.status(500).json({ error: 'No se pudo actualizar el rol.' });
+    }
 });
 
 app.put('/api/usuarios/:id', (req, res) => {
@@ -548,27 +993,140 @@ app.get('/api/clientes/:id/interacciones', (req, res) => {
     });
 });
 
-app.get('/api/metricas-crm', (req, res) => {
-    const baseJoin = `FROM clientes c LEFT JOIN usuarios u ON c.correo = u.correo WHERE (u.rol = 'cliente' OR u.rol IS NULL)`;
-    
-    db.get(`SELECT COUNT(c.id) AS total ${baseJoin}`, [], (err, rowTotal) => {
-        db.get(`SELECT COUNT(c.id) AS activos ${baseJoin} AND c.etapa_crm IN ('Activo', 'Frecuente')`, [], (err, rowActivos) => {
-            db.get(`SELECT COUNT(c.id) AS inactivos ${baseJoin} AND c.etapa_crm IN ('Prospecto', 'Inactivo')`, [], (err, rowInactivos) => {
-                db.get(`SELECT COUNT(*) AS total_interacciones FROM interacciones`, [], (err, rowInteracciones) => {
-                    db.all(`SELECT c.nombre, c.etapa_crm ${baseJoin} AND c.etapa_crm IN ('Prospecto', 'Inactivo') LIMIT 4`, [], (err, rowsRiesgo) => {
-                        res.json({
-                            mensaje: 'Éxito',
-                            total: rowTotal?.total || 0,
-                            activos: rowActivos?.activos || 0,
-                            inactivos: rowInactivos?.inactivos || 0,
-                            interacciones_totales: rowInteracciones?.total_interacciones || 0,
-                            listaRiesgo: rowsRiesgo || []
-                        });
-                    });
-                });
-            });
+app.get('/api/metricas-crm', async (req, res) => {
+    try {
+        const diasSolicitados = Number(req.query.dias || 30);
+        const dias = Number.isInteger(diasSolicitados) && diasSolicitados >= 1 && diasSolicitados <= 365
+            ? diasSolicitados
+            : 30;
+
+        const filtroClientes = `
+            FROM clientes c
+            LEFT JOIN usuarios u ON c.correo = u.correo
+            WHERE (u.rol = 'cliente' OR u.rol IS NULL)
+        `;
+
+        const [
+            total,
+            activos,
+            inactivos,
+            interaccionesPeriodo,
+            interaccionesTotales,
+            listaRiesgo,
+            interaccionesPorCliente
+        ] = await Promise.all([
+
+            dbGetSCM(`
+                SELECT COUNT(c.id) AS total
+                ${filtroClientes}
+            `),
+
+            dbGetSCM(`
+                SELECT COUNT(c.id) AS total
+                ${filtroClientes}
+                AND LOWER(COALESCE(c.estado, 'activo')) = 'activo'
+            `),
+
+            dbGetSCM(`
+                SELECT COUNT(c.id) AS total
+                ${filtroClientes}
+                AND LOWER(COALESCE(c.estado, 'activo')) = 'inactivo'
+            `),
+
+            dbGetSCM(`
+                SELECT COUNT(*) AS total
+                FROM interacciones
+                WHERE datetime(fecha) >= datetime('now', ?)
+            `, [`-${dias} days`]),
+
+            dbGetSCM(`
+                SELECT COUNT(*) AS total
+                FROM interacciones
+            `),
+
+            dbAllSCM(`
+                SELECT
+                    c.id,
+                    c.nombre,
+                    c.correo,
+                    c.etapa_crm,
+                    c.estado,
+                    c.fecha_registro,
+                    MAX(i.fecha) AS ultima_interaccion,
+                    COUNT(i.id) AS numero_interacciones,
+                    CAST(
+                        julianday('now', 'localtime') -
+                        julianday(COALESCE(MAX(i.fecha), c.fecha_registro))
+                        AS INTEGER
+                    ) AS dias_sin_interaccion
+                FROM clientes c
+                LEFT JOIN usuarios u
+                    ON c.correo = u.correo
+                LEFT JOIN interacciones i
+                    ON i.cliente_id = c.id
+                WHERE
+                    (u.rol = 'cliente' OR u.rol IS NULL)
+                    AND LOWER(COALESCE(c.estado, 'activo')) = 'activo'
+                GROUP BY
+                    c.id,
+                    c.nombre,
+                    c.correo,
+                    c.etapa_crm,
+                    c.estado,
+                    c.fecha_registro
+                HAVING
+                    COALESCE(MAX(i.fecha), c.fecha_registro)
+                    <= datetime('now', ?)
+                ORDER BY
+                    dias_sin_interaccion DESC,
+                    c.nombre ASC
+                LIMIT 8
+            `, [`-${dias} days`]),
+
+            dbAllSCM(`
+                SELECT
+                    c.id AS cliente_id,
+                    c.nombre AS cliente,
+                    c.etapa_crm,
+                    c.estado,
+                    COUNT(i.id) AS numero_interacciones,
+                    MAX(i.fecha) AS ultima_interaccion
+                FROM clientes c
+                LEFT JOIN usuarios u
+                    ON c.correo = u.correo
+                LEFT JOIN interacciones i
+                    ON i.cliente_id = c.id
+                WHERE (u.rol = 'cliente' OR u.rol IS NULL)
+                GROUP BY
+                    c.id,
+                    c.nombre,
+                    c.etapa_crm,
+                    c.estado
+                ORDER BY
+                    numero_interacciones DESC,
+                    c.nombre ASC
+            `)
+        ]);
+
+        res.json({
+            mensaje: 'Éxito',
+            periodo_dias: dias,
+            total: Number(total?.total || 0),
+            activos: Number(activos?.total || 0),
+            inactivos: Number(inactivos?.total || 0),
+            interacciones_periodo: Number(interaccionesPeriodo?.total || 0),
+            interacciones_totales: Number(interaccionesTotales?.total || 0),
+            clientes_sin_interaccion_reciente: listaRiesgo.length,
+            listaRiesgo,
+            interacciones_por_cliente: interaccionesPorCliente
         });
-    });
+
+    } catch (error) {
+        console.error('Error calculando métricas CRM:', error);
+        res.status(500).json({
+            error: 'No se pudieron calcular las métricas CRM.'
+        });
+    }
 });
 
 app.get('/api/mis-interacciones/:usuario_id', (req, res) => {
@@ -2906,6 +3464,11 @@ function enteroPositivoERP(valor){
 }
 
 function usuarioIdERP(req){
+    const autenticado=Number(req.usuarioAutenticado?.id);
+    if(Number.isInteger(autenticado)&&autenticado>0){
+        return autenticado;
+    }
+
     const n=Number(req.body?.usuario_id);
     return Number.isInteger(n)&&n>0?n:null;
 }

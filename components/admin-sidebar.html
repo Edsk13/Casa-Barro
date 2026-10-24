@@ -14,7 +14,7 @@
         </a>
 
         <!-- CRM -->
-        <button class="nav-accordion" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 12px 25px; background: none; border: none; cursor: pointer; color: white; font-size: 1.05rem; font-weight: bold;">
+        <button class="nav-accordion" data-roles="admin vendedor" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 12px 25px; background: none; border: none; cursor: pointer; color: white; font-size: 1.05rem; font-weight: bold;">
             <div style="display: flex; align-items: center; gap: 10px; color: white;">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
                 <span>Dashboard CRM</span>
@@ -22,13 +22,13 @@
             <span class="arrow">▼</span>
         </button>
         <div class="nav-panel" style="background: rgba(0,0,0,0.15); display: none;">
-            <a href="admin-crm-resumen.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Resumen CRM</a>
-            <a href="admin-clientes.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Directorio de Clientes</a>
-            <a href="admin-promociones.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Promociones</a>
+            <a href="admin-crm-resumen.html" class="nav-sublink" data-roles="admin vendedor" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Resumen CRM</a>
+            <a href="admin-clientes.html" class="nav-sublink" data-roles="admin vendedor" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Directorio de Clientes</a>
+            <a href="admin-promociones.html" class="nav-sublink" data-roles="admin vendedor" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Promociones</a>
         </div>
 
         <!-- SCM -->
-        <button class="nav-accordion" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 12px 25px; background: none; border: none; cursor: pointer; color: white; font-size: 1.05rem; font-weight: bold;">
+        <button class="nav-accordion" data-roles="admin logistica" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 12px 25px; background: none; border: none; cursor: pointer; color: white; font-size: 1.05rem; font-weight: bold;">
             <div style="display: flex; align-items: center; gap: 10px; color: white;">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
                 <span>Dashboard SCM</span>
@@ -36,15 +36,15 @@
             <span class="arrow">▼</span>
         </button>
         <div class="nav-panel" style="background: rgba(0,0,0,0.15); display: none;">
-            <a href="admin-scm-resumen.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Resumen SCM</a>
-            <a href="admin-productos.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Productos (Menú)</a>
-            <a href="admin-inventario.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Inventario (Insumos)</a>
-            <a href="admin-proveedores.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Proveedores</a>
-            <a href="admin-logistica.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Estrategia Logística</a>
+            <a href="admin-scm-resumen.html" class="nav-sublink" data-roles="admin logistica" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Resumen SCM</a>
+            <a href="admin-productos.html" class="nav-sublink" data-roles="admin logistica" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Productos (Menú)</a>
+            <a href="admin-inventario.html" class="nav-sublink" data-roles="admin logistica" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Inventario (Insumos)</a>
+            <a href="admin-proveedores.html" class="nav-sublink" data-roles="admin logistica" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Proveedores</a>
+            <a href="admin-logistica.html" class="nav-sublink" data-roles="admin logistica" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Estrategia Logística</a>
         </div>
 
         <!-- ERP -->
-        <button class="nav-accordion" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 12px 25px; background: none; border: none; cursor: pointer; color: white; font-size: 1.05rem; font-weight: bold;">
+        <button class="nav-accordion" data-roles="admin vendedor logistica" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 12px 25px; background: none; border: none; cursor: pointer; color: white; font-size: 1.05rem; font-weight: bold;">
             <div style="display: flex; align-items: center; gap: 10px; color: white;">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="3" y="3" width="7" height="7"></rect>
@@ -57,13 +57,13 @@
             <span class="arrow">▼</span>
         </button>
         <div class="nav-panel" style="background: rgba(0,0,0,0.15); display: none;">
-            <a href="admin-erp-resumen.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Resumen ERP</a>
-            <a href="admin-ordenes.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Órdenes de Clientes</a>
-            <a href="admin-erp-nivel.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Nivel ERP</a>
+            <a href="admin-erp-resumen.html" class="nav-sublink" data-roles="admin vendedor logistica" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Resumen ERP</a>
+            <a href="admin-ordenes.html" class="nav-sublink" data-roles="admin vendedor logistica" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Órdenes de Clientes</a>
+            <a href="admin-erp-nivel.html" class="nav-sublink" data-roles="admin" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Nivel ERP</a>
         </div>
 
         <!-- ADMIN -->
-        <button class="nav-accordion" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 12px 25px; background: none; border: none; cursor: pointer; color: white; font-size: 1.05rem; font-weight: bold;">
+        <button class="nav-accordion" data-roles="admin vendedor logistica" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 12px 25px; background: none; border: none; cursor: pointer; color: white; font-size: 1.05rem; font-weight: bold;">
             <div style="display: flex; align-items: center; gap: 10px; color: white;">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
                 <span>Administración</span>
@@ -71,10 +71,11 @@
             <span class="arrow">▼</span>
         </button>
         <div class="nav-panel" style="background: rgba(0,0,0,0.15); display: none;">
-            <a href="admin-personal.html" class="nav-sublink" id="link-personal" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Personal</a>
-            <a href="admin-reportes.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Reportes Globales</a>
-            <a href="admin-actividad.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Mi Actividad</a>
-            <a href="admin-configuracion.html" class="nav-sublink" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Configuración</a>
+            <a href="admin-personal.html" class="nav-sublink" data-roles="admin" id="link-personal" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Personal</a>
+            <a href="admin-reportes.html" class="nav-sublink" data-roles="admin" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Reportes Globales</a>
+            <a href="admin-roles.html" class="nav-sublink" data-roles="admin" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Roles y Accesos</a>
+            <a href="admin-actividad.html" class="nav-sublink" data-roles="admin vendedor logistica" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Mi Actividad</a>
+            <a href="admin-configuracion.html" class="nav-sublink" data-roles="admin vendedor logistica" style="display: block; padding: 10px 25px 10px 40px; color: #a4b3ac; text-decoration: none;">› Configuración</a>
         </div>
     </nav>
 

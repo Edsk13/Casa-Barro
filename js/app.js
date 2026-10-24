@@ -23,6 +23,185 @@ async function cargarComponente(id, ruta) {
     }
 }
 
+// ============================================================
+// SEGURIDAD, SESIÓN Y PERMISOS DE INTERFAZ
+// ============================================================
+
+const fetchCasaBarroOriginal = window.fetch.bind(window);
+
+window.fetch = function(recurso, opciones = {}) {
+    const config = { ...opciones };
+    const headers = new Headers(
+        config.headers ||
+        (recurso instanceof Request ? recurso.headers : undefined)
+    );
+
+    try {
+        const url = new URL(
+            typeof recurso === 'string' ? recurso : recurso.url,
+            window.location.origin
+        );
+
+        const esApiCasaBarro =
+            url.pathname.startsWith('/api/') &&
+            (
+                url.origin === window.location.origin ||
+                url.hostname === 'localhost' ||
+                url.hostname === '127.0.0.1'
+            );
+
+        const token = localStorage.getItem('casaBarro_token');
+
+        if (esApiCasaBarro && token) {
+            headers.set('Authorization', `Bearer ${token}`);
+        }
+    } catch (_) {}
+
+    config.headers = headers;
+    return fetchCasaBarroOriginal(recurso, config);
+};
+
+const ROLES_UI_CASA_BARRO = ['admin', 'vendedor', 'logistica'];
+
+const PAGINAS_POR_ROL_CASA_BARRO = {
+    'admin.html': ['admin', 'vendedor', 'logistica'],
+
+    'admin-crm-resumen.html': ['admin', 'vendedor'],
+    'admin-clientes.html': ['admin', 'vendedor'],
+    'admin-promociones.html': ['admin', 'vendedor'],
+
+    'admin-scm-resumen.html': ['admin', 'logistica'],
+    'admin-productos.html': ['admin', 'logistica'],
+    'admin-inventario.html': ['admin', 'logistica'],
+    'admin-insumos.html': ['admin', 'logistica'],
+    'admin-proveedores.html': ['admin', 'logistica'],
+    'admin-logistica.html': ['admin', 'logistica'],
+
+    'admin-erp-resumen.html': ['admin', 'vendedor', 'logistica'],
+    'admin-ordenes.html': ['admin', 'vendedor', 'logistica'],
+    'admin-orden-nueva.html': ['admin', 'vendedor'],
+    'admin-erp-nivel.html': ['admin'],
+
+    'admin-personal.html': ['admin'],
+    'admin-reportes.html': ['admin'],
+    'admin-roles.html': ['admin'],
+    'admin-actividad.html': ['admin', 'vendedor', 'logistica'],
+    'admin-configuracion.html': ['admin', 'vendedor', 'logistica']
+};
+
+function usuarioCasaBarroActual() {
+    try {
+        return JSON.parse(
+            localStorage.getItem('casaBarro_usuario')
+        );
+    } catch (_) {
+        return null;
+    }
+}
+
+function etiquetaRolCasaBarro(rol) {
+    return rol === 'admin'
+        ? 'Administrador'
+        : rol === 'vendedor'
+            ? 'Ventas'
+            : rol === 'logistica'
+                ? 'Logística'
+                : 'Cliente';
+}
+
+function rolPermitidoCasaBarro(roles, rol) {
+    return String(roles || '')
+        .split(/\s+/)
+        .filter(Boolean)
+        .includes(rol);
+}
+
+function aplicarVisibilidadPorRolCasaBarro(rol, raiz = document) {
+    raiz.querySelectorAll('[data-roles]').forEach(elemento => {
+        const permitido = rolPermitidoCasaBarro(
+            elemento.dataset.roles,
+            rol
+        );
+        elemento.style.display = permitido ? '' : 'none';
+    });
+
+    raiz.querySelectorAll('.nav-accordion').forEach(boton => {
+        const panel = boton.nextElementSibling;
+        if (!panel || !panel.classList.contains('nav-panel')) return;
+
+        const enlacesVisibles = [...panel.querySelectorAll('a')]
+            .some(enlace => enlace.style.display !== 'none');
+
+        if (!enlacesVisibles) {
+            boton.style.display = 'none';
+            panel.style.display = 'none';
+        }
+    });
+}
+
+function paginaActualCasaBarro() {
+    const partes = window.location.pathname.split('/');
+    return partes[partes.length - 1] || 'admin.html';
+}
+
+function puedeEntrarPaginaCasaBarro(rol) {
+    const pagina = paginaActualCasaBarro();
+    const permitidos = PAGINAS_POR_ROL_CASA_BARRO[pagina];
+    return !permitidos || permitidos.includes(rol);
+}
+
+async function refrescarRolDesdeServidorCasaBarro(usuarioLocal) {
+    const token = localStorage.getItem('casaBarro_token');
+    if (!usuarioLocal || !token) return null;
+
+    const respuesta = await fetch('/api/usuarios/rol', {
+        cache: 'no-store'
+    });
+
+    if (!respuesta.ok) {
+        return null;
+    }
+
+    const datos = await respuesta.json();
+    const usuarioServidor = datos.usuario || {};
+
+    const actualizado = {
+        ...usuarioLocal,
+        ...usuarioServidor
+    };
+
+    localStorage.setItem(
+        'casaBarro_usuario',
+        JSON.stringify(actualizado)
+    );
+
+    return actualizado;
+}
+
+function puedeCrearOrdenERP() {
+    return ['admin', 'vendedor'].includes(
+        usuarioCasaBarroActual()?.rol
+    );
+}
+
+function puedeCancelarOrdenERP() {
+    return ['admin', 'vendedor'].includes(
+        usuarioCasaBarroActual()?.rol
+    );
+}
+
+function puedeProcesarOrdenERP() {
+    return ['admin', 'logistica'].includes(
+        usuarioCasaBarroActual()?.rol
+    );
+}
+
+function puedeEntregarOrdenERP() {
+    return ['admin', 'logistica'].includes(
+        usuarioCasaBarroActual()?.rol
+    );
+}
+
 // 2. SISTEMA DE CARRITO PERSISTENTE Y DESCUENTOS
 let carrito = JSON.parse(localStorage.getItem('casaBarro_carrito')) || [];
 let propinaPorcentaje = 0;
@@ -4252,29 +4431,36 @@ function renderOrdenesAdmin(){
                     </button>
                 `;
 
-                // Una orden pendiente todavía no ha descontado inventario.
+                // Ventas crea/cancela. Logística procesa/entrega.
+                // Administrador puede ejecutar todas las acciones.
                 if(orden.estado==='pendiente'){
-                    acciones+=`
-                        <button
-                            class="orden-btn orden-avanzar"
-                            onclick="cambiarEstadoPedidoAdmin(${orden.id})"
-                        >
-                            Iniciar preparación
-                        </button>
-                    `;
+                    if(puedeProcesarOrdenERP()){
+                        acciones+=`
+                            <button
+                                class="orden-btn orden-avanzar"
+                                onclick="cambiarEstadoPedidoAdmin(${orden.id})"
+                            >
+                                Iniciar preparación
+                            </button>
+                        `;
+                    }
 
-                    acciones+=`
-                        <button
-                            class="orden-btn orden-cancelar"
-                            onclick="cancelarOrdenAdmin(${orden.id})"
-                        >
-                            Cancelar
-                        </button>
-                    `;
+                    if(puedeCancelarOrdenERP()){
+                        acciones+=`
+                            <button
+                                class="orden-btn orden-cancelar"
+                                onclick="cancelarOrdenAdmin(${orden.id})"
+                            >
+                                Cancelar
+                            </button>
+                        `;
+                    }
                 }
 
-                // Después de aplicar inventario ya no mostramos cancelar.
-                if(orden.estado==='preparacion'){
+                if(
+                    orden.estado==='preparacion' &&
+                    puedeEntregarOrdenERP()
+                ){
                     acciones+=`
                         <button
                             class="orden-btn orden-avanzar"
@@ -7300,6 +7486,156 @@ function normalizarTextoERP(texto){
     );
 }
 
+// ============================================================
+// ERP / ADMINISTRACIÓN - ROLES Y ACCESOS
+// ============================================================
+
+window.cargarRolesERP = async function() {
+    const panel = document.getElementById('erp-roles-panel');
+    if (!panel) return;
+
+    try {
+        const [respuestaPersonal, respuestaRol] = await Promise.all([
+            fetch('/api/personal', { cache: 'no-store' }),
+            fetch('/api/usuarios/rol', { cache: 'no-store' })
+        ]);
+
+        const datosPersonal = await respuestaPersonal.json();
+        const datosRol = await respuestaRol.json();
+
+        if (!respuestaPersonal.ok) {
+            throw new Error(datosPersonal.error || 'No se pudo cargar el personal.');
+        }
+        if (!respuestaRol.ok) {
+            throw new Error(datosRol.error || 'No se pudo cargar el rol actual.');
+        }
+
+        const actual = datosRol.usuario || {};
+        const etiqueta = document.getElementById('roles-usuario-actual');
+        if (etiqueta) {
+            etiqueta.textContent = `${actual.nombre || 'Usuario'} · ${actual.etiqueta_rol || etiquetaRolCasaBarro(actual.rol)}`;
+        }
+
+        renderTablaRolesERP(datosPersonal.data || [], actual);
+
+    } catch (error) {
+        Swal.fire({
+            icon: 'error',
+            title: 'No se pudieron cargar los roles',
+            text: error.message,
+            confirmButtonColor: '#3c4a45'
+        });
+    }
+};
+
+function renderTablaRolesERP(personal, usuarioActual) {
+    const tabla = document.getElementById('tabla-roles-erp');
+    if (!tabla) return;
+
+    tabla.innerHTML = personal.length
+        ? personal.map(persona => {
+            const esActual = Number(persona.id) === Number(usuarioActual.id);
+            const selectId = `rol-usuario-${persona.id}`;
+
+            return `
+                <tr>
+                    <td><strong>${escaparHtmlERP(persona.nombre)}</strong></td>
+                    <td>${escaparHtmlERP(persona.correo)}</td>
+                    <td>
+                        <span class="rol-badge rol-${persona.rol}">
+                            ${escaparHtmlERP(etiquetaRolCasaBarro(persona.rol))}
+                        </span>
+                    </td>
+                    <td>
+                        <select
+                            id="${selectId}"
+                            class="rol-select"
+                            ${esActual ? 'disabled' : ''}
+                        >
+                            <option value="admin" ${persona.rol === 'admin' ? 'selected' : ''}>Administrador</option>
+                            <option value="vendedor" ${persona.rol === 'vendedor' ? 'selected' : ''}>Ventas</option>
+                            <option value="logistica" ${persona.rol === 'logistica' ? 'selected' : ''}>Logística</option>
+                        </select>
+                    </td>
+                    <td>
+                        ${
+                            esActual
+                                ? '<small style="color:#777;">Sesión actual</small>'
+                                : `
+                                    <button
+                                        class="btn-primary rol-btn"
+                                        onclick="actualizarRolERP(${persona.id}, '${escaparHtmlERP(persona.nombre).replace(/'/g, "\\'")}')"
+                                    >
+                                        Guardar rol
+                                    </button>
+                                `
+                        }
+                    </td>
+                </tr>
+            `;
+        }).join('')
+        : `
+            <tr>
+                <td colspan="5" style="text-align:center;padding:25px;color:#777;">
+                    No hay personal interno registrado.
+                </td>
+            </tr>
+        `;
+}
+
+window.actualizarRolERP = async function(usuarioId, nombre) {
+    const select = document.getElementById(`rol-usuario-${usuarioId}`);
+    if (!select) return;
+
+    const rol = select.value;
+    const confirmacion = await Swal.fire({
+        icon: 'question',
+        title: 'Cambiar rol',
+        text: `${nombre} tendrá el rol ${etiquetaRolCasaBarro(rol)}.`,
+        showCancelButton: true,
+        confirmButtonText: 'Guardar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#3c4a45'
+    });
+
+    if (!confirmacion.isConfirmed) return;
+
+    try {
+        const respuesta = await fetch('/api/usuarios/rol', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                usuario_id_objetivo: usuarioId,
+                rol
+            })
+        });
+
+        const datos = await respuesta.json();
+        if (!respuesta.ok) {
+            throw new Error(datos.error || 'No se pudo actualizar el rol.');
+        }
+
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'Rol actualizado',
+            showConfirmButton: false,
+            timer: 1700
+        });
+
+        await cargarRolesERP();
+
+    } catch (error) {
+        Swal.fire({
+            icon: 'error',
+            title: 'No se pudo cambiar el rol',
+            text: error.message,
+            confirmButtonColor: '#3c4a45'
+        });
+    }
+};
+
 // INICIALIZADOR DE SEGURIDAD Y VISTAS
 document.addEventListener('DOMContentLoaded', async () => {
 
@@ -7423,103 +7759,74 @@ document.addEventListener('DOMContentLoaded', async () => {
         );
 
 
-        // 3. Validar Seguridad del Usuario
-        const usuarioActual =
-            JSON.parse(
-                localStorage.getItem(
-                    'casaBarro_usuario'
-                )
-            );
+        // 3. Validar sesión y permisos del usuario
+        let usuarioActual = usuarioCasaBarroActual();
+        const tokenActual = localStorage.getItem('casaBarro_token');
 
+        if (
+            !usuarioActual ||
+            !tokenActual ||
+            !ROLES_UI_CASA_BARRO.includes(usuarioActual.rol)
+        ) {
+            localStorage.removeItem('casaBarro_usuario');
+            localStorage.removeItem('casaBarro_token');
+            window.location.href = 'login.html';
+            return;
+        }
+
+        try {
+            const usuarioServidor =
+                await refrescarRolDesdeServidorCasaBarro(usuarioActual);
+
+            if (!usuarioServidor) {
+                localStorage.removeItem('casaBarro_usuario');
+                localStorage.removeItem('casaBarro_token');
+
+                await Swal.fire({
+                    icon: 'warning',
+                    title: 'Sesión expirada',
+                    text: 'Inicia sesión nuevamente para continuar.',
+                    confirmButtonColor: '#3c4a45'
+                });
+
+                window.location.href = 'login.html';
+                return;
+            }
+
+            usuarioActual = usuarioServidor;
+
+        } catch (error) {
+            console.warn('No se pudo refrescar el rol desde el servidor:', error);
+        }
+
+        aplicarVisibilidadPorRolCasaBarro(
+            usuarioActual.rol,
+            adminSidebarContainer
+        );
+
+        aplicarVisibilidadPorRolCasaBarro(
+            usuarioActual.rol,
+            document
+        );
 
         const spanUsuario =
-            document.getElementById(
-                'admin-user-name'
-            );
-
+            document.getElementById('admin-user-name');
 
         if (spanUsuario) {
+            spanUsuario.innerText =
+                `Hola, ${usuarioActual.nombre.split(' ')[0]} · ${etiquetaRolCasaBarro(usuarioActual.rol)}`;
+        }
 
-            const rolesInternos = [
-                'admin',
-                'vendedor',
-                'logistica'
-            ];
+        if (!puedeEntrarPaginaCasaBarro(usuarioActual.rol)) {
+            await Swal.fire({
+                icon: 'error',
+                title: 'Acceso denegado',
+                text: 'Tu rol no tiene permiso para entrar a esta sección.',
+                confirmButtonColor: '#3c4a45'
+            });
 
-
-            if (
-                !usuarioActual ||
-                !rolesInternos.includes(
-                    usuarioActual.rol
-                )
-            ) {
-
-                window.location.href =
-                    'login.html';
-
-                return;
-
-            } else {
-
-                spanUsuario.innerText =
-                    `Hola, ${
-                        usuarioActual.nombre
-                            .split(' ')[0]
-                    } ♡`;
-
-
-                // Solo el Administrador Maestro
-                // puede gestionar Personal
-                if (
-                    usuarioActual.rol !==
-                    'admin'
-                ) {
-
-                    const btnPersonal =
-                        document.getElementById(
-                            'link-personal'
-                        );
-
-
-                    if (btnPersonal) {
-
-                        btnPersonal.style.display =
-                            'none';
-                    }
-
-
-                    if (
-                        window.location.pathname
-                            .includes(
-                                'admin-personal.html'
-                            )
-                    ) {
-
-                        Swal.fire({
-
-                            icon:
-                                'error',
-
-                            title:
-                                'Acceso Denegado',
-
-                            text:
-                                'Solo Administradores Maestros.',
-
-                            confirmButtonColor:
-                                '#3c4a45'
-
-                        }).then(() => {
-
-                            window.location.href =
-                                'admin.html';
-                        });
-
-
-                        return;
-                    }
-                }
-            }
+            window.location.href = 'admin.html';
+            return;
         }
     }
 
@@ -7702,6 +8009,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         await cargarNuevaOrdenERP();
     }
 
+    // ROLES Y ACCESOS
+    if(
+        document.getElementById(
+            'erp-roles-panel'
+        )
+    ){
+        await cargarRolesERP();
+    }
+
 });
 
 window.cerrarSesionAdmin = async function(e) {
@@ -7722,6 +8038,7 @@ window.cerrarSesionAdmin = async function(e) {
     }
 
     localStorage.removeItem('casaBarro_usuario');
+    localStorage.removeItem('casaBarro_token');
     window.location.href = 'index.html';
 }
 
@@ -8167,12 +8484,13 @@ window.iniciarSesion = async function(event) {
     if(!correoInput || !passwordInput) return;
 
     try {
-        const respuesta = await fetch('http://localhost:3000/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ correo: correoInput.value, password: passwordInput.value }) });
+        const respuesta = await fetch('http://localhost:3000/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ correo: correoInput.value, password: passwordInput.value }) });
         const resultado = await respuesta.json();
 
         if (respuesta.ok && resultado.mensaje === "Éxito") {
             localStorage.setItem('casaBarro_usuario', JSON.stringify(resultado.usuario));
-            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 1500 }).then(() => {
+            localStorage.setItem('casaBarro_token', resultado.token || '');
+            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Sesión iniciada', showConfirmButton: false, timer: 1500 }).then(() => {
                 window.location.href = ['admin', 'vendedor', 'logistica'].includes(resultado.usuario.rol) ? 'admin.html' : 'perfil.html';
             });
         } else { Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: resultado.error || 'Credenciales inválidas', showConfirmButton: false, timer: 2500 }); }

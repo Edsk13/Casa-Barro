@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Roles y Accesos | Casa Barro</title>
+
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<style>
+.roles-layout{
+    display:grid;
+    gap:20px;
+    margin-top:20px;
+}
+
+.roles-intro{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:15px;
+    flex-wrap:wrap;
+}
+
+.roles-actual{
+    padding:9px 14px;
+    border-radius:18px;
+    background:#f1f5f2;
+    color:#3c4a45;
+    font-weight:700;
+}
+
+.roles-grid{
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:16px;
+}
+
+.rol-card{
+    border:1px solid #e3ded5;
+    border-radius:14px;
+    padding:18px;
+    background:#fff;
+}
+
+.rol-card h3{
+    color:var(--verde-logo);
+    margin:0 0 6px;
+}
+
+.rol-card p{
+    color:#777;
+    margin:0 0 14px;
+}
+
+.rol-permiso{
+    padding:7px 0;
+    border-bottom:1px solid #eee;
+    font-size:.92rem;
+}
+
+.rol-permiso:last-child{
+    border-bottom:none;
+}
+
+.rol-si{ color:#2f6b46; font-weight:800; }
+.rol-no{ color:#a83c21; font-weight:800; }
+
+.roles-scroll{
+    overflow-x:auto;
+}
+
+.roles-scroll table{
+    min-width:850px;
+}
+
+.rol-badge{
+    display:inline-block;
+    border-radius:14px;
+    padding:5px 10px;
+    font-size:.78rem;
+    font-weight:800;
+}
+
+.rol-admin{ background:#fee2e2; color:#a83c21; }
+.rol-vendedor{ background:#e7f0ec; color:#3c4a45; }
+.rol-logistica{ background:#fff3cd; color:#7a5b00; }
+
+.rol-select{
+    padding:8px 10px;
+    border:1px solid #ccc;
+    border-radius:8px;
+    min-width:150px;
+    background:#fff;
+}
+
+.rol-btn{
+    width:auto;
+    padding:8px 13px;
+    border-radius:15px;
+    font-size:.85rem;
+}
+
+.roles-flujo{
+    display:grid;
+    grid-template-columns:repeat(5,1fr);
+    gap:10px;
+    align-items:center;
+    text-align:center;
+}
+
+.roles-flujo div{
+    background:#f8f6f1;
+    padding:14px 10px;
+    border-radius:10px;
+    font-weight:700;
+    color:#3c4a45;
+}
+
+.roles-flecha{
+    background:transparent !important;
+    padding:0 !important;
+    color:#888 !important;
+}
+
+@media(max-width:900px){
+    .roles-grid{ grid-template-columns:1fr; }
+    .roles-flujo{ grid-template-columns:1fr; }
+    .roles-flecha{ transform:rotate(90deg); }
+}
+</style>
+</head>
+
+<body class="admin-body">
+<div class="admin-layout">
+
+<div id="admin-sidebar-container"></div>
+
+<main class="admin-main crm-main-bg" id="erp-roles-panel">
+
+<header class="admin-header">
+    <div>
+        <h1>Roles y Accesos</h1>
+        <p style="color:#777;">
+            Control de acceso por responsabilidades de Administración, Ventas y Logística.
+        </p>
+    </div>
+
+    <div class="admin-user">
+        <span id="admin-user-name">Cargando...</span>
+    </div>
+</header>
+
+<div class="roles-layout">
+
+    <section class="crm-card">
+        <div class="roles-intro">
+            <div>
+                <h2>Control de acceso ERP</h2>
+                <p style="color:#777;margin:5px 0 0;">
+                    El menú oculta módulos no autorizados y el backend valida cada operación protegida.
+                </p>
+            </div>
+
+            <div class="roles-actual" id="roles-usuario-actual">
+                Cargando sesión...
+            </div>
+        </div>
+    </section>
+
+    <section class="roles-grid">
+        <article class="rol-card">
+            <h3>Administrador</h3>
+            <p>Control completo del sistema.</p>
+            <div class="rol-permiso"><span class="rol-si">✓</span> CRM completo</div>
+            <div class="rol-permiso"><span class="rol-si">✓</span> SCM completo</div>
+            <div class="rol-permiso"><span class="rol-si">✓</span> Crear, procesar, cancelar y entregar órdenes</div>
+            <div class="rol-permiso"><span class="rol-si">✓</span> Nivel ERP y métricas</div>
+            <div class="rol-permiso"><span class="rol-si">✓</span> Personal, roles y reportes</div>
+        </article>
+
+        <article class="rol-card">
+            <h3>Ventas</h3>
+            <p>Relación comercial con clientes y captura de órdenes.</p>
+            <div class="rol-permiso"><span class="rol-si">✓</span> CRM y clientes</div>
+            <div class="rol-permiso"><span class="rol-si">✓</span> Crear órdenes</div>
+            <div class="rol-permiso"><span class="rol-si">✓</span> Cancelar órdenes pendientes</div>
+            <div class="rol-permiso"><span class="rol-no">×</span> Modificar SCM o inventario</div>
+            <div class="rol-permiso"><span class="rol-no">×</span> Procesar o entregar órdenes</div>
+        </article>
+
+        <article class="rol-card">
+            <h3>Logística</h3>
+            <p>Inventario, abastecimiento y ejecución operativa.</p>
+            <div class="rol-permiso"><span class="rol-si">✓</span> SCM e inventario</div>
+            <div class="rol-permiso"><span class="rol-si">✓</span> Consultar órdenes</div>
+            <div class="rol-permiso"><span class="rol-si">✓</span> Iniciar preparación</div>
+            <div class="rol-permiso"><span class="rol-si">✓</span> Marcar órdenes entregadas</div>
+            <div class="rol-permiso"><span class="rol-no">×</span> Crear/cancelar ventas o administrar personal</div>
+        </article>
+    </section>
+
+    <section class="crm-card">
+        <h2>Flujo de responsabilidad</h2>
+        <p style="color:#777;">
+            La orden cambia de responsable conforme avanza el proceso empresarial.
+        </p>
+
+        <div class="roles-flujo" style="margin-top:16px;">
+            <div>Ventas<br><small>Crea orden</small></div>
+            <div class="roles-flecha">→</div>
+            <div>Logística<br><small>Procesa inventario</small></div>
+            <div class="roles-flecha">→</div>
+            <div>Logística<br><small>Confirma entrega</small></div>
+        </div>
+    </section>
+
+    <section class="crm-card">
+        <div class="roles-intro">
+            <div>
+                <h2>Personal y rol asignado</h2>
+                <p style="color:#777;margin:5px 0 0;">
+                    Los cambios se aplican en el servidor; el usuario verá su nuevo menú en la siguiente petición o inicio de sesión.
+                </p>
+            </div>
+
+            <button
+                class="btn-primary rol-btn"
+                onclick="cargarRolesERP()"
+            >
+                Actualizar
+            </button>
+        </div>
+
+        <div class="admin-table-container roles-scroll" style="margin-top:18px;">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Empleado</th>
+                        <th>Correo</th>
+                        <th>Rol actual</th>
+                        <th>Nuevo rol</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-roles-erp">
+                    <tr>
+                        <td colspan="5" style="text-align:center;padding:25px;">
+                            Cargando...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+</div>
+
+</main>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>

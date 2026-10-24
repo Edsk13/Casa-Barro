@@ -178,6 +178,8 @@
         </div>
 
         <button
+            id="btn-nueva-orden-erp"
+            data-roles="admin vendedor"
             class="btn-primary"
             style="
                 width:auto;
@@ -197,6 +199,11 @@
         al iniciar la preparación de una orden pendiente, el sistema valida recetas e inventario,
         descuenta los insumos necesarios, registra movimientos, actualiza el historial CRM y recalcula
         la disponibilidad de productos. Una orden en preparación ya no puede cancelarse desde este panel.
+    </div>
+
+    <div class="orden-proceso-info">
+        <strong>Flujo por roles:</strong> Ventas registra y puede cancelar órdenes pendientes;
+        Logística inicia la preparación y marca la entrega; Administrador puede realizar todas las acciones.
     </div>
 
     <div class="ordenes-toolbar">
