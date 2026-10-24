@@ -227,6 +227,80 @@
     color:#a83c21;
 }
 
+
+.erp-centro-operaciones{
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:16px;
+}
+
+.erp-modulo-operativo{
+    background:#f8f6f1;
+    border:1px solid #e4ded3;
+    border-radius:14px;
+    padding:18px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+}
+
+.erp-modulo-operativo h3{
+    margin:0;
+    color:var(--verde-logo);
+    font-size:1.15rem;
+}
+
+.erp-modulo-operativo p{
+    margin:0;
+    color:#777;
+    line-height:1.45;
+    min-height:42px;
+}
+
+.erp-modulo-etiqueta{
+    display:inline-block;
+    align-self:flex-start;
+    padding:4px 9px;
+    border-radius:999px;
+    background:#e8eee9;
+    color:#3c4a45;
+    font-size:.76rem;
+    font-weight:800;
+}
+
+.erp-acciones-modulo{
+    display:grid;
+    gap:8px;
+    margin-top:auto;
+}
+
+.erp-acciones-modulo .btn-primary{
+    width:100%;
+    padding:9px 12px;
+    font-size:.88rem;
+}
+
+.erp-flujo-integrado{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-top:16px;
+    color:#777;
+    font-size:.9rem;
+}
+
+.erp-flujo-integrado strong{
+    color:#3c4a45;
+}
+
+@media(max-width:850px){
+    .erp-centro-operaciones{
+        grid-template-columns:1fr;
+    }
+}
+
 @media(max-width:1050px){
     .erp-operacion-grid{
         grid-template-columns:repeat(3,1fr);
@@ -305,9 +379,18 @@
             <div class="erp-header-actions">
                 <button
                     class="btn-primary erp-btn-small"
+                    data-roles="admin"
                     onclick="window.location.href='admin-erp-nivel.html'"
                 >
                     Nivel ERP
+                </button>
+
+                <button
+                    class="btn-primary erp-btn-small"
+                    data-roles="admin"
+                    onclick="window.location.href='admin-roles.html'"
+                >
+                    Roles y accesos
                 </button>
 
                 <button
@@ -356,6 +439,7 @@
 
             <button
                 class="btn-primary erp-btn-small"
+                data-roles="admin"
                 onclick="window.location.href='admin-erp-nivel.html'"
             >
                 Ver evaluación
@@ -442,6 +526,144 @@
                 <small>Procesamiento automático</small>
             </div>
 
+        </div>
+
+    </section>
+
+
+    <section class="crm-card">
+
+        <div class="erp-section-head">
+            <div>
+                <h2>Centro de operaciones ERP</h2>
+                <p>
+                    Accesos directos a procesos de CRM, ERP y SCM sin duplicar información entre módulos.
+                </p>
+            </div>
+        </div>
+
+        <div class="erp-centro-operaciones">
+
+            <article
+                class="erp-modulo-operativo"
+                data-roles="admin vendedor"
+            >
+                <span class="erp-modulo-etiqueta">CRM</span>
+                <h3>Clientes y seguimiento</h3>
+                <p>
+                    Consulta clientes, registra seguimiento comercial y revisa la actividad de ventas.
+                </p>
+
+                <div class="erp-acciones-modulo">
+                    <button
+                        class="btn-primary"
+                        onclick="window.location.href='admin-clientes.html'"
+                    >
+                        Gestionar clientes
+                    </button>
+
+                    <button
+                        class="btn-primary"
+                        onclick="window.location.href='admin-crm-resumen.html'"
+                    >
+                        Ver Dashboard CRM
+                    </button>
+
+                    <button
+                        class="btn-primary"
+                        onclick="window.location.href='admin-actividad.html'"
+                    >
+                        Ver mi actividad
+                    </button>
+                </div>
+            </article>
+
+
+            <article
+                class="erp-modulo-operativo"
+                data-roles="admin vendedor logistica"
+            >
+                <span class="erp-modulo-etiqueta">ERP</span>
+                <h3>Órdenes y operación</h3>
+                <p>
+                    Centraliza las órdenes de clientes y coordina el flujo entre Ventas y Logística.
+                </p>
+
+                <div class="erp-acciones-modulo">
+                    <button
+                        class="btn-primary"
+                        data-roles="admin vendedor"
+                        onclick="window.location.href='admin-orden-nueva.html'"
+                    >
+                        Crear nueva orden
+                    </button>
+
+                    <button
+                        class="btn-primary"
+                        onclick="window.location.href='admin-ordenes.html'"
+                    >
+                        Gestionar órdenes
+                    </button>
+
+                    <button
+                        class="btn-primary"
+                        data-roles="admin"
+                        onclick="window.location.href='admin-erp-nivel.html'"
+                    >
+                        Evaluar nivel ERP
+                    </button>
+                </div>
+            </article>
+
+
+            <article
+                class="erp-modulo-operativo"
+                data-roles="admin logistica"
+            >
+                <span class="erp-modulo-etiqueta">SCM</span>
+                <h3>Inventario y abastecimiento</h3>
+                <p>
+                    Consulta existencias, proveedores y reposición PUSH/PULL basada en insumos.
+                </p>
+
+                <div class="erp-acciones-modulo">
+                    <button
+                        class="btn-primary"
+                        onclick="window.location.href='admin-inventario.html'"
+                    >
+                        Consultar inventario
+                    </button>
+
+                    <button
+                        class="btn-primary"
+                        onclick="window.location.href='admin-logistica.html'"
+                    >
+                        Gestionar logística
+                    </button>
+
+                    <button
+                        class="btn-primary"
+                        onclick="window.location.href='admin-proveedores.html'"
+                    >
+                        Ver proveedores
+                    </button>
+                </div>
+            </article>
+
+        </div>
+
+        <div class="erp-flujo-integrado">
+            <strong>CRM</strong>
+            <span>→</span>
+            <span>cliente y seguimiento</span>
+            <span>→</span>
+            <strong>ERP</strong>
+            <span>→</span>
+            <span>orden empresarial</span>
+            <span>→</span>
+            <strong>SCM</strong>
+            <span>→</span>
+            <span>inventario y abastecimiento</span>
         </div>
 
     </section>
@@ -561,39 +783,26 @@
         <div class="crm-card">
             <div class="erp-section-head">
                 <div>
-                    <h2>Accesos rápidos</h2>
-                    <p>Operación diaria desde el ERP.</p>
+                    <h2>Flujo empresarial integrado</h2>
+                    <p>Cómo se conectan las acciones que se ejecutan desde el ERP.</p>
                 </div>
             </div>
 
-            <div style="display:grid;gap:10px;">
-                <button
-                    class="btn-primary"
-                    onclick="window.location.href='admin-orden-nueva.html'"
-                >
-                    Crear nueva orden
-                </button>
+            <div style="display:grid;gap:12px;">
+                <div class="erp-operacion-card" data-roles="admin vendedor">
+                    <span>Ventas / CRM</span>
+                    <strong style="font-size:1rem;">Cliente → Nueva orden</strong>
+                </div>
 
-                <button
-                    class="btn-primary"
-                    onclick="window.location.href='admin-ordenes.html'"
-                >
-                    Gestionar órdenes
-                </button>
+                <div class="erp-operacion-card" data-roles="admin vendedor logistica">
+                    <span>ERP</span>
+                    <strong style="font-size:1rem;">Orden → Seguimiento de estado</strong>
+                </div>
 
-                <button
-                    class="btn-primary"
-                    onclick="window.location.href='admin-inventario.html'"
-                >
-                    Consultar inventario SCM
-                </button>
-
-                <button
-                    class="btn-primary"
-                    onclick="window.location.href='admin-clientes.html'"
-                >
-                    Consultar clientes CRM
-                </button>
+                <div class="erp-operacion-card" data-roles="admin logistica">
+                    <span>Logística / SCM</span>
+                    <strong style="font-size:1rem;">Preparación → Inventario → Reposición</strong>
+                </div>
             </div>
         </div>
 

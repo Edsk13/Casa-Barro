@@ -34,14 +34,14 @@
                     <p id="metrica-activos-porcentaje">0% del total</p>
                 </div>
                 <div class="crm-stat-box">
-                    <h4>INTERACCIONES</h4>
+                    <h4>INTERACCIONES (30 DÍAS)</h4>
                     <h2 id="metrica-interacciones">0</h2>
-                    <p>Módulo en desarrollo</p>
+                    <p>Actividad reciente registrada</p>
                 </div>
                 <div class="crm-stat-box crm-stat-warning">
                     <h4 style="color: #b7410e;">SIN INTERACCIÓN</h4>
                     <h2 id="metrica-riesgo" style="color: #b7410e;">0</h2>
-                    <p>Últimos 30 días</p>
+                    <p id="metrica-riesgo-periodo">Más de 30 días</p>
                 </div>
             </section>
 
@@ -78,21 +78,29 @@
                 if(data.mensaje === "Éxito") {
                     document.getElementById('metrica-total').innerText = data.total;
                     document.getElementById('metrica-activos').innerText = data.activos;
-                    document.getElementById('metrica-riesgo').innerText = data.inactivos;
+                    document.getElementById('metrica-riesgo').innerText = data.clientes_sin_interaccion_reciente;
+                    document.getElementById('metrica-interacciones').innerText = data.interacciones_periodo;
+                    const periodo = Number(data.periodo_dias || 30);
+                    document.getElementById('metrica-riesgo-periodo').innerText = `Más de ${periodo} días`;
                     
                     let pct = data.total > 0 ? Math.round((data.activos / data.total) * 100) : 0;
                     document.getElementById('metrica-activos-porcentaje').innerText = `${pct}% del total`;
 
                     let htmlRiesgo = '';
                     if(data.listaRiesgo.length === 0) {
-                        htmlRiesgo = '<li style="padding:10px 0; color:#557268; font-weight:bold;">Todos los clientes están activos.</li>';
+                        htmlRiesgo = '<li style="padding:10px 0; color:#557268; font-weight:bold;">No hay clientes activos fuera del periodo de seguimiento.</li>';
                     } else {
                         data.listaRiesgo.forEach(c => {
+                            const detalleUltima = c.ultima_interaccion
+                                ? `Última interacción: ${new Date(c.ultima_interaccion.replace(' ', 'T')).toLocaleDateString('es-MX')}`
+                                : 'Sin interacciones registradas';
+
                             htmlRiesgo += `
-                            <li style="padding: 10px 0; border-bottom: 1px dashed #eae5db; display: flex; justify-content: space-between; align-items: center;">
+                            <li style="padding: 10px 0; border-bottom: 1px dashed #eae5db; display: flex; justify-content: space-between; align-items: center; gap:12px;">
                                 <div>
                                     <strong style="color: #333; display:block;">${c.nombre}</strong>
-                                    <span style="color: #b7410e; font-size: 0.85rem; font-weight:bold;">Etapa: ${c.etapa_crm}</span>
+                                    <span style="color:#777; font-size:0.82rem; display:block; margin-top:3px;">${detalleUltima}</span>
+                                    <span style="color: #b7410e; font-size: 0.85rem; font-weight:bold;">${c.dias_sin_interaccion} días sin interacción · ${c.numero_interacciones} interacción(es)</span>
                                 </div>
                                 <span style="color: #ccc; font-weight:bold;">></span>
                             </li>`;
@@ -104,7 +112,7 @@
                     new Chart(ctx, {
                         type: 'doughnut',
                         data: {
-                            labels: ['Activos', 'Prospectos/Inactivos'],
+                            labels: ['Activos', 'Inactivos'],
                             datasets: [{ data: [data.activos, data.inactivos], backgroundColor: ['#557268', '#b7410e'], borderWidth: 0 }]
                         },
                         options: { responsive: true, maintainAspectRatio: false, cutout: '75%' }
