@@ -382,9 +382,6 @@ async function agregarColumnaEtapa4(h, tabla, columna, definicion) {
 async function migrarEtapa4(db) {
     const h = crearHelpersEtapa4(db);
 
-    // IMPORTANTE: la primera llamada a db se hace de forma síncrona
-    // (antes de cualquier await) para quedar encolada después de
-    // inicializarTablas() dentro de db.serialize().
     const primeraConsulta = h.all('PRAGMA table_info(productos)');
 
     try {
@@ -556,7 +553,7 @@ async function migrarEtapa4(db) {
         await agregarColumnaEtapa4(h, 'orden_detalle', 'nota', 'TEXT');
 
         // --------------------------------------------------------
-        // 3. DATOS SEMILLA Y ENLACES (sin pisar lo existente)
+        // 3. DATOS SEMILLA Y ENLACES
         // --------------------------------------------------------
         for (const [clave, nombre, orden] of CATEGORIAS_ETAPA4) {
             await h.run(
