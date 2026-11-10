@@ -323,6 +323,322 @@ function inicializarTablas() {
             );
         }
     });
+
+    // Etapa 4: esquema de negocio electrónico (carrito, pagos, promociones, etc.)
+    migrarEtapa4(db);
+}
+
+// ============================================================
+// ETAPA 4 - NEGOCIO ELECTRÓNICO: ESQUEMA DE BASE DE DATOS (Día 1)
+// ------------------------------------------------------------
+// - Idempotente: se puede ejecutar en cada arranque sin duplicar nada.
+// - No borra ni modifica datos existentes de CRM / SCM / ERP.
+// - Reutiliza ordenes_empresariales + orden_detalle como "pedido"
+//   del cliente (el ERP integra, no duplica). La tabla `pedidos`
+//   existente pertenece a SCM (reposición a proveedores).
+// ============================================================
+
+function crearHelpersEtapa4(db) {
+    const run = (sql, params = []) => new Promise((resolve, reject) => {
+        db.run(sql, params, function (err) {
+            if (err) return reject(err);
+            resolve({ lastID: this.lastID, changes: this.changes });
+        });
+    });
+
+    const all = (sql, params = []) => new Promise((resolve, reject) => {
+        db.all(sql, params, (err, rows) => (err ? reject(err) : resolve(rows)));
+    });
+
+    const get = (sql, params = []) => new Promise((resolve, reject) => {
+        db.get(sql, params, (err, row) => (err ? reject(err) : resolve(row)));
+    });
+
+    return { run, all, get };
+}
+
+const CATEGORIAS_ETAPA4 = [
+    ['alimentos', 'Alimentos', 1],
+    ['calientes', 'Bebidas calientes', 2],
+    ['frias', 'Bebidas frías', 3],
+    ['postres', 'Postres', 4]
+];
+
+const PROMOCIONES_ETAPA4 = [
+    // codigo, nombre, descripcion, tipo, valor, solo_registrados, destacada
+    ['MAÑANAS15', 'Mañanas de Café', 'Lunes a jueves: 10% de descuento en tu pedido de la mañana.', 'porcentaje', 10, 0, 1],
+    ['VIERNES20', 'Viernes de Enchiladas', 'Viernes: 20% de descuento para comenzar bien el fin de semana.', 'porcentaje', 20, 0, 1],
+    ['SOYCLIENTE15', 'Cliente Frecuente', '15% de descuento para usuarios registrados del Club Casa Barro.', 'porcentaje', 15, 1, 0]
+];
+
+async function agregarColumnaEtapa4(h, tabla, columna, definicion) {
+    const columnas = await h.all(`PRAGMA table_info(${tabla})`);
+    if (columnas.some(c => c.name === columna)) return false;
+    await h.run(`ALTER TABLE ${tabla} ADD COLUMN ${columna} ${definicion}`);
+    console.log(`Etapa 4: columna agregada ${tabla}.${columna}`);
+    return true;
+}
+
+async function migrarEtapa4(db) {
+    const h = crearHelpersEtapa4(db);
+
+    // IMPORTANTE: la primera llamada a db se hace de forma síncrona
+    // (antes de cualquier await) para quedar encolada después de
+    // inicializarTablas() dentro de db.serialize().
+    const primeraConsulta = h.all('PRAGMA table_info(productos)');
+
+    try {
+        await primeraConsulta;
+
+        // --------------------------------------------------------
+        // 1. TABLAS NUEVAS
+        // --------------------------------------------------------
+        await h.run(`
+            CREATE TABLE IF NOT EXISTS categorias (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                clave TEXT NOT NULL UNIQUE,
+                nombre TEXT NOT NULL,
+                orden INTEGER NOT NULL DEFAULT 0,
+                estado TEXT NOT NULL DEFAULT 'activo'
+                    CHECK (estado IN ('activo','inactivo'))
+            )
+        `);
+
+        await h.run(`
+            CREATE TABLE IF NOT EXISTS impuestos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL UNIQUE,
+                porcentaje REAL NOT NULL CHECK (porcentaje >= 0 AND porcentaje <= 100),
+                estado TEXT NOT NULL DEFAULT 'activo'
+                    CHECK (estado IN ('activo','inactivo')),
+                fecha_actualizacion DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        await h.run(`
+            CREATE TABLE IF NOT EXISTS promociones (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                codigo TEXT NOT NULL UNIQUE,
+                nombre TEXT NOT NULL,
+                descripcion TEXT,
+                tipo_descuento TEXT NOT NULL DEFAULT 'porcentaje'
+                    CHECK (tipo_descuento IN ('porcentaje','monto')),
+                valor REAL NOT NULL CHECK (valor > 0),
+                aplica_a TEXT NOT NULL DEFAULT 'todo'
+                    CHECK (aplica_a IN ('todo','categoria','producto')),
+                categoria_id INTEGER,
+                producto_id INTEGER,
+                solo_registrados INTEGER NOT NULL DEFAULT 0,
+                destacada INTEGER NOT NULL DEFAULT 0,
+                fecha_inicio DATETIME,
+                fecha_fin DATETIME,
+                estado TEXT NOT NULL DEFAULT 'activa'
+                    CHECK (estado IN ('activa','inactiva')),
+                fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (categoria_id) REFERENCES categorias(id),
+                FOREIGN KEY (producto_id) REFERENCES productos(id)
+            )
+        `);
+
+        await h.run(`
+            CREATE TABLE IF NOT EXISTS carrito (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cliente_id INTEGER NOT NULL,
+                estado TEXT NOT NULL DEFAULT 'activo'
+                    CHECK (estado IN ('activo','convertido','abandonado')),
+                fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+                fecha_actualizacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (cliente_id) REFERENCES clientes(id)
+            )
+        `);
+
+        await h.run(`
+            CREATE TABLE IF NOT EXISTS carrito_detalle (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                carrito_id INTEGER NOT NULL,
+                producto_id INTEGER NOT NULL,
+                cantidad INTEGER NOT NULL CHECK (cantidad > 0),
+                precio_unitario REAL NOT NULL CHECK (precio_unitario >= 0),
+                opciones_json TEXT,
+                nota TEXT,
+                FOREIGN KEY (carrito_id) REFERENCES carrito(id) ON DELETE CASCADE,
+                FOREIGN KEY (producto_id) REFERENCES productos(id)
+            )
+        `);
+
+        await h.run(`
+            CREATE TABLE IF NOT EXISTS pagos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pedido_id INTEGER NOT NULL UNIQUE,
+                monto REAL NOT NULL CHECK (monto >= 0),
+                metodo_pago TEXT NOT NULL
+                    CHECK (metodo_pago IN ('tarjeta','transferencia','efectivo','monedero')),
+                estado TEXT NOT NULL DEFAULT 'pendiente'
+                    CHECK (estado IN ('pendiente','aprobado','rechazado','reembolsado')),
+                referencia TEXT,
+                fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (pedido_id) REFERENCES ordenes_empresariales(id)
+            )
+        `);
+
+        await h.run(`
+            CREATE TABLE IF NOT EXISTS tickets_atencion (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cliente_id INTEGER NOT NULL,
+                pedido_id INTEGER,
+                asunto TEXT NOT NULL,
+                mensaje TEXT NOT NULL,
+                estado TEXT NOT NULL DEFAULT 'abierto'
+                    CHECK (estado IN ('abierto','en_proceso','respondido','cerrado')),
+                fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+                respuesta TEXT,
+                fecha_respuesta DATETIME,
+                usuario_respuesta_id INTEGER,
+                FOREIGN KEY (cliente_id) REFERENCES clientes(id),
+                FOREIGN KEY (pedido_id) REFERENCES ordenes_empresariales(id),
+                FOREIGN KEY (usuario_respuesta_id) REFERENCES usuarios(id)
+            )
+        `);
+
+        await h.run(`
+            CREATE TABLE IF NOT EXISTS monedero (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cliente_id INTEGER NOT NULL UNIQUE,
+                saldo REAL NOT NULL DEFAULT 0 CHECK (saldo >= 0),
+                fecha_actualizacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (cliente_id) REFERENCES clientes(id)
+            )
+        `);
+
+        await h.run(`
+            CREATE TABLE IF NOT EXISTS monedero_movimientos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                monedero_id INTEGER NOT NULL,
+                tipo TEXT NOT NULL
+                    CHECK (tipo IN ('recarga','compra','reembolso','ajuste')),
+                monto REAL NOT NULL,
+                saldo_resultante REAL NOT NULL CHECK (saldo_resultante >= 0),
+                concepto TEXT,
+                pedido_id INTEGER,
+                usuario_id INTEGER,
+                fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (monedero_id) REFERENCES monedero(id),
+                FOREIGN KEY (pedido_id) REFERENCES ordenes_empresariales(id),
+                FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+            )
+        `);
+
+        // --------------------------------------------------------
+        // 2. COLUMNAS NUEVAS EN TABLAS EXISTENTES
+        // --------------------------------------------------------
+        // Productos (catálogo / comercialización)
+        await agregarColumnaEtapa4(h, 'productos', 'categoria_id', 'INTEGER REFERENCES categorias(id)');
+        await agregarColumnaEtapa4(h, 'productos', 'destacado', 'INTEGER NOT NULL DEFAULT 0');
+        await agregarColumnaEtapa4(h, 'productos', 'es_novedad', 'INTEGER NOT NULL DEFAULT 0');
+
+        // Clientes <-> Usuarios (cuenta de tienda enlazada al CRM)
+        await agregarColumnaEtapa4(h, 'clientes', 'usuario_id', 'INTEGER REFERENCES usuarios(id)');
+        await agregarColumnaEtapa4(h, 'clientes', 'direccion', 'TEXT');
+        await agregarColumnaEtapa4(h, 'usuarios', 'direccion', 'TEXT');
+        await agregarColumnaEtapa4(h, 'usuarios', 'estado', "TEXT NOT NULL DEFAULT 'activo'");
+
+        // Pedido de tienda = orden empresarial del ERP
+        await agregarColumnaEtapa4(h, 'ordenes_empresariales', 'canal', "TEXT NOT NULL DEFAULT 'interno'");
+        await agregarColumnaEtapa4(h, 'ordenes_empresariales', 'subtotal', 'REAL NOT NULL DEFAULT 0');
+        await agregarColumnaEtapa4(h, 'ordenes_empresariales', 'descuento', 'REAL NOT NULL DEFAULT 0');
+        await agregarColumnaEtapa4(h, 'ordenes_empresariales', 'impuesto', 'REAL NOT NULL DEFAULT 0');
+        await agregarColumnaEtapa4(h, 'ordenes_empresariales', 'porcentaje_impuesto', 'REAL NOT NULL DEFAULT 0');
+        await agregarColumnaEtapa4(h, 'ordenes_empresariales', 'promocion_id', 'INTEGER REFERENCES promociones(id)');
+        await agregarColumnaEtapa4(h, 'ordenes_empresariales', 'tipo_entrega', "TEXT NOT NULL DEFAULT 'sucursal'");
+        await agregarColumnaEtapa4(h, 'ordenes_empresariales', 'direccion_entrega', 'TEXT');
+
+        await agregarColumnaEtapa4(h, 'orden_detalle', 'opciones_json', 'TEXT');
+        await agregarColumnaEtapa4(h, 'orden_detalle', 'nota', 'TEXT');
+
+        // --------------------------------------------------------
+        // 3. DATOS SEMILLA Y ENLACES (sin pisar lo existente)
+        // --------------------------------------------------------
+        for (const [clave, nombre, orden] of CATEGORIAS_ETAPA4) {
+            await h.run(
+                'INSERT OR IGNORE INTO categorias (clave, nombre, orden) VALUES (?, ?, ?)',
+                [clave, nombre, orden]
+            );
+        }
+
+        // Categorías que existan en productos pero no estén en la base
+        const huerfanas = await h.all(`
+            SELECT DISTINCT LOWER(TRIM(categoria)) AS clave
+            FROM productos
+            WHERE categoria IS NOT NULL AND TRIM(categoria) <> ''
+        `);
+        for (const { clave } of huerfanas) {
+            const nombre = clave.charAt(0).toUpperCase() + clave.slice(1);
+            await h.run(
+                'INSERT OR IGNORE INTO categorias (clave, nombre, orden) VALUES (?, ?, 99)',
+                [clave, nombre]
+            );
+        }
+
+        await h.run(`
+            UPDATE productos
+            SET categoria_id = (
+                SELECT c.id FROM categorias c
+                WHERE c.clave = LOWER(TRIM(productos.categoria))
+            )
+            WHERE categoria_id IS NULL
+              AND categoria IS NOT NULL
+        `);
+
+        await h.run(
+            `INSERT OR IGNORE INTO impuestos (nombre, porcentaje, estado) VALUES ('IVA', 16, 'activo')`
+        );
+
+        for (const [codigo, nombre, desc, tipo, valor, soloReg, destacada] of PROMOCIONES_ETAPA4) {
+            await h.run(
+                `INSERT OR IGNORE INTO promociones
+                    (codigo, nombre, descripcion, tipo_descuento, valor, solo_registrados, destacada)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [codigo, nombre, desc, tipo, valor, soloReg, destacada]
+            );
+        }
+
+        // Enlazar clientes existentes con su usuario (por correo)
+        await h.run(`
+            UPDATE clientes
+            SET usuario_id = (
+                SELECT u.id FROM usuarios u
+                WHERE LOWER(u.correo) = LOWER(clientes.correo)
+                  AND u.rol = 'cliente'
+            )
+            WHERE usuario_id IS NULL
+        `);
+
+        // Un monedero (saldo 0) por cada cliente existente
+        await h.run(`
+            INSERT OR IGNORE INTO monedero (cliente_id, saldo)
+            SELECT id, 0 FROM clientes
+        `);
+
+        // --------------------------------------------------------
+        // 4. ÍNDICES
+        // --------------------------------------------------------
+        // Un cliente solo puede tener UN carrito activo
+        await h.run(`
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_carrito_activo_cliente
+            ON carrito (cliente_id) WHERE estado = 'activo'
+        `);
+        await h.run('CREATE INDEX IF NOT EXISTS ix_carrito_detalle_carrito ON carrito_detalle (carrito_id)');
+        await h.run('CREATE INDEX IF NOT EXISTS ix_pagos_estado ON pagos (estado)');
+        await h.run('CREATE INDEX IF NOT EXISTS ix_tickets_cliente ON tickets_atencion (cliente_id, estado)');
+        await h.run('CREATE INDEX IF NOT EXISTS ix_mon_mov_monedero ON monedero_movimientos (monedero_id, fecha)');
+        await h.run('CREATE INDEX IF NOT EXISTS ix_ordenes_cliente ON ordenes_empresariales (cliente_id, fecha)');
+        await h.run('CREATE INDEX IF NOT EXISTS ix_productos_categoria ON productos (categoria_id)');
+        await h.run('CREATE INDEX IF NOT EXISTS ix_promociones_vigencia ON promociones (estado, fecha_inicio, fecha_fin)');
+
+        console.log('Etapa 4: esquema de negocio electrónico listo.');
+    } catch (error) {
+        console.error('Etapa 4: error migrando la base de datos:', error.message);
+    }
 }
 
 // ============================================================
