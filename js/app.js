@@ -207,12 +207,142 @@ let carrito = JSON.parse(localStorage.getItem('casaBarro_carrito')) || [];
 let propinaPorcentaje = 0;
 let cuponAplicado = JSON.parse(localStorage.getItem('casaBarro_cupon')) || null;
 
+// ------------------------------------------------------------
+// ETAPA 4 · CARRITO PERSISTENTE
+// Invitado  -> carrito en localStorage
+// Con sesión -> carrito en la base de datos (/api/carrito)
+// Al iniciar sesión el carrito de invitado se fusiona con la cuenta.
+// ------------------------------------------------------------
+const API_TIENDA_BASE = 'http://localhost:3000/api';
+
+function haySesionTienda() {
+    return Boolean(localStorage.getItem('casaBarro_token')) &&
+        Boolean(localStorage.getItem('casaBarro_usuario'));
+}
+
+function guardarCarritoLocalTienda() {
+    localStorage.setItem('casaBarro_carrito', JSON.stringify(carrito));
+}
+
+function avisoTienda(icono, titulo) {
+    Swal.fire({ toast: true, position: 'top-end', icon: icono, title: titulo, showConfirmButton: false, timer: 2500 });
+}
+
+async function apiCarritoTienda(ruta, opciones = {}) {
+    const respuesta = await fetch(`${API_TIENDA_BASE}${ruta}`, {
+        ...opciones,
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('casaBarro_token') || ''}`
+        }
+    });
+
+    const datos = await respuesta.json().catch(() => ({}));
+
+    if (!respuesta.ok) {
+        const error = new Error(datos.error || 'No se pudo completar la operación del carrito.');
+        error.status = respuesta.status;
+        throw error;
+    }
+
+    return datos;
+}
+
+function aplicarCarritoServidorTienda(datosCarrito) {
+    carrito = (datosCarrito.items || []).map(item => ({
+        item_id: item.id,
+        producto: item.nombre,
+        precio: Number(item.precio_unitario),
+        cantidad: item.cantidad,
+        opcion: item.opcion_texto,
+        producto_id: item.producto_id,
+        nota: item.nota,
+        stock_actual: item.stock_actual
+    }));
+    actualizarUI();
+}
+
+function calcularExtraOpcionesTienda(producto, nombres) {
+    if (!producto || !Array.isArray(producto.grupos)) return 0;
+    const usados = new Set();
+    let extra = 0;
+    nombres.forEach(nombre => {
+        producto.grupos.forEach(grupo => {
+            if (usados.has(grupo.id)) return;
+            const opcion = (grupo.opciones || []).find(o => o.nombre === nombre);
+            if (opcion) { usados.add(grupo.id); extra += Number(opcion.precio_extra || 0); }
+        });
+    });
+    return extra;
+}
+
+// Se ejecuta al cargar cada página: trae el carrito de la cuenta y fusiona el de invitado.
+window.sincronizarCarritoSesion = async function () {
+    if (!haySesionTienda()) return;
+
+    try {
+        const locales = (JSON.parse(localStorage.getItem('casaBarro_carrito')) || [])
+            .filter(item => item.producto_id);
+
+        if (locales.length) {
+            const resultado = await apiCarritoTienda('/carrito/fusionar', {
+                method: 'POST',
+                body: JSON.stringify({
+                    items: locales.map(item => ({
+                        producto_id: item.producto_id,
+                        cantidad: item.cantidad,
+                        opciones: item.opciones_lista || (item.opcion ? String(item.opcion).split(' + ') : [])
+                    }))
+                })
+            });
+            localStorage.removeItem('casaBarro_carrito');
+            aplicarCarritoServidorTienda(resultado.carrito);
+            if (resultado.omitidos && resultado.omitidos.length) {
+                avisoTienda('info', `${resultado.omitidos.length} producto(s) de tu carrito ya no estaban disponibles.`);
+            }
+        } else {
+            localStorage.removeItem('casaBarro_carrito');
+            const resultado = await apiCarritoTienda('/carrito/mi');
+            aplicarCarritoServidorTienda(resultado.carrito);
+        }
+    } catch (error) {
+        if (error.status === 401) {
+            // La sesión expiró: se vuelve al modo invitado
+            localStorage.removeItem('casaBarro_token');
+            localStorage.removeItem('casaBarro_usuario');
+            carrito = JSON.parse(localStorage.getItem('casaBarro_carrito')) || [];
+        } else {
+            console.warn('No se pudo sincronizar el carrito:', error.message);
+        }
+    }
+};
+
 window.mostrarProximamente = function() { Swal.fire({ title: '¡Próximamente!', text: 'Función disponible muy pronto.', icon: 'info', confirmButtonText: 'Entendido', confirmButtonColor: '#3c4a45' }); }
 window.aplicarDescuento = function(codigo, porcentaje) { cuponAplicado = { codigo, porcentaje }; localStorage.setItem('casaBarro_cupon', JSON.stringify(cuponAplicado)); Swal.fire({ icon: 'success', title: '¡Aplicado!', text: `Cupón ${codigo} reflejado.`, confirmButtonColor: '#3c4a45' }).then(() => window.location.href = 'carrito.html'); }
 window.mostrarPoliticas = function() { Swal.fire({ title: 'Políticas', html: `<p style="text-align:justify;">Cancelaciones no permitidas una vez en preparación...</p>`, confirmButtonColor: '#3c4a45' }); }
 window.actualizarUI = function() { const cartCountElement = document.getElementById('cart-count'); if (cartCountElement) cartCountElement.innerText = carrito.reduce((t, i) => t + i.cantidad, 0); }
 window.cambiarCantidad = function(cambio) { let el = document.getElementById('swal-cantidad'); let nueva = parseInt(el.innerText) + cambio; if (nueva >= 1) el.innerText = nueva; }
-window.cambiarCantidadCarrito = function(index, cambio) { if (carrito[index].cantidad + cambio >= 1) { carrito[index].cantidad += cambio; localStorage.setItem('casaBarro_carrito', JSON.stringify(carrito)); actualizarUI(); renderizarCarrito(); } }
+window.cambiarCantidadCarrito = async function(index, cambio) {
+    const item = carrito[index];
+    if (!item) return;
+    const nueva = item.cantidad + cambio;
+    if (nueva < 1) return;
+
+    if (haySesionTienda() && item.item_id) {
+        try {
+            const r = await apiCarritoTienda(`/carrito/item/${item.item_id}`, { method: 'PUT', body: JSON.stringify({ cantidad: nueva }) });
+            aplicarCarritoServidorTienda(r.carrito);
+        } catch (error) {
+            return avisoTienda('warning', error.message);
+        }
+    } else {
+        item.cantidad = nueva;
+        guardarCarritoLocalTienda();
+    }
+
+    actualizarUI();
+    renderizarCarrito();
+}
 
 window.confirmarAgregarAlCarrito = async function(
     nombre,
@@ -323,30 +453,44 @@ window.confirmarAgregarAlCarrito = async function(
             .join(' + ') ||
         null;
 
-    carrito.push({
+    const nombresOpcionesCarrito = [opt, ext].filter(Boolean);
 
-        producto:
-            nombre,
+    if (haySesionTienda() && productoId) {
+        // Cliente con sesión: el carrito vive en la base de datos y el precio lo calcula el servidor
+        try {
+            const r = await apiCarritoTienda('/carrito/agregar', {
+                method: 'POST',
+                body: JSON.stringify({
+                    producto_id: Number(productoId),
+                    cantidad,
+                    opciones: nombresOpcionesCarrito
+                })
+            });
+            aplicarCarritoServidorTienda(r.carrito);
+        } catch (error) {
+            return Swal.fire({
+                icon: 'warning',
+                title: 'No se pudo agregar',
+                text: error.message,
+                confirmButtonColor: '#3c4a45'
+            });
+        }
+    } else {
+        // Invitado: carrito local (se fusiona con su cuenta al iniciar sesión)
+        const productoCatalogo = catalogoProductosCache.find(p => Number(p.id) === Number(productoId));
+        const extra = calcularExtraOpcionesTienda(productoCatalogo, nombresOpcionesCarrito);
 
-        precio:
-            precio,
+        carrito.push({
+            producto: nombre,
+            precio: Number(precio) + extra,
+            cantidad: cantidad,
+            opcion: stringOpcion,
+            opciones_lista: nombresOpcionesCarrito,
+            producto_id: productoId ? Number(productoId) : null
+        });
 
-        cantidad:
-            cantidad,
-
-        opcion:
-            stringOpcion,
-
-        producto_id:
-            productoId
-                ? Number(productoId)
-                : null
-    });
-
-    localStorage.setItem(
-        'casaBarro_carrito',
-        JSON.stringify(carrito)
-    );
+        guardarCarritoLocalTienda();
+    }
 
     actualizarUI();
 
@@ -375,8 +519,23 @@ window.confirmarAgregarAlCarrito = async function(
 window.cambiarPropina = function(porcentaje) { propinaPorcentaje = porcentaje; renderizarCarrito(); }
 
 window.vaciarCarrito = function() {
-    Swal.fire({ title: '¿Vaciar carrito?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Sí' }).then((res) => {
-        if (res.isConfirmed) { carrito = []; localStorage.removeItem('casaBarro_carrito'); cuponAplicado = null; localStorage.removeItem('casaBarro_cupon'); actualizarUI(); renderizarCarrito(); }
+    Swal.fire({ title: '¿Vaciar carrito?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Sí' }).then(async (res) => {
+        if (!res.isConfirmed) return;
+
+        if (haySesionTienda()) {
+            try {
+                await apiCarritoTienda('/carrito/vaciar/mi', { method: 'DELETE' });
+            } catch (error) {
+                return avisoTienda('error', error.message);
+            }
+        }
+
+        carrito = [];
+        localStorage.removeItem('casaBarro_carrito');
+        cuponAplicado = null;
+        localStorage.removeItem('casaBarro_cupon');
+        actualizarUI();
+        renderizarCarrito();
     });
 }
 
@@ -423,7 +582,25 @@ window.renderizarCarrito = function() {
     contenedor.innerHTML = htmlItems;
 }
 
-window.eliminarDelCarrito = function(index) { carrito.splice(index, 1); localStorage.setItem('casaBarro_carrito', JSON.stringify(carrito)); actualizarUI(); renderizarCarrito(); }
+window.eliminarDelCarrito = async function(index) {
+    const item = carrito[index];
+    if (!item) return;
+
+    if (haySesionTienda() && item.item_id) {
+        try {
+            const r = await apiCarritoTienda(`/carrito/item/${item.item_id}`, { method: 'DELETE' });
+            aplicarCarritoServidorTienda(r.carrito);
+        } catch (error) {
+            return avisoTienda('error', error.message);
+        }
+    } else {
+        carrito.splice(index, 1);
+        guardarCarritoLocalTienda();
+    }
+
+    actualizarUI();
+    renderizarCarrito();
+}
 
 window.abrirDetalleMejorado = function(
     nombre,
@@ -434,7 +611,8 @@ window.abrirDetalleMejorado = function(
     opcionesStr = '',
     extrasStr = '',
     productoId = null,
-    disponible = true
+    disponible = true,
+    stockDisponible = null
 ) {
 
     const precioNum =
@@ -693,6 +871,14 @@ window.abrirDetalleMejorado = function(
                 ${precioStr}
             </h3>
 
+            ${
+                stockDisponible !== null && disponible
+                    ? `<p style="margin:-5px 0 12px 0; font-size:.9rem; color:${Number(stockDisponible) <= 5 ? '#b7410e' : '#557268'}; font-weight:bold;">
+                           ${Number(stockDisponible) <= 5 ? '¡Últimas piezas! ' : ''}Disponibles: ${Number(stockDisponible)}
+                       </p>`
+                    : ''
+            }
+
             ${opcionesHtml}
 
             ${controlesCompra}
@@ -744,7 +930,21 @@ function obtenerClaseEtiquetaCatalogo(tipo) {
     }
 }
 
-function abrirDetalleProductoBD(productoId) {
+async function refrescarProductoCacheTienda(productoId) {
+    try {
+        const respuesta = await fetch(`${API_TIENDA_BASE}/catalogo/${Number(productoId)}`, { cache: 'no-store' });
+        if (!respuesta.ok) return;
+        const resultado = await respuesta.json();
+        if (!resultado.data) return;
+        const indice = catalogoProductosCache.findIndex(p => Number(p.id) === Number(productoId));
+        if (indice >= 0) catalogoProductosCache[indice] = { ...catalogoProductosCache[indice], ...resultado.data };
+    } catch (error) {
+        // Si falla, se usa lo que ya estaba en pantalla
+    }
+}
+
+async function abrirDetalleProductoBD(productoId) {
+    await refrescarProductoCacheTienda(productoId);
 
     const producto =
         catalogoProductosCache.find(
@@ -796,7 +996,8 @@ function abrirDetalleProductoBD(productoId) {
             opcionesStr,
             extrasStr,
             producto.id,
-            estaDisponible
+            estaDisponible,
+            producto.stock_actual
         );
 }
 
@@ -899,13 +1100,14 @@ const agotadoHtml =
           `
         : '';
 
+    if (agotado) {
+        tarjeta.style.opacity = '0.75';
+    }
+
     tarjeta.innerHTML = `
 
         ${agotadoHtml}
         ${etiquetaHtml}
-        if (agotado) {
-            tarjeta.style.opacity = '0.75';
-        }
         <img
             src="${
                 escaparHtmlSCM(
@@ -1032,6 +1234,45 @@ function filtrarCatalogoBD() {
         });
 }
 
+function construirUrlCatalogoTienda() {
+    const parametros = new URLSearchParams();
+    const buscador = document.getElementById('buscador-productos');
+    const categoria = document.getElementById('filtro-categoria');
+
+    if (buscador && buscador.value.trim()) parametros.set('buscar', buscador.value.trim());
+    if (categoria && categoria.value && categoria.value !== 'todos') parametros.set('categoria', categoria.value);
+
+    const consulta = parametros.toString();
+    return `${API_TIENDA_BASE}/catalogo${consulta ? '?' + consulta : ''}`;
+}
+
+let temporizadorCatalogoTienda = null;
+
+function recargarCatalogoTienda() {
+    return cargarProductosBD();
+}
+
+function recargarCatalogoConRetrasoTienda() {
+    clearTimeout(temporizadorCatalogoTienda);
+    temporizadorCatalogoTienda = setTimeout(recargarCatalogoTienda, 300);
+}
+
+function actualizarAvisoSinResultadosTienda() {
+    let aviso = document.getElementById('catalogo-sin-resultados');
+
+    if (!aviso) {
+        aviso = document.createElement('p');
+        aviso.id = 'catalogo-sin-resultados';
+        aviso.style.cssText = 'text-align:center; color:#777; padding:30px 10px; font-size:1.05rem;';
+        const filtros = document.querySelector('.filtros-container');
+        if (filtros) filtros.insertAdjacentElement('afterend', aviso);
+    }
+
+    aviso.textContent = catalogoProductosCache.length
+        ? ''
+        : 'No encontramos productos con esos filtros. Prueba con otra búsqueda o categoría.';
+}
+
 async function cargarProductosBD() {
 
     const contenedores = {
@@ -1068,10 +1309,8 @@ async function cargarProductosBD() {
 
         const respuesta =
             await fetch(
-                'http://localhost:3000/api/catalogo/productos',
-                {
-                    cache: 'no-store'
-                }
+                construirUrlCatalogoTienda(),
+                { cache: 'no-store' }
             );
 
         const resultado =
@@ -1169,7 +1408,7 @@ async function cargarProductosBD() {
 
             buscador.addEventListener(
                 'input',
-                filtrarCatalogoBD
+                recargarCatalogoConRetrasoTienda
             );
 
             buscador.dataset.catalogoEventos =
@@ -1184,14 +1423,13 @@ async function cargarProductosBD() {
 
             filtroCategoria.addEventListener(
                 'change',
-                filtrarCatalogoBD
+                recargarCatalogoTienda
             );
 
             filtroCategoria.dataset.catalogoEventos =
                 '1';
         }
-
-        filtrarCatalogoBD();
+        actualizarAvisoSinResultadosTienda();
 
     } catch (error) {
 
@@ -7836,6 +8074,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ========================================================
 
     activarAlertas();
+
+    await sincronizarCarritoSesion();
 
     actualizarUI();
 
