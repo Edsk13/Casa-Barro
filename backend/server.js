@@ -382,6 +382,9 @@ async function agregarColumnaEtapa4(h, tabla, columna, definicion) {
 async function migrarEtapa4(db) {
     const h = crearHelpersEtapa4(db);
 
+    // IMPORTANTE: la primera llamada a db se hace de forma síncrona
+    // (antes de cualquier await) para quedar encolada después de
+    // inicializarTablas() dentro de db.serialize().
     const primeraConsulta = h.all('PRAGMA table_info(productos)');
 
     try {
@@ -553,7 +556,7 @@ async function migrarEtapa4(db) {
         await agregarColumnaEtapa4(h, 'orden_detalle', 'nota', 'TEXT');
 
         // --------------------------------------------------------
-        // 3. DATOS SEMILLA Y ENLACES
+        // 3. DATOS SEMILLA Y ENLACES (sin pisar lo existente)
         // --------------------------------------------------------
         for (const [clave, nombre, orden] of CATEGORIAS_ETAPA4) {
             await h.run(
@@ -2727,6 +2730,654 @@ app.get('/api/catalogo/productos', async (req, res) => {
             error:
                 'No se pudo cargar el catálogo.'
         });
+    }
+});
+
+// ============================================================
+// ETAPA 4 · DÍA 2 · CATÁLOGO PÚBLICO (consulta, filtros, detalle)
+// GET /api/catalogo                      (?categoria= &buscar= &destacado=1 &novedad=1)
+// GET /api/catalogo/categorias
+// GET /api/catalogo/:id
+// (La ruta anterior /api/catalogo/productos se conserva sin cambios)
+// ============================================================
+
+function normalizarBusquedaTienda(texto) {
+    return String(texto || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+}
+
+function redondearMonedaTienda(valor) {
+    return Math.round((Number(valor || 0) + Number.EPSILON) * 100) / 100;
+}
+
+function errorTienda(status, mensaje) {
+    const error = new Error(mensaje);
+    error.status = status;
+    return error;
+}
+
+function responderErrorTienda(res, error, mensajeGenerico) {
+    if (error && error.status) {
+        return res.status(error.status).json({ error: error.message });
+    }
+    console.error(mensajeGenerico, error);
+    return res.status(500).json({ error: mensajeGenerico });
+}
+
+async function cargarGruposTienda(productoId) {
+    const grupos = await dbAllSCM(
+        `SELECT id, producto_id, nombre, seleccion_minima, seleccion_maxima
+         FROM producto_grupo
+         WHERE producto_id = ?
+         ORDER BY id ASC`,
+        [productoId]
+    );
+
+    for (const grupo of grupos) {
+        grupo.opciones = await dbAllSCM(
+            `SELECT id, grupo_id, nombre, precio_extra
+             FROM producto_opcion
+             WHERE grupo_id = ?
+             ORDER BY id ASC`,
+            [grupo.id]
+        );
+    }
+
+    return grupos;
+}
+
+function presentarProductoTienda(producto) {
+    const stock = Number(producto.stock_actual || 0);
+
+    return {
+        ...producto,
+        imagen_url: producto.imagen,
+        destacado: Number(producto.destacado || 0) === 1,
+        es_novedad: Number(producto.es_novedad || 0) === 1,
+        disponible: producto.estado === 'disponible' && stock > 0
+    };
+}
+
+const SQL_CATALOGO_TIENDA = `
+    SELECT
+        p.id,
+        p.nombre,
+        p.descripcion,
+        p.categoria,
+        p.categoria_id,
+        c.nombre AS categoria_nombre,
+        p.precio,
+        p.estado,
+        p.stock_actual,
+        p.imagen,
+        p.imagen_posicion,
+        p.etiqueta,
+        p.etiqueta_tipo,
+        p.orden_catalogo,
+        p.destacado,
+        p.es_novedad
+    FROM productos p
+    LEFT JOIN categorias c ON c.id = p.categoria_id
+    WHERE p.publicado = 1
+      AND p.estado <> 'inactivo'
+      AND p.imagen IS NOT NULL
+      AND TRIM(p.imagen) <> ''
+`;
+
+app.get('/api/catalogo', async (req, res) => {
+    try {
+        const categoria = normalizarBusquedaTienda(req.query.categoria);
+        const buscar = normalizarBusquedaTienda(req.query.buscar);
+        const soloDestacados = String(req.query.destacado || '') === '1';
+        const soloNovedades = String(req.query.novedad || '') === '1';
+
+        let productos = await dbAllSCM(
+            `${SQL_CATALOGO_TIENDA}
+             ORDER BY COALESCE(c.orden, 99) ASC, p.orden_catalogo ASC, p.id ASC`
+        );
+
+        if (categoria && categoria !== 'todos' && categoria !== 'todas') {
+            productos = productos.filter(
+                p => normalizarBusquedaTienda(p.categoria) === categoria
+            );
+        }
+
+        if (soloDestacados) {
+            productos = productos.filter(p => Number(p.destacado) === 1);
+        }
+
+        if (soloNovedades) {
+            productos = productos.filter(p => Number(p.es_novedad) === 1);
+        }
+
+        for (const producto of productos) {
+            producto.grupos = await cargarGruposTienda(producto.id);
+        }
+
+        if (buscar) {
+            productos = productos.filter(producto => {
+                const opciones = producto.grupos
+                    .flatMap(g => g.opciones.map(o => o.nombre))
+                    .join(' ');
+
+                const texto = normalizarBusquedaTienda(
+                    `${producto.nombre} ${producto.descripcion || ''} ` +
+                    `${producto.categoria_nombre || producto.categoria || ''} ${opciones}`
+                );
+
+                return texto.includes(buscar);
+            });
+        }
+
+        res.json({
+            mensaje: 'Éxito',
+            total: productos.length,
+            filtros: {
+                categoria: categoria || 'todos',
+                buscar: req.query.buscar ? String(req.query.buscar).trim() : ''
+            },
+            data: productos.map(presentarProductoTienda)
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo consultar el catálogo.');
+    }
+});
+
+app.get('/api/catalogo/categorias', async (req, res) => {
+    try {
+        const categorias = await dbAllSCM(
+            `SELECT
+                c.id,
+                c.clave,
+                c.nombre,
+                COUNT(p.id) AS total_productos
+             FROM categorias c
+             LEFT JOIN productos p
+                ON p.categoria_id = c.id
+               AND p.publicado = 1
+               AND p.estado <> 'inactivo'
+               AND p.imagen IS NOT NULL
+               AND TRIM(p.imagen) <> ''
+             WHERE c.estado = 'activo'
+             GROUP BY c.id
+             ORDER BY c.orden ASC, c.id ASC`
+        );
+
+        res.json({ mensaje: 'Éxito', data: categorias });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudieron consultar las categorías.');
+    }
+});
+
+app.get('/api/catalogo/:id', async (req, res, next) => {
+    // Rutas como /productos o /categorias se resuelven antes; aquí solo ids numéricos.
+    if (!/^\d+$/.test(req.params.id)) return next();
+
+    try {
+        const producto = await dbGetSCM(
+            `${SQL_CATALOGO_TIENDA} AND p.id = ?`,
+            [Number(req.params.id)]
+        );
+
+        if (!producto) {
+            return res.status(404).json({ error: 'Producto no encontrado.' });
+        }
+
+        producto.grupos = await cargarGruposTienda(producto.id);
+
+        res.json({ mensaje: 'Éxito', data: presentarProductoTienda(producto) });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo consultar el producto.');
+    }
+});
+
+// ============================================================
+// ETAPA 4 · DÍA 2 · CARRITO DE COMPRAS (persistente en BD)
+// POST   /api/carrito/agregar
+// POST   /api/carrito/fusionar          (pasa el carrito de invitado a la cuenta)
+// GET    /api/carrito/:cliente_id       ("mi" = cliente de la sesión)
+// PUT    /api/carrito/item/:id
+// DELETE /api/carrito/item/:id
+// DELETE /api/carrito/vaciar/:cliente_id
+// El precio SIEMPRE se calcula en el servidor (precio base + extras).
+// ============================================================
+
+const CANTIDAD_MAXIMA_ITEM_CARRITO = 50;
+
+async function clienteDeSesionTienda(req) {
+    const usuario = await obtenerUsuarioSesion(req);
+
+    if (!usuario) {
+        throw errorTienda(401, 'Inicia sesión para usar tu carrito.');
+    }
+
+    let cliente = await dbGetSCM(
+        'SELECT id, nombre, correo, usuario_id FROM clientes WHERE usuario_id = ?',
+        [usuario.id]
+    );
+
+    if (!cliente) {
+        cliente = await dbGetSCM(
+            'SELECT id, nombre, correo, usuario_id FROM clientes WHERE LOWER(correo) = LOWER(?)',
+            [usuario.correo]
+        );
+
+        if (cliente) {
+            await dbRunSCM(
+                'UPDATE clientes SET usuario_id = ? WHERE id = ?',
+                [usuario.id, cliente.id]
+            );
+        }
+    }
+
+    if (!cliente) {
+        const nuevo = await dbRunSCM(
+            'INSERT INTO clientes (nombre, correo, empresa, usuario_id) VALUES (?, ?, ?, ?)',
+            [usuario.nombre, usuario.correo, usuario.empresa || null, usuario.id]
+        );
+        cliente = { id: nuevo.lastID, nombre: usuario.nombre, correo: usuario.correo };
+    }
+
+    await dbRunSCM(
+        'INSERT OR IGNORE INTO monedero (cliente_id, saldo) VALUES (?, 0)',
+        [cliente.id]
+    );
+
+    return { usuario, cliente };
+}
+
+function validarClienteDelCarrito(parametro, cliente) {
+    const valor = String(parametro || '').toLowerCase();
+
+    if (valor === 'mi' || Number(valor) === Number(cliente.id)) {
+        return;
+    }
+
+    throw errorTienda(403, 'No puedes consultar el carrito de otro cliente.');
+}
+
+async function obtenerCarritoActivoTienda(clienteId, crear = false) {
+    let carrito = await dbGetSCM(
+        `SELECT * FROM carrito WHERE cliente_id = ? AND estado = 'activo'`,
+        [clienteId]
+    );
+
+    if (!carrito && crear) {
+        try {
+            await dbRunSCM('INSERT INTO carrito (cliente_id) VALUES (?)', [clienteId]);
+        } catch (error) {
+            // Otra petición pudo crearlo al mismo tiempo (índice único)
+        }
+
+        carrito = await dbGetSCM(
+            `SELECT * FROM carrito WHERE cliente_id = ? AND estado = 'activo'`,
+            [clienteId]
+        );
+    }
+
+    return carrito;
+}
+
+async function construirRespuestaCarritoTienda(carrito) {
+    let items = [];
+
+    if (carrito) {
+        items = await dbAllSCM(
+            `SELECT
+                d.id,
+                d.producto_id,
+                d.cantidad,
+                d.precio_unitario,
+                d.opciones_json,
+                d.nota,
+                p.nombre,
+                p.imagen,
+                p.estado,
+                p.stock_actual
+             FROM carrito_detalle d
+             INNER JOIN productos p ON p.id = d.producto_id
+             WHERE d.carrito_id = ?
+             ORDER BY d.id ASC`,
+            [carrito.id]
+        );
+    }
+
+    items = items.map(item => {
+        let opciones = [];
+
+        try {
+            opciones = item.opciones_json ? JSON.parse(item.opciones_json) : [];
+        } catch (error) {
+            opciones = [];
+        }
+
+        const stock = Number(item.stock_actual || 0);
+
+        return {
+            id: item.id,
+            producto_id: item.producto_id,
+            nombre: item.nombre,
+            imagen_url: item.imagen,
+            cantidad: item.cantidad,
+            precio_unitario: redondearMonedaTienda(item.precio_unitario),
+            subtotal: redondearMonedaTienda(item.cantidad * item.precio_unitario),
+            opciones,
+            opcion_texto: opciones.length ? opciones.map(o => o.nombre).join(' + ') : null,
+            nota: item.nota,
+            stock_actual: stock,
+            disponible: item.estado === 'disponible' && stock >= item.cantidad
+        };
+    });
+
+    return {
+        carrito_id: carrito ? carrito.id : null,
+        cliente_id: carrito ? carrito.cliente_id : null,
+        items,
+        total_items: items.reduce((total, item) => total + item.cantidad, 0),
+        subtotal: redondearMonedaTienda(
+            items.reduce((total, item) => total + item.subtotal, 0)
+        )
+    };
+}
+
+async function resolverOpcionesTienda(productoId, nombresSolicitados) {
+    const nombres = (Array.isArray(nombresSolicitados) ? nombresSolicitados : [])
+        .map(nombre => String(nombre || '').trim())
+        .filter(Boolean)
+        .slice(0, 10);
+
+    if (!nombres.length) {
+        return { opciones: [], extra: 0 };
+    }
+
+    const grupos = await cargarGruposTienda(productoId);
+    const gruposUsados = new Set();
+    const opciones = [];
+
+    for (const nombre of nombres) {
+        let encontrada = null;
+
+        for (const grupo of grupos) {
+            if (gruposUsados.has(grupo.id)) continue;
+
+            const opcion = grupo.opciones.find(
+                o => normalizarBusquedaTienda(o.nombre) === normalizarBusquedaTienda(nombre)
+            );
+
+            if (opcion) {
+                encontrada = { grupo: grupo.nombre, nombre: opcion.nombre, precio_extra: Number(opcion.precio_extra || 0) };
+                gruposUsados.add(grupo.id);
+                break;
+            }
+        }
+
+        if (!encontrada) {
+            throw errorTienda(400, `La opción "${nombre}" no es válida para este producto.`);
+        }
+
+        opciones.push(encontrada);
+    }
+
+    return {
+        opciones,
+        extra: opciones.reduce((total, o) => total + o.precio_extra, 0)
+    };
+}
+
+function validarCantidadTienda(valor) {
+    const cantidad = Number(valor);
+
+    if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > CANTIDAD_MAXIMA_ITEM_CARRITO) {
+        throw errorTienda(
+            400,
+            `La cantidad debe ser un número entero entre 1 y ${CANTIDAD_MAXIMA_ITEM_CARRITO}.`
+        );
+    }
+
+    return cantidad;
+}
+
+async function agregarItemCarritoTienda(clienteId, datos) {
+    const productoId = Number(datos.producto_id);
+
+    if (!Number.isInteger(productoId) || productoId <= 0) {
+        throw errorTienda(400, 'Producto no válido.');
+    }
+
+    const cantidad = validarCantidadTienda(datos.cantidad ?? 1);
+
+    const producto = await dbGetSCM(
+        `SELECT id, nombre, precio, estado, stock_actual
+         FROM productos
+         WHERE id = ? AND publicado = 1 AND estado <> 'inactivo'`,
+        [productoId]
+    );
+
+    if (!producto) {
+        throw errorTienda(404, 'El producto no existe o ya no está disponible.');
+    }
+
+    const stock = Number(producto.stock_actual || 0);
+
+    if (producto.estado !== 'disponible' || stock <= 0) {
+        throw errorTienda(409, `${producto.nombre} está agotado.`);
+    }
+
+    const { opciones, extra } = await resolverOpcionesTienda(productoId, datos.opciones);
+    const opcionesJson = opciones.length ? JSON.stringify(opciones) : null;
+    const nota = String(datos.nota || '').trim().slice(0, 200) || null;
+    const precioUnitario = redondearMonedaTienda(Number(producto.precio) + extra);
+
+    const carrito = await obtenerCarritoActivoTienda(clienteId, true);
+
+    const { total_producto: enCarrito } = await dbGetSCM(
+        `SELECT COALESCE(SUM(cantidad), 0) AS total_producto
+         FROM carrito_detalle
+         WHERE carrito_id = ? AND producto_id = ?`,
+        [carrito.id, productoId]
+    );
+
+    if (enCarrito + cantidad > stock) {
+        const restantes = Math.max(0, stock - enCarrito);
+        throw errorTienda(
+            409,
+            restantes > 0
+                ? `Solo puedes agregar ${restantes} pieza(s) más de ${producto.nombre}.`
+                : `Ya tienes en tu carrito todas las piezas disponibles de ${producto.nombre}.`
+        );
+    }
+
+    const existente = await dbGetSCM(
+        `SELECT id FROM carrito_detalle
+         WHERE carrito_id = ?
+           AND producto_id = ?
+           AND COALESCE(opciones_json, '') = COALESCE(?, '')
+           AND COALESCE(nota, '') = COALESCE(?, '')`,
+        [carrito.id, productoId, opcionesJson, nota]
+    );
+
+    if (existente) {
+        await dbRunSCM(
+            'UPDATE carrito_detalle SET cantidad = cantidad + ?, precio_unitario = ? WHERE id = ?',
+            [cantidad, precioUnitario, existente.id]
+        );
+    } else {
+        await dbRunSCM(
+            `INSERT INTO carrito_detalle
+                (carrito_id, producto_id, cantidad, precio_unitario, opciones_json, nota)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [carrito.id, productoId, cantidad, precioUnitario, opcionesJson, nota]
+        );
+    }
+
+    await dbRunSCM(
+        'UPDATE carrito SET fecha_actualizacion = CURRENT_TIMESTAMP WHERE id = ?',
+        [carrito.id]
+    );
+
+    return carrito;
+}
+
+async function obtenerItemDelClienteTienda(itemId, clienteId) {
+    const item = await dbGetSCM(
+        `SELECT d.id, d.carrito_id, d.producto_id, d.cantidad,
+                p.nombre, p.estado, p.stock_actual
+         FROM carrito_detalle d
+         INNER JOIN carrito c ON c.id = d.carrito_id
+         INNER JOIN productos p ON p.id = d.producto_id
+         WHERE d.id = ? AND c.cliente_id = ? AND c.estado = 'activo'`,
+        [itemId, clienteId]
+    );
+
+    if (!item) {
+        throw errorTienda(404, 'El producto no está en tu carrito.');
+    }
+
+    return item;
+}
+
+app.post('/api/carrito/agregar', async (req, res) => {
+    try {
+        const { cliente } = await clienteDeSesionTienda(req);
+        const carrito = await agregarItemCarritoTienda(cliente.id, req.body || {});
+
+        res.status(201).json({
+            mensaje: 'Producto agregado al carrito.',
+            carrito: await construirRespuestaCarritoTienda(carrito)
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo agregar el producto al carrito.');
+    }
+});
+
+app.post('/api/carrito/fusionar', async (req, res) => {
+    try {
+        const { cliente } = await clienteDeSesionTienda(req);
+        const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 100) : [];
+        const omitidos = [];
+
+        for (const item of items) {
+            try {
+                await agregarItemCarritoTienda(cliente.id, item);
+            } catch (error) {
+                if (!error.status) throw error;
+                omitidos.push({ producto_id: item?.producto_id ?? null, motivo: error.message });
+            }
+        }
+
+        const carrito = await obtenerCarritoActivoTienda(cliente.id);
+
+        res.json({
+            mensaje: 'Carrito sincronizado.',
+            omitidos,
+            carrito: await construirRespuestaCarritoTienda(carrito)
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo sincronizar el carrito.');
+    }
+});
+
+app.get('/api/carrito/:cliente_id', async (req, res) => {
+    try {
+        const { cliente } = await clienteDeSesionTienda(req);
+        validarClienteDelCarrito(req.params.cliente_id, cliente);
+
+        const carrito = await obtenerCarritoActivoTienda(cliente.id);
+
+        res.json({
+            mensaje: 'Éxito',
+            carrito: await construirRespuestaCarritoTienda(carrito)
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo consultar el carrito.');
+    }
+});
+
+app.put('/api/carrito/item/:id', async (req, res) => {
+    try {
+        const { cliente } = await clienteDeSesionTienda(req);
+        const cantidad = validarCantidadTienda(req.body?.cantidad);
+        const item = await obtenerItemDelClienteTienda(Number(req.params.id), cliente.id);
+
+        const stock = Number(item.stock_actual || 0);
+
+        const { otros } = await dbGetSCM(
+            `SELECT COALESCE(SUM(cantidad), 0) AS otros
+             FROM carrito_detalle
+             WHERE carrito_id = ? AND producto_id = ? AND id <> ?`,
+            [item.carrito_id, item.producto_id, item.id]
+        );
+
+        if (item.estado !== 'disponible' || otros + cantidad > stock) {
+            throw errorTienda(
+                409,
+                `Solo hay ${stock} pieza(s) disponible(s) de ${item.nombre}.`
+            );
+        }
+
+        await dbRunSCM('UPDATE carrito_detalle SET cantidad = ? WHERE id = ?', [cantidad, item.id]);
+        await dbRunSCM(
+            'UPDATE carrito SET fecha_actualizacion = CURRENT_TIMESTAMP WHERE id = ?',
+            [item.carrito_id]
+        );
+
+        const carrito = await obtenerCarritoActivoTienda(cliente.id);
+
+        res.json({
+            mensaje: 'Cantidad actualizada.',
+            carrito: await construirRespuestaCarritoTienda(carrito)
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo actualizar el producto del carrito.');
+    }
+});
+
+app.delete('/api/carrito/item/:id', async (req, res) => {
+    try {
+        const { cliente } = await clienteDeSesionTienda(req);
+        const item = await obtenerItemDelClienteTienda(Number(req.params.id), cliente.id);
+
+        await dbRunSCM('DELETE FROM carrito_detalle WHERE id = ?', [item.id]);
+        await dbRunSCM(
+            'UPDATE carrito SET fecha_actualizacion = CURRENT_TIMESTAMP WHERE id = ?',
+            [item.carrito_id]
+        );
+
+        const carrito = await obtenerCarritoActivoTienda(cliente.id);
+
+        res.json({
+            mensaje: 'Producto eliminado del carrito.',
+            carrito: await construirRespuestaCarritoTienda(carrito)
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo eliminar el producto del carrito.');
+    }
+});
+
+app.delete('/api/carrito/vaciar/:cliente_id', async (req, res) => {
+    try {
+        const { cliente } = await clienteDeSesionTienda(req);
+        validarClienteDelCarrito(req.params.cliente_id, cliente);
+
+        const carrito = await obtenerCarritoActivoTienda(cliente.id);
+
+        if (carrito) {
+            await dbRunSCM('DELETE FROM carrito_detalle WHERE carrito_id = ?', [carrito.id]);
+            await dbRunSCM(
+                'UPDATE carrito SET fecha_actualizacion = CURRENT_TIMESTAMP WHERE id = ?',
+                [carrito.id]
+            );
+        }
+
+        res.json({
+            mensaje: 'Carrito vaciado.',
+            carrito: await construirRespuestaCarritoTienda(carrito)
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo vaciar el carrito.');
     }
 });
 
