@@ -58,6 +58,9 @@
             Elige tus favoritos para disfrutar aquí o llevar a casa.
         </p>
 
+        <!-- Banner de promociones activas (se llena desde /api/promociones) -->
+        <div id="promo-banner"></div>
+
 
 
         <!-- ======================================
@@ -103,6 +106,12 @@
         </div>
 
 
+
+        <!-- Destacados y novedades (se llenan desde /api/catalogo?destacado=1 y ?novedad=1) -->
+        <div id="zona-comercial">
+            <div id="seccion-destacados" class="seccion-comercial" style="display:none;"></div>
+            <div id="seccion-novedades" class="seccion-comercial" style="display:none;"></div>
+        </div>
 
         <!-- ======================================
              ALIMENTOS

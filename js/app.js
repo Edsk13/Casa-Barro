@@ -204,7 +204,7 @@ function puedeEntregarOrdenERP() {
 
 // 2. SISTEMA DE CARRITO PERSISTENTE Y DESCUENTOS
 let carrito = JSON.parse(localStorage.getItem('casaBarro_carrito')) || [];
-let propinaPorcentaje = 0;
+let propinaPorcentaje = Number(localStorage.getItem('casaBarro_propina')) || 0;
 let cuponAplicado = JSON.parse(localStorage.getItem('casaBarro_cupon')) || null;
 
 // ------------------------------------------------------------
@@ -276,6 +276,323 @@ function calcularExtraOpcionesTienda(producto, nombres) {
     return extra;
 }
 
+// ------------------------------------------------------------
+// ETAPA 4 · DÍA 3 · COTIZADOR (descuento → impuestos → propina → total)
+// El servidor calcula todo; aquí solo se muestra.
+// ------------------------------------------------------------
+let versionRenderCarritoTienda = 0;
+
+function dineroTienda(valor) {
+    return `$${Number(valor || 0).toFixed(2)}`;
+}
+
+async function cotizarCarritoTienda() {
+    const cuerpo = {
+        codigo: cuponAplicado ? cuponAplicado.codigo : '',
+        propina: propinaPorcentaje
+    };
+
+    // Invitado: se envían los productos; con sesión el servidor usa el carrito guardado en la BD
+    if (!haySesionTienda()) {
+        cuerpo.items = carrito
+            .filter(item => item.producto_id)
+            .map(item => ({
+                producto_id: item.producto_id,
+                cantidad: item.cantidad,
+                opciones: item.opciones_lista || (item.opcion ? String(item.opcion).split(' + ') : [])
+            }));
+    }
+
+    return apiCarritoTienda('/carrito/cotizar', { method: 'POST', body: JSON.stringify(cuerpo) });
+}
+
+window.aplicarCuponTienda = async function (codigo, opciones = {}) {
+    const codigoLimpio = String(codigo || '').trim().toUpperCase();
+
+    if (!codigoLimpio) {
+        return avisoTienda('warning', 'Escribe un código');
+    }
+
+    // Con el carrito vacío no hay contra qué validar: se guarda y se valida al agregar productos
+    if (carrito.length === 0) {
+        cuponAplicado = { codigo: codigoLimpio };
+        localStorage.setItem('casaBarro_cupon', JSON.stringify(cuponAplicado));
+
+        return Swal.fire({
+            icon: 'success',
+            title: 'Cupón guardado',
+            text: `${codigoLimpio} se aplicará cuando agregues productos a tu pedido.`,
+            confirmButtonColor: '#3c4a45'
+        }).then(() => { if (opciones.redirigir) window.location.href = 'catalogo.html'; });
+    }
+
+    const anterior = cuponAplicado;
+    cuponAplicado = { codigo: codigoLimpio };
+
+    try {
+        const cotizacion = await cotizarCarritoTienda();
+
+        if (cotizacion.cupon_error) {
+            cuponAplicado = anterior;
+            return Swal.fire({
+                icon: 'error',
+                title: 'No se pudo aplicar el cupón',
+                text: cotizacion.cupon_error,
+                confirmButtonColor: '#3c4a45'
+            });
+        }
+
+        localStorage.setItem('casaBarro_cupon', JSON.stringify(cuponAplicado));
+
+        await Swal.fire({
+            icon: 'success',
+            title: '¡Cupón aplicado!',
+            text: `${codigoLimpio}: ahorras ${dineroTienda(cotizacion.descuento)}.`,
+            confirmButtonColor: '#3c4a45'
+        });
+
+        if (opciones.redirigir) {
+            window.location.href = 'carrito.html';
+        } else {
+            renderizarCarrito();
+        }
+    } catch (error) {
+        cuponAplicado = anterior;
+        Swal.fire({ icon: 'error', title: 'No se pudo validar el cupón', text: error.message, confirmButtonColor: '#3c4a45' });
+    }
+};
+
+function htmlDesgloseTienda(cotizacion, { mostrarPropina = true } = {}) {
+    const fila = (etiqueta, valor, extra = '') =>
+        `<div style="display:flex; justify-content:space-between; margin-bottom:12px; color:#555; ${extra}"><span>${etiqueta}</span><span>${valor}</span></div>`;
+
+    let html = fila('Subtotal:', dineroTienda(cotizacion.subtotal));
+
+    if (cotizacion.promocion && cotizacion.descuento > 0) {
+        html += fila(
+            `Descuento (${escaparHtmlSCM(cotizacion.promocion.codigo)}):`,
+            `-${dineroTienda(cotizacion.descuento)}`,
+            'color:#b7410e; font-weight:bold;'
+        );
+    }
+
+    (cotizacion.impuestos || []).forEach(impuesto => {
+        html += fila(`${escaparHtmlSCM(impuesto.nombre)} (${Number(impuesto.porcentaje)}%):`, dineroTienda(impuesto.monto));
+    });
+
+    if (mostrarPropina && cotizacion.propina > 0) {
+        html += fila(`Propina (${cotizacion.propina_porcentaje}%):`, dineroTienda(cotizacion.propina));
+    }
+
+    return html;
+}
+
+function htmlResumenCarritoTienda(cotizacion) {
+    if (!cotizacion) {
+        return `<div class="resumen-carrito"><h3 style="color:var(--verde-logo); margin-bottom:20px; font-size:1.3rem;">Resumen de Compra</h3>
+            <p style="color:#b7410e;">No pudimos calcular tu total en este momento. Verifica tu conexión e intenta de nuevo.</p>
+            <button class="btn-primary" style="width:100%; margin-top:15px; border-radius:8px;" onclick="renderizarCarrito()">Reintentar</button></div></div>`;
+    }
+
+    const bloqueCupon = cotizacion.promocion
+        ? `<div style="text-align:right; margin:-4px 0 15px 0;"><span style="color:#557268; font-size:.85rem; margin-right:8px;">${escaparHtmlSCM(cotizacion.promocion.nombre)}</span><button onclick="removerDescuento()" style="background:none; border:none; color:#777; font-size:0.8rem; text-decoration:underline; cursor:pointer;">Quitar cupón</button></div>`
+        : `<div style="margin-bottom:20px;"><p style="color:#555; margin-bottom:8px; font-size:0.95rem;">¿Tienes un código de descuento?</p><div style="display:flex; gap:10px;"><input type="text" id="input-cupon" placeholder="Ej. VIERNES20" style="flex:1; padding:8px 12px; border:1px solid #ccc; border-radius:8px; font-size:0.95rem; outline:none; font-family:inherit; text-transform:uppercase;"><button onclick="validarCuponManual()" class="btn-primary" style="padding:8px 15px; border-radius:8px; font-size:0.95rem;">Aplicar</button></div></div>`;
+
+    const botonesPropina = [0, 10, 15, 20].map(valor => {
+        const activo = Number(propinaPorcentaje) === valor;
+        return `<button onclick="cambiarPropina(${valor})" style="flex:1; padding:8px 0; border-radius:8px; font-weight:bold; border:1px solid var(--verde-logo); background:${activo ? 'var(--verde-logo)' : 'transparent'}; color:${activo ? 'white' : 'var(--verde-logo)'}; cursor:pointer;">${valor}%</button>`;
+    }).join('');
+
+    return `<div class="resumen-carrito"><h3 style="color:var(--verde-logo); margin-bottom:20px; font-size:1.3rem;">Resumen de Compra</h3>
+        ${htmlDesgloseTienda(cotizacion)}
+        ${bloqueCupon}
+        <div style="margin-bottom:15px;"><p style="color:#555; margin-bottom:8px; font-size:0.95rem;">¿Deseas agregar propina?</p><div style="display:flex; gap:8px;">${botonesPropina}</div></div>
+        <div style="display:flex; justify-content:space-between; margin-top:20px; padding-top:15px; border-top:2px dashed #eae5db; font-weight:bold; font-size:1.4rem; color:var(--verde-logo);"><span>Total:</span><span>${dineroTienda(cotizacion.total)}</span></div>
+        <button class="btn-primary" style="width:100%; margin-top:25px; border-radius:8px;" onclick="window.location.href='pago.html'">Ir a pagar</button></div></div>`;
+}
+
+// Resumen lateral de pago.html (mismo cálculo que el carrito)
+window.cargarResumenCheckout = async function () {
+    const lista = document.getElementById('checkout-lista-items');
+    if (!lista) return;
+
+    const totalEtiqueta = document.getElementById('checkout-total');
+    const desglose = document.getElementById('checkout-desglose');
+
+    if (carrito.length === 0) {
+        lista.innerHTML = '<p style="color:#777;">Tu pedido está vacío. <a href="catalogo.html" style="color:var(--verde-logo); font-weight:bold;">Ver menú</a></p>';
+        if (desglose) desglose.innerHTML = '';
+        if (totalEtiqueta) totalEtiqueta.innerText = dineroTienda(0);
+        return;
+    }
+
+    lista.innerHTML = carrito.map(item => `
+        <div style="display:flex; justify-content:space-between; gap:10px; margin-bottom:10px; color:#3c4a45;">
+            <span>${item.cantidad}× ${escaparHtmlSCM(item.producto)}${item.opcion ? `<br><small style="color:#777;">${escaparHtmlSCM(item.opcion)}</small>` : ''}</span>
+            <span style="white-space:nowrap;">${dineroTienda(item.precio * item.cantidad)}</span>
+        </div>`).join('');
+
+    try {
+        const cotizacion = await cotizarCarritoTienda();
+
+        if (cotizacion.cupon_error && cuponAplicado) {
+            cuponAplicado = null;
+            localStorage.removeItem('casaBarro_cupon');
+        }
+
+        if (desglose) desglose.innerHTML = htmlDesgloseTienda(cotizacion);
+        if (totalEtiqueta) totalEtiqueta.innerText = dineroTienda(cotizacion.total);
+        localStorage.setItem('casaBarro_totalFinal', Number(cotizacion.total).toFixed(2));
+    } catch (error) {
+        if (desglose) desglose.innerHTML = '<p style="color:#b7410e;">No pudimos calcular los impuestos. Intenta de nuevo.</p>';
+        if (totalEtiqueta) totalEtiqueta.innerText = '--';
+    }
+};
+
+// ------------------------------------------------------------
+// ETAPA 4 · DÍA 3 · COMERCIALIZACIÓN (banner, destacados, novedades, promociones)
+// ------------------------------------------------------------
+function textoDescuentoTienda(promocion) {
+    return promocion.tipo_descuento === 'porcentaje'
+        ? `${Number(promocion.valor)}% OFF`
+        : `$${Number(promocion.valor).toFixed(2)} OFF`;
+}
+
+function textoAlcancePromocionTienda(promocion) {
+    if (promocion.aplica_a === 'producto' && promocion.producto_nombre) return `En ${promocion.producto_nombre}`;
+    if (promocion.aplica_a === 'categoria' && promocion.categoria_nombre) return `En ${promocion.categoria_nombre}`;
+    return 'En todo el menú';
+}
+
+function textoVigenciaPromocionTienda(promocion) {
+    const formato = fecha => new Date(`${fecha}T00:00:00`).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+    if (promocion.fecha_inicio && promocion.fecha_fin) return `${formato(promocion.fecha_inicio)} al ${formato(promocion.fecha_fin)}`;
+    if (promocion.fecha_fin) return `Hasta el ${formato(promocion.fecha_fin)}`;
+    if (promocion.fecha_inicio) return `Desde el ${formato(promocion.fecha_inicio)}`;
+    return 'Sin fecha límite';
+}
+
+async function obtenerPromocionesVigentesTienda() {
+    const respuesta = await fetch(`${API_TIENDA_BASE}/promociones`, { cache: 'no-store' });
+    if (!respuesta.ok) throw new Error('No se pudieron cargar las promociones.');
+    const resultado = await respuesta.json();
+    return resultado.data || [];
+}
+
+function pintarBannerPromocionesTienda(contenedor, promociones) {
+    const destacadas = promociones.filter(p => p.destacada);
+    const lista = (destacadas.length ? destacadas : promociones).slice(0, 4);
+
+    if (!lista.length) {
+        contenedor.innerHTML = '';
+        return;
+    }
+
+    contenedor.innerHTML = `
+        <div class="promo-banner">
+            <div class="promo-banner-titulo">Promociones activas</div>
+            <div class="promo-banner-lista">
+                ${lista.map(promo => `
+                    <div class="promo-banner-item">
+                        <span class="promo-banner-valor">${escaparHtmlSCM(textoDescuentoTienda(promo))}</span>
+                        <div>
+                            <strong>${escaparHtmlSCM(promo.nombre)}</strong>
+                            <small>${escaparHtmlSCM(textoAlcancePromocionTienda(promo))} · Código
+                                <button type="button" class="promo-banner-codigo" data-codigo="${escaparHtmlSCM(promo.codigo)}">${escaparHtmlSCM(promo.codigo)}</button>
+                            </small>
+                        </div>
+                    </div>`).join('')}
+            </div>
+            <a href="promociones.html" class="promo-banner-enlace">Ver todas →</a>
+        </div>`;
+
+    contenedor.querySelectorAll('.promo-banner-codigo').forEach(boton => {
+        boton.addEventListener('click', () => aplicarDescuento(boton.dataset.codigo));
+    });
+}
+
+async function pintarSeccionProductosTienda(contenedor, parametro, titulo) {
+    if (!contenedor) return;
+
+    try {
+        const respuesta = await fetch(`${API_TIENDA_BASE}/catalogo?${parametro}=1`, { cache: 'no-store' });
+        const resultado = await respuesta.json();
+        const productos = resultado.data || [];
+
+        if (!respuesta.ok || !productos.length) {
+            contenedor.style.display = 'none';
+            return;
+        }
+
+        productos.forEach(producto => {
+            if (!catalogoProductosCache.some(p => Number(p.id) === Number(producto.id))) {
+                catalogoProductosCache.push(producto);
+            }
+        });
+
+        contenedor.innerHTML = `<h2 class="categoria-titulo">${titulo}</h2><div class="grid-productos"></div>`;
+        const rejilla = contenedor.querySelector('.grid-productos');
+        productos.forEach(producto => rejilla.appendChild(crearTarjetaCatalogo(producto)));
+        contenedor.style.display = '';
+    } catch (error) {
+        contenedor.style.display = 'none';
+    }
+}
+
+window.cargarComercializacionTienda = async function () {
+    const banner = document.getElementById('promo-banner');
+    const destacados = document.getElementById('seccion-destacados');
+    const novedades = document.getElementById('seccion-novedades');
+
+    if (banner) {
+        try {
+            pintarBannerPromocionesTienda(banner, await obtenerPromocionesVigentesTienda());
+        } catch (error) {
+            banner.innerHTML = '';
+        }
+    }
+
+    await pintarSeccionProductosTienda(destacados, 'destacado', 'Destacados');
+    await pintarSeccionProductosTienda(novedades, 'novedad', 'Novedades');
+};
+
+window.cargarPromocionesPublicas = async function () {
+    const generales = document.getElementById('promos-generales');
+    const registrados = document.getElementById('promos-registrados');
+
+    if (!generales || !registrados) return;
+
+    const tarjeta = promo => `
+        <div class="promo-card ${promo.solo_registrados ? 'vip-card' : ''}">
+            <div class="promo-badge">${escaparHtmlSCM(textoVigenciaPromocionTienda(promo))}</div>
+            <h3>${escaparHtmlSCM(promo.nombre)}</h3>
+            <p>${escaparHtmlSCM(promo.descripcion || '')}</p>
+            <p style="font-size:.85rem; color:#777; margin-top:8px;">${escaparHtmlSCM(textoAlcancePromocionTienda(promo))}${promo.solo_registrados ? ' · Solo usuarios registrados' : ''}</p>
+            <div class="promo-code-box">
+                <span class="promo-code">${escaparHtmlSCM(promo.codigo)}</span>
+                <button class="btn-aplicar" data-codigo="${escaparHtmlSCM(promo.codigo)}">Aplicar (${escaparHtmlSCM(textoDescuentoTienda(promo))})</button>
+            </div>
+        </div>`;
+
+    try {
+        const promociones = await obtenerPromocionesVigentesTienda();
+        const publicas = promociones.filter(p => !p.solo_registrados);
+        const exclusivas = promociones.filter(p => p.solo_registrados);
+
+        generales.innerHTML = publicas.length ? publicas.map(tarjeta).join('') : '<p style="color:#777;">No hay promociones activas por ahora. ¡Vuelve pronto!</p>';
+        registrados.innerHTML = exclusivas.map(tarjeta).join('');
+
+        const tituloClub = document.getElementById('titulo-promos-registrados');
+        if (tituloClub) tituloClub.style.display = exclusivas.length ? '' : 'none';
+
+        document.querySelectorAll('.btn-aplicar[data-codigo]').forEach(boton => {
+            boton.addEventListener('click', () => aplicarDescuento(boton.dataset.codigo));
+        });
+    } catch (error) {
+        generales.innerHTML = '<p style="color:#b7410e;">No se pudieron cargar las promociones. Intenta de nuevo.</p>';
+    }
+};
+
 // Se ejecuta al cargar cada página: trae el carrito de la cuenta y fusiona el de invitado.
 window.sincronizarCarritoSesion = async function () {
     if (!haySesionTienda()) return;
@@ -318,7 +635,7 @@ window.sincronizarCarritoSesion = async function () {
 };
 
 window.mostrarProximamente = function() { Swal.fire({ title: '¡Próximamente!', text: 'Función disponible muy pronto.', icon: 'info', confirmButtonText: 'Entendido', confirmButtonColor: '#3c4a45' }); }
-window.aplicarDescuento = function(codigo, porcentaje) { cuponAplicado = { codigo, porcentaje }; localStorage.setItem('casaBarro_cupon', JSON.stringify(cuponAplicado)); Swal.fire({ icon: 'success', title: '¡Aplicado!', text: `Cupón ${codigo} reflejado.`, confirmButtonColor: '#3c4a45' }).then(() => window.location.href = 'carrito.html'); }
+window.aplicarDescuento = function(codigo) { return aplicarCuponTienda(codigo, { redirigir: true }); }
 window.mostrarPoliticas = function() { Swal.fire({ title: 'Políticas', html: `<p style="text-align:justify;">Cancelaciones no permitidas una vez en preparación...</p>`, confirmButtonColor: '#3c4a45' }); }
 window.actualizarUI = function() { const cartCountElement = document.getElementById('cart-count'); if (cartCountElement) cartCountElement.innerText = carrito.reduce((t, i) => t + i.cantidad, 0); }
 window.cambiarCantidad = function(cambio) { let el = document.getElementById('swal-cantidad'); let nueva = parseInt(el.innerText) + cambio; if (nueva >= 1) el.innerText = nueva; }
@@ -516,7 +833,7 @@ window.confirmarAgregarAlCarrito = async function(
     });
 }
 
-window.cambiarPropina = function(porcentaje) { propinaPorcentaje = porcentaje; renderizarCarrito(); }
+window.cambiarPropina = function(porcentaje) { propinaPorcentaje = porcentaje; localStorage.setItem('casaBarro_propina', String(porcentaje)); renderizarCarrito(); }
 
 window.vaciarCarrito = function() {
     Swal.fire({ title: '¿Vaciar carrito?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Sí' }).then(async (res) => {
@@ -534,6 +851,7 @@ window.vaciarCarrito = function() {
         localStorage.removeItem('casaBarro_carrito');
         cuponAplicado = null;
         localStorage.removeItem('casaBarro_cupon');
+        localStorage.removeItem('casaBarro_propina');
         actualizarUI();
         renderizarCarrito();
     });
@@ -542,15 +860,13 @@ window.vaciarCarrito = function() {
 window.removerDescuento = function() { cuponAplicado = null; localStorage.removeItem('casaBarro_cupon'); renderizarCarrito(); }
 
 window.validarCuponManual = function() {
-    let input = document.getElementById('input-cupon').value.trim().toUpperCase(); 
-    if (!input) return Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: 'Escribe un código', showConfirmButton: false, timer: 2000 });
-    let pct = input === 'MAÑANAS15' ? 10 : input === 'VIERNES20' ? 20 : input === 'SOYCLIENTE15' ? 15 : 0;
-    if (pct === 0) return Swal.fire({ icon: 'error', title: 'Cupón inválido', confirmButtonColor: '#3c4a45' });
-    cuponAplicado = { codigo: input, porcentaje: pct };
-    localStorage.setItem('casaBarro_cupon', JSON.stringify(cuponAplicado)); renderizarCarrito(); 
+    const campo = document.getElementById('input-cupon');
+    const codigo = campo ? campo.value.trim().toUpperCase() : '';
+    if (!codigo) return Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: 'Escribe un código', showConfirmButton: false, timer: 2000 });
+    return aplicarCuponTienda(codigo);
 }
 
-window.renderizarCarrito = function() {
+window.renderizarCarrito = async function() {
     const contenedor = document.getElementById('carrito-contenido');
     if (!contenedor) return; 
     if (carrito.length === 0) {
@@ -571,14 +887,31 @@ window.renderizarCarrito = function() {
     });
     htmlItems += '</div>';
 
-    let montoDescuento = cuponAplicado ? subtotal * (cuponAplicado.porcentaje / 100) : 0;
-    let htmlDescuento = cuponAplicado ? `<div style="display:flex; justify-content:space-between; margin-bottom:15px; color: #b7410e; font-weight: bold;"><span>Descuento (${cuponAplicado.codigo} - ${cuponAplicado.porcentaje}%):</span><span>-$${montoDescuento.toFixed(2)}</span></div><div style="text-align: right; margin-bottom: 15px;"><button onclick="removerDescuento()" style="background:none; border:none; color:#777; font-size:0.8rem; text-decoration:underline; cursor:pointer;">Quitar cupón</button></div>` : `<div style="margin-bottom: 20px;"><p style="color: #555; margin-bottom: 8px; font-size: 0.95rem;">¿Tienes un código de descuento?</p><div style="display: flex; gap: 10px;"><input type="text" id="input-cupon" placeholder="Ej. VIERNES20" style="flex:1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 0.95rem; outline: none; font-family: inherit; text-transform: uppercase;"><button onclick="validarCuponManual()" class="btn-primary" style="padding: 8px 15px; border-radius: 8px; font-size: 0.95rem;">Aplicar</button></div></div>`;
-    let subtotalConDescuento = subtotal - montoDescuento;
-    let propinaCalculada = subtotalConDescuento * (propinaPorcentaje / 100);
-    let totalFinal = subtotalConDescuento + propinaCalculada;
+    const version = ++versionRenderCarritoTienda;
+    let cotizacion = null;
 
-    localStorage.setItem('casaBarro_totalFinal', totalFinal.toFixed(2));
-    htmlItems += `<div class="resumen-carrito"><h3 style="color:var(--verde-logo); margin-bottom:20px; font-size: 1.3rem;">Resumen de Compra</h3><div style="display:flex; justify-content:space-between; margin-bottom:15px; color: #555;"><span>Subtotal:</span><span>$${subtotal.toFixed(2)}</span></div>${htmlDescuento}<div style="margin-bottom: 15px;"><p style="color: #555; margin-bottom: 8px; font-size: 0.95rem;">¿Deseas agregar propina?</p><div style="display: flex; gap: 8px;"><button onclick="cambiarPropina(0)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 0 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 0 ? 'white' : 'var(--verde-logo)'}; cursor: pointer;">0%</button><button onclick="cambiarPropina(10)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 10 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 10 ? 'white' : 'var(--verde-logo)'}; cursor: pointer;">10%</button><button onclick="cambiarPropina(15)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 15 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 15 ? 'white' : 'var(--verde-logo)'}; cursor: pointer;">15%</button><button onclick="cambiarPropina(20)" style="flex:1; padding: 8px 0; border-radius: 8px; font-weight: bold; border: 1px solid var(--verde-logo); background: ${propinaPorcentaje === 20 ? 'var(--verde-logo)' : 'transparent'}; color: ${propinaPorcentaje === 20 ? 'white' : 'var(--verde-logo)'}; cursor: pointer;">20%</button></div></div><div style="display:flex; justify-content:space-between; margin-bottom:15px; color: #555;"><span>Propina (${propinaPorcentaje}%):</span><span>$${propinaCalculada.toFixed(2)}</span></div><div style="display:flex; justify-content:space-between; margin-top:20px; padding-top: 15px; border-top: 2px dashed #eae5db; font-weight:bold; font-size:1.4rem; color: var(--verde-logo);"><span>Total:</span><span>$${totalFinal.toFixed(2)}</span></div><button class="btn-primary" style="width:100%; margin-top: 25px; border-radius: 8px;" onclick="window.location.href='pago.html'">Ir a pagar</button></div></div>`;
+    try {
+        cotizacion = await cotizarCarritoTienda();
+    } catch (error) {
+        console.warn('No se pudo cotizar el carrito:', error.message);
+    }
+
+    // Si hubo otro render mientras esperábamos al servidor, este ya quedó obsoleto
+    if (version !== versionRenderCarritoTienda) return;
+
+    // Un cupón que dejó de ser válido (venció, se desactivó...) se retira y se avisa
+    if (cotizacion && cotizacion.cupon_error && cuponAplicado) {
+        const mensaje = cotizacion.cupon_error;
+        cuponAplicado = null;
+        localStorage.removeItem('casaBarro_cupon');
+        avisoTienda('info', `Cupón retirado: ${mensaje}`);
+    }
+
+    if (cotizacion) {
+        localStorage.setItem('casaBarro_totalFinal', Number(cotizacion.total).toFixed(2));
+    }
+
+    htmlItems += htmlResumenCarritoTienda(cotizacion);
     contenedor.innerHTML = htmlItems;
 }
 
@@ -937,7 +1270,11 @@ async function refrescarProductoCacheTienda(productoId) {
         const resultado = await respuesta.json();
         if (!resultado.data) return;
         const indice = catalogoProductosCache.findIndex(p => Number(p.id) === Number(productoId));
-        if (indice >= 0) catalogoProductosCache[indice] = { ...catalogoProductosCache[indice], ...resultado.data };
+        if (indice >= 0) {
+            catalogoProductosCache[indice] = { ...catalogoProductosCache[indice], ...resultado.data };
+        } else {
+            catalogoProductosCache.push(resultado.data);
+        }
     } catch (error) {
         // Si falla, se usa lo que ya estaba en pantalla
     }
@@ -999,6 +1336,26 @@ async function abrirDetalleProductoBD(productoId) {
             estaDisponible,
             producto.stock_actual
         );
+}
+
+function htmlPrecioTienda(producto) {
+    const precio = Number(producto.precio || 0).toFixed(2);
+
+    if (!producto.promocion) {
+        return `<p class="precio">$${precio} MXN</p>`;
+    }
+
+    const promo = producto.promocion;
+    const etiqueta = promo.tipo_descuento === 'porcentaje'
+        ? `${Number(promo.valor)}% OFF`
+        : `$${Number(promo.valor).toFixed(2)} OFF`;
+
+    return `
+        <p class="precio">
+            <span class="precio-tachado">$${precio}</span>
+            <span class="precio-promo">$${Number(promo.precio_con_descuento).toFixed(2)} MXN</span>
+        </p>
+        <span class="badge-descuento-tienda">${etiqueta} con el código ${escaparHtmlSCM(promo.codigo)}</span>`;
 }
 
 function crearTarjetaCatalogo(producto) {
@@ -1137,11 +1494,7 @@ const agotadoHtml =
                 }
             </h3>
 
-            <p class="precio">
-                $${Number(
-                    producto.precio || 0
-                ).toFixed(2)} MXN
-            </p>
+            ${htmlPrecioTienda(producto)}
 
         </div>
     `;
@@ -1271,6 +1624,15 @@ function actualizarAvisoSinResultadosTienda() {
     aviso.textContent = catalogoProductosCache.length
         ? ''
         : 'No encontramos productos con esos filtros. Prueba con otra búsqueda o categoría.';
+
+    // Destacados y novedades solo se muestran cuando no hay búsqueda ni filtro activo
+    const zonaComercial = document.getElementById('zona-comercial');
+    const buscador = document.getElementById('buscador-productos');
+    const categoria = document.getElementById('filtro-categoria');
+    if (zonaComercial) {
+        const filtrando = (buscador && buscador.value.trim()) || (categoria && categoria.value !== 'todos');
+        zonaComercial.style.display = filtrando ? 'none' : '';
+    }
 }
 
 async function cargarProductosBD() {
@@ -8080,6 +8442,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     actualizarUI();
 
     renderizarCarrito();
+
+    cargarResumenCheckout();
+    cargarComercializacionTienda();
+    cargarPromocionesPublicas();
 
 
     const btnCarritoNav =

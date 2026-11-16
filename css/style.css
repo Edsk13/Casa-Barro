@@ -1375,3 +1375,108 @@ nav a:hover {
     transition: 0.2s;
 }
 .nav-sublink:hover { color: white; background-color: rgba(255,255,255,0.05); }
+
+/* ============================================================
+   ETAPA 4 · DÍA 3 · PROMOCIONES, DESCUENTOS Y COMERCIALIZACIÓN
+   ============================================================ */
+.precio-tachado {
+    text-decoration: line-through;
+    color: #999;
+    font-weight: normal;
+    margin-right: 6px;
+    font-size: 0.9em;
+}
+
+.precio-promo {
+    color: #b7410e;
+    font-weight: bold;
+}
+
+.badge-descuento-tienda {
+    display: inline-block;
+    margin: 0 0 8px 15px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    background: #fdeee6;
+    color: #b7410e;
+    font-size: 0.75rem;
+    font-weight: bold;
+}
+
+.seccion-comercial {
+    margin-bottom: 30px;
+}
+
+.promo-banner {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    background: linear-gradient(135deg, #3c4a45, #557268);
+    color: #fff;
+    border-radius: 14px;
+    padding: 18px 24px;
+    margin: 0 0 30px 0;
+}
+
+.promo-banner-titulo {
+    font-weight: bold;
+    font-size: 1.05rem;
+    letter-spacing: 0.5px;
+}
+
+.promo-banner-lista {
+    display: flex;
+    gap: 22px;
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+.promo-banner-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.promo-banner-item small {
+    display: block;
+    opacity: 0.9;
+    margin-top: 2px;
+}
+
+.promo-banner-valor {
+    background: #f5c26b;
+    color: #3c4a45;
+    font-weight: bold;
+    border-radius: 10px;
+    padding: 8px 12px;
+    white-space: nowrap;
+}
+
+.promo-banner-codigo {
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    border: 1px dashed rgba(255, 255, 255, 0.7);
+    border-radius: 6px;
+    padding: 1px 8px;
+    font-family: inherit;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.promo-banner-codigo:hover {
+    background: rgba(255, 255, 255, 0.32);
+}
+
+.promo-banner-enlace {
+    color: #f5c26b;
+    font-weight: bold;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.admin-seccion-titulo {
+    color: var(--verde-logo);
+    font-size: 1.25rem;
+    margin: 30px 0 12px 0;
+}

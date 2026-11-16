@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Promociones | Casa Barro</title>
+    <title>Promociones e Impuestos | Casa Barro</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
@@ -13,61 +13,384 @@
         <main class="admin-main">
             <header class="admin-header">
                 <div>
-                    <h1>Promociones</h1>
-                    <p style="color: #777;">Crea cupones y ofertas especiales para tus clientes.</p>
+                    <h1>Promociones e Impuestos</h1>
+                    <p style="color: #777;">Cupones, impuestos de la tienda y productos destacados.</p>
                 </div>
             </header>
 
+            <!-- ============ PROMOCIONES ============ -->
+            <h2 class="admin-seccion-titulo">Promociones y cupones</h2>
             <div class="admin-toolbar">
-                <button class="btn-admin-add" onclick="abrirFormularioPromocion()">Nueva Promoción</button>
+                <button class="btn-admin-add" onclick="abrirFormularioPromocionTienda()">Nueva Promoción</button>
             </div>
-
             <div class="admin-table-container">
                 <table class="admin-table">
                     <thead>
                         <tr>
-                            <th>Nombre de la Promoción</th>
+                            <th>Promoción</th>
+                            <th>Código</th>
                             <th>Descuento</th>
+                            <th>Aplica a</th>
                             <th>Validez</th>
                             <th>Estado</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="tabla-promociones">
+                        <tr><td colspan="7" style="text-align:center; color:#777;">Cargando promociones...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- ============ IMPUESTOS ============ -->
+            <h2 class="admin-seccion-titulo">Impuestos</h2>
+            <p style="color:#777; margin:-5px 0 12px 0; font-size:.9rem;">
+                Se aplican automáticamente en el carrito y en el checkout sobre el subtotal ya con descuento.
+                <span id="nota-impuestos-admin"></span>
+            </p>
+            <div class="admin-toolbar" id="barra-impuestos" style="display:none;">
+                <button class="btn-admin-add" onclick="abrirFormularioImpuestoTienda()">Nuevo Impuesto</button>
+            </div>
+            <div class="admin-table-container">
+                <table class="admin-table">
+                    <thead>
                         <tr>
-                            <td><strong>Viernes de Enchiladas</strong></td>
-                            <td>20% OFF</td>
-                            <td>Todos los Viernes</td>
-                            <td><span class="badge-status activa">Activa</span></td>
-                            <td class="admin-actions">
-                                <button onclick="abrirFormularioPromocion(true)">Editar</button>
-                                <button class="btn-eliminar-admin" onclick="eliminarAccionAdmin('la promoción')">Eliminar</button>
-                            </td>
+                            <th>Impuesto</th>
+                            <th>Porcentaje</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
                         </tr>
+                    </thead>
+                    <tbody id="tabla-impuestos">
+                        <tr><td colspan="4" style="text-align:center; color:#777;">Cargando impuestos...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- ============ COMERCIALIZACIÓN ============ -->
+            <h2 class="admin-seccion-titulo">Destacados y novedades</h2>
+            <p style="color:#777; margin:-5px 0 12px 0; font-size:.9rem;">
+                Los productos marcados aparecen en las secciones "Destacados" y "Novedades" del menú.
+            </p>
+            <div class="admin-table-container">
+                <table class="admin-table">
+                    <thead>
                         <tr>
-                            <td><strong>Café Gratis (Registro)</strong></td>
-                            <td>1 Café Americano</td>
-                            <td>Indefinido</td>
-                            <td><span class="badge-status activa">Activa</span></td>
-                            <td class="admin-actions">
-                                <button onclick="abrirFormularioPromocion(true)">Editar</button>
-                                <button class="btn-eliminar-admin" onclick="eliminarAccionAdmin('la promoción')">Eliminar</button>
-                            </td>
+                            <th>Producto</th>
+                            <th>Categoría</th>
+                            <th>Precio</th>
+                            <th style="text-align:center;">Destacado</th>
+                            <th style="text-align:center;">Novedad</th>
                         </tr>
-                        <tr>
-                            <td><strong>Especial San Valentín</strong></td>
-                            <td>2x1 en Frappes</td>
-                            <td>Feb 14, 2026</td>
-                            <td><span class="badge-status expirada">Expirada</span></td>
-                            <td class="admin-actions">
-                                <button class="btn-eliminar-admin" onclick="eliminarAccionAdmin('la promoción')">Eliminar</button>
-                            </td>
-                        </tr>
+                    </thead>
+                    <tbody id="tabla-comercial">
+                        <tr><td colspan="5" style="text-align:center; color:#777;">Cargando productos...</td></tr>
                     </tbody>
                 </table>
             </div>
         </main>
     </div>
+
     <script src="js/app.js"></script>
+    <script>
+    (function () {
+        const API = 'http://localhost:3000/api';
+        const usuario = JSON.parse(localStorage.getItem('casaBarro_usuario') || 'null');
+        const esAdmin = Boolean(usuario && usuario.rol === 'admin');
+
+        let categorias = [];
+        let productos = [];
+        let promociones = [];
+        let impuestos = [];
+
+        const esc = valor => String(valor ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+        async function api(ruta, opciones = {}) {
+            const respuesta = await fetch(`${API}${ruta}`, {
+                ...opciones,
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${localStorage.getItem('casaBarro_token') || ''}`
+                }
+            });
+            const datos = await respuesta.json().catch(() => ({}));
+            if (!respuesta.ok) throw new Error(datos.error || 'No se pudo completar la operación.');
+            return datos;
+        }
+
+        function aviso(icono, titulo) {
+            Swal.fire({ toast: true, position: 'top-end', icon: icono, title: titulo, showConfirmButton: false, timer: 2200 });
+        }
+
+        const dinero = valor => `$${Number(valor || 0).toFixed(2)}`;
+        const textoDescuento = p => p.tipo_descuento === 'porcentaje' ? `${Number(p.valor)}% OFF` : `${dinero(p.valor)} OFF`;
+        const textoAlcance = p => p.aplica_a === 'producto' ? `Producto: ${esc(p.producto_nombre || '—')}` : (p.aplica_a === 'categoria' ? `Categoría: ${esc(p.categoria_nombre || '—')}` : 'Todo el menú');
+        const textoValidez = p => (p.fecha_inicio || p.fecha_fin) ? `${p.fecha_inicio || '…'} → ${p.fecha_fin || '…'}` : 'Sin fecha límite';
+        const ETIQUETAS_ESTADO = { vigente: ['activa', 'Vigente'], programada: ['pendiente', 'Programada'], expirada: ['expirada', 'Expirada'], inactiva: ['expirada', 'Inactiva'] };
+
+        // ---------------- PROMOCIONES ----------------
+        function pintarPromociones() {
+            const cuerpo = document.getElementById('tabla-promociones');
+
+            if (!promociones.length) {
+                cuerpo.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#777;">Aún no hay promociones. Crea la primera.</td></tr>';
+                return;
+            }
+
+            cuerpo.innerHTML = promociones.map(p => {
+                const [clase, etiqueta] = ETIQUETAS_ESTADO[p.estado_efectivo] || ['expirada', p.estado_efectivo];
+                const activa = p.estado === 'activa';
+                return `<tr>
+                    <td><strong>${esc(p.nombre)}</strong>${p.destacada ? ' <span title="Se muestra en el banner">★</span>' : ''}${p.solo_registrados ? '<br><small style="color:#777;">Solo registrados</small>' : ''}</td>
+                    <td><code>${esc(p.codigo)}</code></td>
+                    <td>${esc(textoDescuento(p))}</td>
+                    <td>${textoAlcance(p)}</td>
+                    <td>${esc(textoValidez(p))}</td>
+                    <td><span class="badge-status ${clase}">${etiqueta}</span></td>
+                    <td class="admin-actions">
+                        <button onclick="abrirFormularioPromocionTienda(${p.id})">Editar</button>
+                        <button class="${activa ? 'btn-eliminar-admin' : ''}" onclick="cambiarEstadoPromocionTienda(${p.id}, '${activa ? 'inactiva' : 'activa'}')">${activa ? 'Desactivar' : 'Activar'}</button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        window.cambiarEstadoPromocionTienda = async function (id, estado) {
+            try {
+                await api(`/promociones/${id}`, { method: 'PUT', body: JSON.stringify({ estado }) });
+                aviso('success', estado === 'activa' ? 'Promoción activada' : 'Promoción desactivada');
+                await cargarPromociones();
+            } catch (error) {
+                aviso('error', error.message);
+            }
+        };
+
+        window.abrirFormularioPromocionTienda = function (id = null) {
+            const promo = id ? promociones.find(p => p.id === id) : null;
+            const v = promo || { codigo: '', nombre: '', descripcion: '', tipo_descuento: 'porcentaje', valor: '', aplica_a: 'todo', categoria_id: '', producto_id: '', solo_registrados: false, destacada: false, fecha_inicio: '', fecha_fin: '', estado: 'activa' };
+            const campo = 'width:100%; padding:9px; border:1px solid #ccc; border-radius:8px; font-family:inherit; box-sizing:border-box;';
+            const etiqueta = 'display:block; font-size:.8rem; font-weight:bold; color:#555; margin:12px 0 4px 0; text-align:left;';
+
+            Swal.fire({
+                title: promo ? 'Editar promoción' : 'Nueva promoción',
+                width: 560,
+                confirmButtonColor: '#3c4a45',
+                showCancelButton: true,
+                confirmButtonText: promo ? 'Guardar cambios' : 'Crear promoción',
+                cancelButtonText: 'Cancelar',
+                html: `
+                    <div style="text-align:left;">
+                        <label style="${etiqueta}">Nombre</label>
+                        <input id="pf-nombre" style="${campo}" value="${esc(v.nombre)}" maxlength="80">
+                        <label style="${etiqueta}">Código del cupón</label>
+                        <input id="pf-codigo" style="${campo} text-transform:uppercase;" value="${esc(v.codigo)}" maxlength="20" placeholder="Ej. VERANO20">
+                        <label style="${etiqueta}">Descripción</label>
+                        <input id="pf-descripcion" style="${campo}" value="${esc(v.descripcion || '')}" maxlength="300">
+                        <div style="display:flex; gap:10px;">
+                            <div style="flex:1;"><label style="${etiqueta}">Tipo</label>
+                                <select id="pf-tipo" style="${campo}">
+                                    <option value="porcentaje" ${v.tipo_descuento === 'porcentaje' ? 'selected' : ''}>Porcentaje (%)</option>
+                                    <option value="monto" ${v.tipo_descuento === 'monto' ? 'selected' : ''}>Monto fijo ($)</option>
+                                </select></div>
+                            <div style="flex:1;"><label style="${etiqueta}">Valor</label>
+                                <input id="pf-valor" type="number" min="0.01" step="0.01" style="${campo}" value="${esc(v.valor)}"></div>
+                        </div>
+                        <label style="${etiqueta}">Aplica a</label>
+                        <select id="pf-alcance" style="${campo}">
+                            <option value="todo" ${v.aplica_a === 'todo' ? 'selected' : ''}>Todo el menú</option>
+                            <option value="categoria" ${v.aplica_a === 'categoria' ? 'selected' : ''}>Una categoría</option>
+                            <option value="producto" ${v.aplica_a === 'producto' ? 'selected' : ''}>Un producto</option>
+                        </select>
+                        <select id="pf-categoria" style="${campo} margin-top:8px; display:none;">
+                            ${categorias.map(c => `<option value="${c.id}" ${Number(v.categoria_id) === c.id ? 'selected' : ''}>${esc(c.nombre)}</option>`).join('')}
+                        </select>
+                        <select id="pf-producto" style="${campo} margin-top:8px; display:none;">
+                            ${productos.map(p => `<option value="${p.id}" ${Number(v.producto_id) === p.id ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('')}
+                        </select>
+                        <div style="display:flex; gap:10px;">
+                            <div style="flex:1;"><label style="${etiqueta}">Inicio (opcional)</label>
+                                <input id="pf-inicio" type="date" style="${campo}" value="${esc(v.fecha_inicio || '')}"></div>
+                            <div style="flex:1;"><label style="${etiqueta}">Fin (opcional)</label>
+                                <input id="pf-fin" type="date" style="${campo}" value="${esc(v.fecha_fin || '')}"></div>
+                        </div>
+                        <label style="display:flex; gap:8px; align-items:center; margin-top:14px; font-size:.9rem;"><input type="checkbox" id="pf-registrados" ${v.solo_registrados ? 'checked' : ''}> Solo para usuarios registrados</label>
+                        <label style="display:flex; gap:8px; align-items:center; margin-top:8px; font-size:.9rem;"><input type="checkbox" id="pf-destacada" ${v.destacada ? 'checked' : ''}> Mostrar en el banner de promociones</label>
+                    </div>`,
+                didOpen: () => {
+                    const alcance = document.getElementById('pf-alcance');
+                    const mostrar = () => {
+                        document.getElementById('pf-categoria').style.display = alcance.value === 'categoria' ? '' : 'none';
+                        document.getElementById('pf-producto').style.display = alcance.value === 'producto' ? '' : 'none';
+                    };
+                    alcance.addEventListener('change', mostrar);
+                    mostrar();
+                },
+                preConfirm: async () => {
+                    const alcance = document.getElementById('pf-alcance').value;
+                    const cuerpo = {
+                        nombre: document.getElementById('pf-nombre').value.trim(),
+                        codigo: document.getElementById('pf-codigo').value.trim().toUpperCase(),
+                        descripcion: document.getElementById('pf-descripcion').value.trim(),
+                        tipo_descuento: document.getElementById('pf-tipo').value,
+                        valor: Number(document.getElementById('pf-valor').value),
+                        aplica_a: alcance,
+                        categoria_id: alcance === 'categoria' ? Number(document.getElementById('pf-categoria').value) : null,
+                        producto_id: alcance === 'producto' ? Number(document.getElementById('pf-producto').value) : null,
+                        fecha_inicio: document.getElementById('pf-inicio').value || null,
+                        fecha_fin: document.getElementById('pf-fin').value || null,
+                        solo_registrados: document.getElementById('pf-registrados').checked,
+                        destacada: document.getElementById('pf-destacada').checked
+                    };
+
+                    try {
+                        await api(promo ? `/promociones/${promo.id}` : '/promociones', { method: promo ? 'PUT' : 'POST', body: JSON.stringify(cuerpo) });
+                        return true;
+                    } catch (error) {
+                        Swal.showValidationMessage(error.message);
+                        return false;
+                    }
+                }
+            }).then(async resultado => {
+                if (resultado.isConfirmed) {
+                    aviso('success', promo ? 'Promoción actualizada' : 'Promoción creada');
+                    await cargarPromociones();
+                }
+            });
+        };
+
+        async function cargarPromociones() {
+            try {
+                promociones = (await api('/promociones?todas=1')).data;
+                pintarPromociones();
+            } catch (error) {
+                document.getElementById('tabla-promociones').innerHTML = `<tr><td colspan="7" style="text-align:center; color:#b7410e;">${esc(error.message)}</td></tr>`;
+            }
+        }
+
+        // ---------------- IMPUESTOS ----------------
+        function pintarImpuestos() {
+            const cuerpo = document.getElementById('tabla-impuestos');
+
+            if (!impuestos.length) {
+                cuerpo.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#777;">No hay impuestos configurados.</td></tr>';
+                return;
+            }
+
+            cuerpo.innerHTML = impuestos.map(i => {
+                const activo = i.estado === 'activo';
+                return `<tr>
+                    <td><strong>${esc(i.nombre)}</strong></td>
+                    <td>${Number(i.porcentaje)}%</td>
+                    <td><span class="badge-status ${activo ? 'activa' : 'expirada'}">${activo ? 'Activo' : 'Inactivo'}</span></td>
+                    <td class="admin-actions">${esAdmin
+                        ? `<button onclick="abrirFormularioImpuestoTienda(${i.id})">Editar</button>
+                           <button class="${activo ? 'btn-eliminar-admin' : ''}" onclick="cambiarEstadoImpuestoTienda(${i.id}, '${activo ? 'inactivo' : 'activo'}')">${activo ? 'Desactivar' : 'Activar'}</button>`
+                        : '<span style="color:#999; font-size:.85rem;">Solo administrador</span>'}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        window.cambiarEstadoImpuestoTienda = async function (id, estado) {
+            try {
+                await api(`/impuestos/${id}`, { method: 'PUT', body: JSON.stringify({ estado }) });
+                aviso('success', 'Impuesto actualizado');
+                await cargarImpuestos();
+            } catch (error) {
+                aviso('error', error.message);
+            }
+        };
+
+        window.abrirFormularioImpuestoTienda = function (id = null) {
+            const impuesto = id ? impuestos.find(i => i.id === id) : null;
+            const campo = 'width:100%; padding:9px; border:1px solid #ccc; border-radius:8px; font-family:inherit; box-sizing:border-box;';
+
+            Swal.fire({
+                title: impuesto ? 'Editar impuesto' : 'Nuevo impuesto',
+                confirmButtonColor: '#3c4a45',
+                showCancelButton: true,
+                confirmButtonText: 'Guardar',
+                cancelButtonText: 'Cancelar',
+                html: `<div style="text-align:left;">
+                    <label style="display:block; font-size:.8rem; font-weight:bold; color:#555; margin-bottom:4px;">Nombre</label>
+                    <input id="if-nombre" style="${campo}" value="${esc(impuesto ? impuesto.nombre : '')}" maxlength="40" placeholder="Ej. IVA">
+                    <label style="display:block; font-size:.8rem; font-weight:bold; color:#555; margin:12px 0 4px 0;">Porcentaje (%)</label>
+                    <input id="if-porcentaje" type="number" min="0" max="100" step="0.01" style="${campo}" value="${esc(impuesto ? impuesto.porcentaje : '')}">
+                </div>`,
+                preConfirm: async () => {
+                    const cuerpo = {
+                        nombre: document.getElementById('if-nombre').value.trim(),
+                        porcentaje: Number(document.getElementById('if-porcentaje').value)
+                    };
+                    try {
+                        await api(impuesto ? `/impuestos/${impuesto.id}` : '/impuestos', { method: impuesto ? 'PUT' : 'POST', body: JSON.stringify(cuerpo) });
+                        return true;
+                    } catch (error) {
+                        Swal.showValidationMessage(error.message);
+                        return false;
+                    }
+                }
+            }).then(async resultado => {
+                if (resultado.isConfirmed) {
+                    aviso('success', 'Impuesto guardado');
+                    await cargarImpuestos();
+                }
+            });
+        };
+
+        async function cargarImpuestos() {
+            try {
+                impuestos = (await api('/impuestos?todos=1')).data;
+                pintarImpuestos();
+            } catch (error) {
+                document.getElementById('tabla-impuestos').innerHTML = `<tr><td colspan="4" style="text-align:center; color:#b7410e;">${esc(error.message)}</td></tr>`;
+            }
+        }
+
+        // ---------------- DESTACADOS / NOVEDADES ----------------
+        function pintarComercial() {
+            const cuerpo = document.getElementById('tabla-comercial');
+
+            cuerpo.innerHTML = productos.map(p => `<tr>
+                <td><strong>${esc(p.nombre)}</strong>${p.publicado ? '' : '<br><small style="color:#999;">No publicado en el menú</small>'}</td>
+                <td>${esc(p.categoria_nombre || p.categoria || '—')}</td>
+                <td>${dinero(p.precio)}</td>
+                <td style="text-align:center;"><input type="checkbox" ${p.destacado ? 'checked' : ''} onchange="cambiarComercialTienda(${p.id}, 'destacado', this)"></td>
+                <td style="text-align:center;"><input type="checkbox" ${p.es_novedad ? 'checked' : ''} onchange="cambiarComercialTienda(${p.id}, 'es_novedad', this)"></td>
+            </tr>`).join('');
+        }
+
+        window.cambiarComercialTienda = async function (id, campo, casilla) {
+            const marcado = casilla.checked;
+            try {
+                await api(`/productos/${id}/comercial`, { method: 'PUT', body: JSON.stringify({ [campo]: marcado }) });
+                const producto = productos.find(p => p.id === id);
+                if (producto) producto[campo] = marcado;
+                aviso('success', 'Cambio guardado');
+            } catch (error) {
+                casilla.checked = !marcado;
+                aviso('error', error.message);
+            }
+        };
+
+        async function cargarComercial() {
+            try {
+                productos = (await api('/comercializacion/productos')).data;
+                pintarComercial();
+            } catch (error) {
+                document.getElementById('tabla-comercial').innerHTML = `<tr><td colspan="5" style="text-align:center; color:#b7410e;">${esc(error.message)}</td></tr>`;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (esAdmin) document.getElementById('barra-impuestos').style.display = '';
+            else document.getElementById('nota-impuestos-admin').textContent = 'Solo un administrador puede modificarlos.';
+
+            try { categorias = (await api('/catalogo/categorias')).data; } catch (error) { categorias = []; }
+
+            await cargarComercial();   // también alimenta el selector de productos del formulario
+            await Promise.all([cargarPromociones(), cargarImpuestos()]);
+        });
+    })();
+    </script>
 </body>
 </html>
