@@ -551,6 +551,7 @@ async function migrarEtapa4(db) {
         await agregarColumnaEtapa4(h, 'ordenes_empresariales', 'promocion_id', 'INTEGER REFERENCES promociones(id)');
         await agregarColumnaEtapa4(h, 'ordenes_empresariales', 'tipo_entrega', "TEXT NOT NULL DEFAULT 'sucursal'");
         await agregarColumnaEtapa4(h, 'ordenes_empresariales', 'direccion_entrega', 'TEXT');
+        await agregarColumnaEtapa4(h, 'ordenes_empresariales', 'propina', 'REAL NOT NULL DEFAULT 0');
 
         await agregarColumnaEtapa4(h, 'orden_detalle', 'opciones_json', 'TEXT');
         await agregarColumnaEtapa4(h, 'orden_detalle', 'nota', 'TEXT');
@@ -4056,6 +4057,995 @@ app.put('/api/productos/:id/comercial', async (req, res) => {
     }
 });
 
+// ============================================================
+// ETAPA 4 · DÍA 4 · CHECKOUT, PAGOS, PEDIDOS Y MONEDERO
+//
+// GET  /api/tienda/checkout            datos para pantalla de pago (perfil + saldo)
+// POST /api/pagos/procesar             compra completa (stock → orden → pago → inventario)
+// GET  /api/pagos/:id                  detalle de un pago
+// GET  /api/pagos                      pagos (admin/vendedor, ?estado=pendiente)
+// PUT  /api/pagos/:id/confirmar        confirma una transferencia (admin/vendedor)
+// PUT  /api/pagos/:id/rechazar         rechaza una transferencia (admin/vendedor)
+// GET  /api/tienda/pedidos             "Mis pedidos"
+// GET  /api/tienda/pedidos/:id         detalle de mi pedido
+// GET  /api/monedero                   saldo y movimientos del cliente
+// POST /api/monedero/recargar          recarga con tarjeta
+// GET  /api/monedero/admin/resumen     (admin) saldos y reportes de uso
+// GET  /api/monedero/admin/:cliente_id/movimientos
+// POST /api/monedero/admin/:cliente_id/ajuste
+//
+// La compra reutiliza el procesamiento del ERP (aplicarProcesamientoOrdenERP):
+// descuenta insumos por receta, registra movimientos, deja la interacción
+// en el CRM y envía la orden a preparación. Todo en UNA transacción.
+// ============================================================
+
+const METODOS_PAGO_TIENDA = ['tarjeta', 'monedero', 'transferencia'];
+const RECARGA_MINIMA_TIENDA = 10;
+const RECARGA_MAXIMA_TIENDA = 5000;
+
+// Cola para que dos compras/recargas nunca abran transacciones al mismo tiempo
+let colaExclusivaTienda = Promise.resolve();
+
+function ejecutarExclusivoTienda(tarea) {
+    const resultado = colaExclusivaTienda.then(() => tarea());
+    colaExclusivaTienda = resultado.catch(() => {});
+    return resultado;
+}
+
+function dineroMensajeTienda(valor) {
+    return `$${Number(valor || 0).toFixed(2)}`;
+}
+
+function folioPedidoTienda(id) {
+    return `OR-${String(id).padStart(5, '0')}`;
+}
+
+async function exigirRolesTienda(req, roles) {
+    const usuario = await obtenerUsuarioSesion(req);
+
+    if (!usuario) throw errorTienda(401, 'Inicia sesión para continuar.');
+    if (!roles.includes(usuario.rol)) {
+        throw errorTienda(403, 'No tienes permisos para realizar esta acción.');
+    }
+
+    return usuario;
+}
+
+// ------------------------------------------------------------
+// TARJETA (pasarela simulada): solo se conserva marca + últimos 4
+// ------------------------------------------------------------
+function cumpleLuhnTienda(numero) {
+    let suma = 0;
+    let duplicar = false;
+
+    for (let i = numero.length - 1; i >= 0; i--) {
+        let digito = Number(numero[i]);
+        if (duplicar) {
+            digito *= 2;
+            if (digito > 9) digito -= 9;
+        }
+        suma += digito;
+        duplicar = !duplicar;
+    }
+
+    return suma % 10 === 0;
+}
+
+function marcaTarjetaTienda(numero) {
+    if (/^4/.test(numero)) return 'VISA';
+    if (/^(5[1-5]|2[2-7])/.test(numero)) return 'Mastercard';
+    if (/^3[47]/.test(numero)) return 'AMEX';
+    return 'Tarjeta';
+}
+
+function autorizarTarjetaTienda(tarjeta) {
+    const numero = String(tarjeta?.numero || '').replace(/[\s-]/g, '');
+
+    if (!/^\d{13,19}$/.test(numero) || !cumpleLuhnTienda(numero)) {
+        throw errorTienda(400, 'El número de tarjeta no es válido.');
+    }
+
+    if (String(tarjeta?.titular || '').trim().length < 3) {
+        throw errorTienda(400, 'Escribe el nombre del titular de la tarjeta.');
+    }
+
+    const vencimiento = /^(\d{2})\s*\/\s*(\d{2})$/.exec(String(tarjeta?.vence || '').trim());
+    const mes = vencimiento ? Number(vencimiento[1]) : 0;
+    const anio = vencimiento ? 2000 + Number(vencimiento[2]) : 0;
+    const ahora = new Date();
+    const claveActual = ahora.getFullYear() * 100 + (ahora.getMonth() + 1);
+
+    if (!vencimiento || mes < 1 || mes > 12 || anio * 100 + mes < claveActual) {
+        throw errorTienda(400, 'La fecha de vencimiento no es válida o la tarjeta ya venció (MM/AA).');
+    }
+
+    if (!/^\d{3,4}$/.test(String(tarjeta?.cvv || '').trim())) {
+        throw errorTienda(400, 'El código de seguridad (CVV) no es válido.');
+    }
+
+    // Número de prueba: las tarjetas que terminan en 0002 simulan un rechazo del banco
+    if (numero.endsWith('0002')) {
+        throw errorTienda(402, 'Tu banco rechazó la tarjeta. Intenta con otro método de pago.');
+    }
+
+    return {
+        marca: marcaTarjetaTienda(numero),
+        ultimos4: numero.slice(-4),
+        autorizacion: `AUT-${crypto.randomInt(100000, 999999)}`
+    };
+}
+
+// ------------------------------------------------------------
+// MONEDERO
+// ------------------------------------------------------------
+async function obtenerMonederoTienda(clienteId) {
+    await dbRunSCM('INSERT OR IGNORE INTO monedero (cliente_id, saldo) VALUES (?, 0)', [clienteId]);
+    return dbGetSCM('SELECT id, cliente_id, saldo FROM monedero WHERE cliente_id = ?', [clienteId]);
+}
+
+// Debe ejecutarse dentro de una transacción. monto > 0 abona, monto < 0 descuenta.
+async function aplicarMovimientoMonederoTienda(monedero, { tipo, monto, concepto, pedidoId = null, usuarioId = null }) {
+    const resultado = await dbRunSCM(
+        `UPDATE monedero
+         SET saldo = ROUND(saldo + ?, 2), fecha_actualizacion = CURRENT_TIMESTAMP
+         WHERE id = ? AND ROUND(saldo + ?, 2) >= 0`,
+        [monto, monedero.id, monto]
+    );
+
+    if (resultado.changes !== 1) {
+        throw errorTienda(402, 'Saldo insuficiente en el monedero.');
+    }
+
+    const { saldo } = await dbGetSCM('SELECT saldo FROM monedero WHERE id = ?', [monedero.id]);
+
+    await dbRunSCM(
+        `INSERT INTO monedero_movimientos
+            (monedero_id, tipo, monto, saldo_resultante, concepto, pedido_id, usuario_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [monedero.id, tipo, monto, saldo, concepto, pedidoId, usuarioId]
+    );
+
+    return saldo;
+}
+
+async function listarMovimientosMonederoTienda(monederoId, limite = 50) {
+    const movimientos = await dbAllSCM(
+        `SELECT m.id, m.tipo, m.monto, m.saldo_resultante, m.concepto, m.pedido_id, m.fecha
+         FROM monedero_movimientos m
+         WHERE m.monedero_id = ?
+         ORDER BY m.id DESC
+         LIMIT ?`,
+        [monederoId, limite]
+    );
+
+    return movimientos.map(m => ({
+        ...m,
+        folio: m.pedido_id ? folioPedidoTienda(m.pedido_id) : null
+    }));
+}
+
+function validarMontoTienda(valor, etiqueta, { minimo, maximo }) {
+    const monto = Number(valor);
+
+    // Debe ser un número con máximo 2 decimales
+    if (!Number.isFinite(monto) || Math.abs(monto * 100 - Math.round(monto * 100)) > 1e-6) {
+        throw errorTienda(400, `El ${etiqueta} no es válido.`);
+    }
+
+    if (monto < minimo || monto > maximo) {
+        throw errorTienda(400, `El ${etiqueta} debe estar entre ${dineroMensajeTienda(minimo)} y ${dineroMensajeTienda(maximo)}.`);
+    }
+
+    return redondearMonedaTienda(monto);
+}
+
+app.get('/api/monedero', async (req, res) => {
+    try {
+        const { cliente } = await clienteDeSesionTienda(req);
+        const monedero = await obtenerMonederoTienda(cliente.id);
+
+        res.json({
+            mensaje: 'Éxito',
+            saldo: redondearMonedaTienda(monedero.saldo),
+            movimientos: await listarMovimientosMonederoTienda(monedero.id)
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo consultar el monedero.');
+    }
+});
+
+app.post('/api/monedero/recargar', async (req, res) => {
+    try {
+        const { usuario, cliente } = await clienteDeSesionTienda(req);
+        const monto = validarMontoTienda(req.body?.monto, 'monto de recarga', {
+            minimo: RECARGA_MINIMA_TIENDA,
+            maximo: RECARGA_MAXIMA_TIENDA
+        });
+        const autorizacion = autorizarTarjetaTienda(req.body?.tarjeta);
+
+        const saldo = await ejecutarExclusivoTienda(async () => {
+            const monedero = await obtenerMonederoTienda(cliente.id);
+            let transaccion = false;
+
+            try {
+                await dbRunSCM('BEGIN IMMEDIATE TRANSACTION');
+                transaccion = true;
+
+                const nuevoSaldo = await aplicarMovimientoMonederoTienda(monedero, {
+                    tipo: 'recarga',
+                    monto,
+                    concepto: `Recarga con ${autorizacion.marca} ****${autorizacion.ultimos4}`,
+                    usuarioId: usuario.id
+                });
+
+                await dbRunSCM('COMMIT');
+                transaccion = false;
+                return nuevoSaldo;
+            } catch (error) {
+                if (transaccion) {
+                    try { await dbRunSCM('ROLLBACK'); } catch (errorRollback) { /* sin acción */ }
+                }
+                throw error;
+            }
+        });
+
+        registrarActividad(usuario.id, 'RECARGA', 'MONEDERO', `Recargó ${dineroMensajeTienda(monto)} a su monedero`, 'cliente', cliente.id);
+
+        res.status(201).json({
+            mensaje: `Recarga exitosa. Tu nuevo saldo es ${dineroMensajeTienda(saldo)}.`,
+            saldo,
+            autorizacion: autorizacion.autorizacion
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo recargar el monedero.');
+    }
+});
+
+// ------------------------------------------------------------
+// MONEDERO · ADMINISTRACIÓN
+// ------------------------------------------------------------
+app.get('/api/monedero/admin/resumen', async (req, res) => {
+    try {
+        await exigirRolesTienda(req, ['admin']);
+
+        const monederos = await dbAllSCM(
+            `SELECT
+                c.id AS cliente_id,
+                c.nombre,
+                c.correo,
+                m.saldo,
+                COALESCE(SUM(CASE WHEN mm.tipo = 'recarga' THEN mm.monto END), 0) AS recargas,
+                COALESCE(-SUM(CASE WHEN mm.tipo = 'compra' THEN mm.monto END), 0) AS consumos,
+                MAX(mm.fecha) AS ultimo_movimiento
+             FROM monedero m
+             INNER JOIN clientes c ON c.id = m.cliente_id
+             LEFT JOIN monedero_movimientos mm ON mm.monedero_id = m.id
+             GROUP BY m.id
+             ORDER BY m.saldo DESC, c.nombre ASC`
+        );
+
+        const totales = monederos.reduce((acumulado, m) => ({
+            monederos: acumulado.monederos + 1,
+            saldo_total: acumulado.saldo_total + Number(m.saldo),
+            recargas_total: acumulado.recargas_total + Number(m.recargas),
+            consumos_total: acumulado.consumos_total + Number(m.consumos)
+        }), { monederos: 0, saldo_total: 0, recargas_total: 0, consumos_total: 0 });
+
+        res.json({
+            mensaje: 'Éxito',
+            totales: {
+                monederos: totales.monederos,
+                saldo_total: redondearMonedaTienda(totales.saldo_total),
+                recargas_total: redondearMonedaTienda(totales.recargas_total),
+                consumos_total: redondearMonedaTienda(totales.consumos_total)
+            },
+            data: monederos.map(m => ({
+                ...m,
+                saldo: redondearMonedaTienda(m.saldo),
+                recargas: redondearMonedaTienda(m.recargas),
+                consumos: redondearMonedaTienda(m.consumos)
+            }))
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo consultar el resumen de monederos.');
+    }
+});
+
+app.get('/api/monedero/admin/:cliente_id/movimientos', async (req, res) => {
+    try {
+        await exigirRolesTienda(req, ['admin']);
+
+        const monedero = await dbGetSCM(
+            'SELECT id FROM monedero WHERE cliente_id = ?',
+            [Number(req.params.cliente_id)]
+        );
+        if (!monedero) throw errorTienda(404, 'El cliente no tiene monedero.');
+
+        res.json({ mensaje: 'Éxito', data: await listarMovimientosMonederoTienda(monedero.id, 100) });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudieron consultar los movimientos.');
+    }
+});
+
+app.post('/api/monedero/admin/:cliente_id/ajuste', async (req, res) => {
+    try {
+        const admin = await exigirRolesTienda(req, ['admin']);
+        const clienteId = Number(req.params.cliente_id);
+
+        const monto = Number(req.body?.monto);
+        const concepto = String(req.body?.concepto || '').trim().slice(0, 120);
+
+        if (!Number.isFinite(monto) || monto === 0 || Math.abs(monto) > RECARGA_MAXIMA_TIENDA) {
+            throw errorTienda(400, `El ajuste debe ser distinto de cero y no mayor a ${dineroMensajeTienda(RECARGA_MAXIMA_TIENDA)}.`);
+        }
+        if (concepto.length < 3) {
+            throw errorTienda(400, 'Escribe el motivo del ajuste.');
+        }
+
+        const cliente = await dbGetSCM('SELECT id, nombre FROM clientes WHERE id = ?', [clienteId]);
+        if (!cliente) throw errorTienda(404, 'Cliente no encontrado.');
+
+        const saldo = await ejecutarExclusivoTienda(async () => {
+            const monedero = await obtenerMonederoTienda(clienteId);
+            let transaccion = false;
+
+            try {
+                await dbRunSCM('BEGIN IMMEDIATE TRANSACTION');
+                transaccion = true;
+
+                let nuevoSaldo;
+                try {
+                    nuevoSaldo = await aplicarMovimientoMonederoTienda(monedero, {
+                        tipo: 'ajuste',
+                        monto: redondearMonedaTienda(monto),
+                        concepto: `Ajuste: ${concepto}`,
+                        usuarioId: admin.id
+                    });
+                } catch (error) {
+                    if (error.status === 402) {
+                        throw errorTienda(409, 'El ajuste dejaría el saldo en negativo.');
+                    }
+                    throw error;
+                }
+
+                await dbRunSCM('COMMIT');
+                transaccion = false;
+                return nuevoSaldo;
+            } catch (error) {
+                if (transaccion) {
+                    try { await dbRunSCM('ROLLBACK'); } catch (errorRollback) { /* sin acción */ }
+                }
+                throw error;
+            }
+        });
+
+        registrarActividad(admin.id, 'AJUSTE', 'MONEDERO', `Ajustó ${dineroMensajeTienda(monto)} al monedero de ${cliente.nombre}`, 'cliente', cliente.id);
+
+        res.json({ mensaje: 'Ajuste aplicado.', saldo });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo aplicar el ajuste.');
+    }
+});
+
+// ------------------------------------------------------------
+// CHECKOUT
+// ------------------------------------------------------------
+app.get('/api/tienda/checkout', async (req, res) => {
+    try {
+        const { cliente } = await clienteDeSesionTienda(req);
+
+        const datos = await dbGetSCM(
+            `SELECT c.id, c.nombre, c.correo, c.telefono, c.direccion AS direccion_cliente,
+                    u.direccion AS direccion_usuario
+             FROM clientes c
+             LEFT JOIN usuarios u ON u.id = c.usuario_id
+             WHERE c.id = ?`,
+            [cliente.id]
+        );
+        const monedero = await obtenerMonederoTienda(cliente.id);
+
+        res.json({
+            mensaje: 'Éxito',
+            cliente: {
+                id: datos.id,
+                nombre: datos.nombre,
+                correo: datos.correo,
+                telefono: datos.telefono || '',
+                direccion: datos.direccion_cliente || datos.direccion_usuario || ''
+            },
+            monedero: { saldo: redondearMonedaTienda(monedero.saldo) },
+            metodos_pago: METODOS_PAGO_TIENDA
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo preparar el checkout.');
+    }
+});
+
+async function procesarCompraTienda({ usuario, cliente, datos }) {
+    const metodo = String(datos.metodo_pago || '').trim();
+
+    if (!METODOS_PAGO_TIENDA.includes(metodo)) {
+        throw errorTienda(400, 'Selecciona un método de pago válido.');
+    }
+
+    const tipoEntrega = datos.entrega?.tipo === 'domicilio' ? 'domicilio' : 'sucursal';
+    let direccionEntrega = null;
+
+    if (tipoEntrega === 'domicilio') {
+        direccionEntrega = String(datos.entrega?.direccion || '').trim().slice(0, 250);
+        if (direccionEntrega.length < 10) {
+            throw errorTienda(400, 'Escribe una dirección de entrega completa.');
+        }
+    }
+
+    const estadoCliente = await dbGetSCM('SELECT estado FROM clientes WHERE id = ?', [cliente.id]);
+    if (!estadoCliente || estadoCliente.estado !== 'activo') {
+        throw errorTienda(403, 'Tu cuenta está inactiva. Contacta a Casa Barro para reactivarla.');
+    }
+
+    // ---- 1. Carrito del cliente
+    const carrito = await obtenerCarritoActivoTienda(cliente.id);
+    const detalleCarrito = await construirRespuestaCarritoTienda(carrito);
+
+    if (!detalleCarrito.items.length) {
+        throw errorTienda(400, 'Tu carrito está vacío.');
+    }
+
+    // ---- 2. Validar stock y precios ANTES de cobrar
+    const problemas = [];
+    const acumulado = new Map();
+    let preciosCambiaron = false;
+
+    for (const item of detalleCarrito.items) {
+        const producto = await dbGetSCM(
+            'SELECT id, nombre, precio, estado, stock_actual, publicado FROM productos WHERE id = ?',
+            [item.producto_id]
+        );
+
+        if (!producto || Number(producto.publicado) !== 1 || producto.estado === 'inactivo') {
+            problemas.push(`${item.nombre} ya no está disponible.`);
+            continue;
+        }
+
+        const stock = Number(producto.stock_actual || 0);
+
+        if (producto.estado !== 'disponible' || stock <= 0) {
+            problemas.push(`${producto.nombre} está agotado.`);
+            continue;
+        }
+
+        const total = (acumulado.get(producto.id) || 0) + item.cantidad;
+        acumulado.set(producto.id, total);
+
+        if (total > stock) {
+            problemas.push(`Solo hay ${stock} pieza(s) de ${producto.nombre}.`);
+        }
+
+        const extras = item.opciones.reduce((suma, o) => suma + Number(o.precio_extra || 0), 0);
+        const precioActual = redondearMonedaTienda(Number(producto.precio) + extras);
+
+        if (precioActual !== item.precio_unitario) {
+            preciosCambiaron = true;
+            await dbRunSCM('UPDATE carrito_detalle SET precio_unitario = ? WHERE id = ?', [precioActual, item.id]);
+        }
+    }
+
+    if (problemas.length) {
+        throw errorTienda(409, `Revisa tu pedido: ${[...new Set(problemas)].join(' ')}`);
+    }
+
+    if (preciosCambiaron) {
+        throw errorTienda(409, 'Actualizamos algunos precios de tu carrito. Revisa el nuevo total antes de pagar.');
+    }
+
+    // ---- 3. Cotización oficial (descuento, impuestos, propina)
+    const cotizacion = await calcularTotalesTienda({
+        items: detalleCarrito.items.map(item => ({
+            producto_id: item.producto_id,
+            nombre: item.nombre,
+            cantidad: item.cantidad,
+            precio_unitario: item.precio_unitario
+        })),
+        codigo: datos.codigo,
+        propinaPorcentaje: datos.propina,
+        usuario
+    });
+
+    if (String(datos.codigo || '').trim() && cotizacion.cupon_error) {
+        throw errorTienda(409, `Cupón no válido: ${cotizacion.cupon_error}`);
+    }
+
+    if (cotizacion.total <= 0) {
+        throw errorTienda(400, 'El total de la compra no es válido.');
+    }
+
+    // ---- 4. Validar el método de pago
+    let referencia = null;
+    let estadoPago = 'aprobado';
+    let monedero = null;
+
+    if (metodo === 'tarjeta') {
+        const autorizacion = autorizarTarjetaTienda(datos.tarjeta);
+        referencia = `${autorizacion.marca} ****${autorizacion.ultimos4} · ${autorizacion.autorizacion}`;
+    } else if (metodo === 'monedero') {
+        monedero = await obtenerMonederoTienda(cliente.id);
+        if (redondearMonedaTienda(monedero.saldo) < cotizacion.total) {
+            throw errorTienda(
+                402,
+                `Saldo insuficiente: tu monedero tiene ${dineroMensajeTienda(monedero.saldo)} y la compra es de ${dineroMensajeTienda(cotizacion.total)}.`
+            );
+        }
+    } else {
+        estadoPago = 'pendiente'; // transferencia: el personal confirma que llegó el dinero
+    }
+
+    // ---- 5. Transacción única: orden + pago + monedero + inventario + carrito
+    let transaccion = false;
+    let ordenId = null;
+    let pagoId = null;
+    let requerimientos = null;
+    let saldoFinal = null;
+    const sumaImpuestos = cotizacion.impuestos.reduce((suma, i) => suma + i.porcentaje, 0);
+
+    try {
+        await dbRunSCM('BEGIN IMMEDIATE TRANSACTION');
+        transaccion = true;
+
+        const orden = await dbRunSCM(
+            `INSERT INTO ordenes_empresariales
+                (cliente_id, estado, total, usuario_id, inventario_aplicado, canal,
+                 subtotal, descuento, impuesto, porcentaje_impuesto, propina,
+                 promocion_id, tipo_entrega, direccion_entrega)
+             VALUES (?, 'pendiente', ?, ?, 0, 'tienda', ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                cliente.id, cotizacion.total, usuario.id, cotizacion.subtotal, cotizacion.descuento,
+                cotizacion.total_impuestos, sumaImpuestos, cotizacion.propina,
+                cotizacion.promocion ? cotizacion.promocion.id : null, tipoEntrega, direccionEntrega
+            ]
+        );
+        ordenId = orden.lastID;
+        const folio = folioPedidoTienda(ordenId);
+
+        for (const item of detalleCarrito.items) {
+            await dbRunSCM(
+                `INSERT INTO orden_detalle
+                    (orden_id, producto_id, cantidad, precio_unitario, subtotal, opciones_json, nota)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    ordenId, item.producto_id, item.cantidad, item.precio_unitario, item.subtotal,
+                    item.opciones.length ? JSON.stringify(item.opciones) : null, item.nota
+                ]
+            );
+        }
+
+        await dbRunSCM(
+            `INSERT INTO procesos_erp (orden_id, tipo, descripcion, estado, usuario_id)
+             VALUES (?, 'CREACION', ?, 'pendiente', ?)`,
+            [ordenId, `Pedido ${folio} creado desde la tienda en línea por ${cliente.nombre}.`, usuario.id]
+        );
+
+        if (metodo === 'transferencia') {
+            referencia = `SPEI-${folio}`;
+        }
+
+        const pago = await dbRunSCM(
+            `INSERT INTO pagos (pedido_id, monto, metodo_pago, estado, referencia)
+             VALUES (?, ?, ?, ?, ?)`,
+            [ordenId, cotizacion.total, metodo, estadoPago, referencia]
+        );
+        pagoId = pago.lastID;
+
+        if (metodo === 'monedero') {
+            saldoFinal = await aplicarMovimientoMonederoTienda(monedero, {
+                tipo: 'compra',
+                monto: -cotizacion.total,
+                concepto: `Compra ${folio}`,
+                pedidoId: ordenId,
+                usuarioId: usuario.id
+            });
+        }
+
+        await dbRunSCM(
+            `INSERT INTO procesos_erp (orden_id, tipo, descripcion, estado, usuario_id)
+             VALUES (?, 'PAGO', ?, ?, ?)`,
+            [
+                ordenId,
+                estadoPago === 'aprobado'
+                    ? `Pago de ${dineroMensajeTienda(cotizacion.total)} aprobado (${metodo}).`
+                    : `Pago de ${dineroMensajeTienda(cotizacion.total)} pendiente de confirmación (${metodo}).`,
+                estadoPago === 'aprobado' ? 'correcto' : 'pendiente',
+                usuario.id
+            ]
+        );
+
+        if (estadoPago === 'aprobado') {
+            ({ requerimientos } = await aplicarProcesamientoOrdenERP(ordenId, usuario.id));
+        }
+
+        await dbRunSCM(`UPDATE carrito SET estado = 'convertido', fecha_actualizacion = CURRENT_TIMESTAMP WHERE id = ?`, [carrito.id]);
+
+        await dbRunSCM('COMMIT');
+        transaccion = false;
+    } catch (error) {
+        if (transaccion) {
+            try { await dbRunSCM('ROLLBACK'); } catch (errorRollback) { console.error('Error ejecutando ROLLBACK:', errorRollback); }
+        }
+
+        // Fallas del ERP (existencias, receta, insumo inactivo): no se cobró nada
+        if (error.status === 409) {
+            console.warn(`Checkout cancelado para ${usuario.correo}: ${error.message}`);
+            throw errorTienda(409, 'Un producto de tu pedido ya no tiene existencias suficientes. No se realizó ningún cargo; revisa tu carrito.');
+        }
+
+        throw error;
+    }
+
+    // ---- 6. Después del COMMIT: disponibilidad SCM y reposición PUSH
+    if (requerimientos) {
+        try {
+            await completarProcesamientoOrdenERP(requerimientos, usuario.id);
+        } catch (error) {
+            console.warn('La compra se registró, pero falló el recálculo posterior:', error.message);
+        }
+    }
+
+    registrarActividad(
+        usuario.id, 'VENTA', 'TIENDA',
+        `Pedido ${folioPedidoTienda(ordenId)} por ${dineroMensajeTienda(cotizacion.total)} (${metodo})`,
+        'orden', ordenId
+    );
+
+    const estadoPedido = estadoPago === 'aprobado' ? 'preparacion' : 'pendiente';
+
+    return {
+        mensaje: estadoPago === 'aprobado'
+            ? '¡Compra realizada con éxito!'
+            : 'Pedido registrado. Se confirmará cuando recibamos tu transferencia.',
+        pedido: {
+            id: ordenId,
+            folio: folioPedidoTienda(ordenId),
+            estado: estadoPedido,
+            tipo_entrega: tipoEntrega,
+            direccion_entrega: direccionEntrega,
+            subtotal: cotizacion.subtotal,
+            descuento: cotizacion.descuento,
+            impuestos: cotizacion.impuestos,
+            total_impuestos: cotizacion.total_impuestos,
+            propina: cotizacion.propina,
+            total: cotizacion.total
+        },
+        pago: {
+            id: pagoId,
+            metodo_pago: metodo,
+            estado: estadoPago,
+            referencia,
+            monto: cotizacion.total
+        },
+        monedero: saldoFinal !== null ? { saldo: saldoFinal } : null,
+        correo_confirmacion: cliente.correo
+    };
+}
+
+app.post('/api/pagos/procesar', async (req, res) => {
+    try {
+        const { usuario, cliente } = await clienteDeSesionTienda(req);
+        const resultado = await ejecutarExclusivoTienda(
+            () => procesarCompraTienda({ usuario, cliente, datos: req.body || {} })
+        );
+
+        res.status(201).json(resultado);
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo procesar la compra.');
+    }
+});
+
+// ------------------------------------------------------------
+// PAGOS: consulta y conciliación de transferencias
+// ------------------------------------------------------------
+const ROLES_PAGOS_TIENDA = ['admin', 'vendedor'];
+
+function presentarPagoTienda(fila) {
+    return {
+        id: fila.id,
+        pedido_id: fila.pedido_id,
+        folio: folioPedidoTienda(fila.pedido_id),
+        monto: redondearMonedaTienda(fila.monto),
+        metodo_pago: fila.metodo_pago,
+        estado: fila.estado,
+        referencia: fila.referencia,
+        fecha: fila.fecha,
+        cliente: fila.cliente_nombre ? { id: fila.cliente_id, nombre: fila.cliente_nombre, correo: fila.cliente_correo } : undefined
+    };
+}
+
+app.get('/api/pagos', async (req, res) => {
+    try {
+        await exigirRolesTienda(req, ROLES_PAGOS_TIENDA);
+
+        const estado = String(req.query.estado || '').trim();
+        const filtros = [];
+        const parametros = [];
+
+        if (estado) {
+            filtros.push('pg.estado = ?');
+            parametros.push(estado);
+        }
+
+        const filas = await dbAllSCM(
+            `SELECT pg.*, o.cliente_id, c.nombre AS cliente_nombre, c.correo AS cliente_correo
+             FROM pagos pg
+             INNER JOIN ordenes_empresariales o ON o.id = pg.pedido_id
+             INNER JOIN clientes c ON c.id = o.cliente_id
+             ${filtros.length ? 'WHERE ' + filtros.join(' AND ') : ''}
+             ORDER BY pg.id DESC
+             LIMIT 200`,
+            parametros
+        );
+
+        res.json({ mensaje: 'Éxito', data: filas.map(presentarPagoTienda) });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudieron consultar los pagos.');
+    }
+});
+
+app.get('/api/pagos/:id', async (req, res) => {
+    try {
+        const usuario = await obtenerUsuarioSesion(req);
+        if (!usuario) throw errorTienda(401, 'Inicia sesión para continuar.');
+
+        const fila = await dbGetSCM(
+            `SELECT pg.*, o.cliente_id, o.subtotal, o.descuento, o.impuesto, o.propina,
+                    c.nombre AS cliente_nombre, c.correo AS cliente_correo, c.usuario_id AS cliente_usuario_id
+             FROM pagos pg
+             INNER JOIN ordenes_empresariales o ON o.id = pg.pedido_id
+             INNER JOIN clientes c ON c.id = o.cliente_id
+             WHERE pg.id = ?`,
+            [Number(req.params.id)]
+        );
+
+        const esDuenio = fila && Number(fila.cliente_usuario_id) === Number(usuario.id);
+        const esPersonal = ['admin', 'vendedor', 'logistica'].includes(usuario.rol);
+
+        if (!fila || (!esDuenio && !esPersonal)) {
+            throw errorTienda(404, 'Pago no encontrado.');
+        }
+
+        res.json({
+            mensaje: 'Éxito',
+            data: {
+                ...presentarPagoTienda(fila),
+                desglose: {
+                    subtotal: redondearMonedaTienda(fila.subtotal),
+                    descuento: redondearMonedaTienda(fila.descuento),
+                    impuesto: redondearMonedaTienda(fila.impuesto),
+                    propina: redondearMonedaTienda(fila.propina)
+                }
+            }
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo consultar el pago.');
+    }
+});
+
+async function cargarPagoPendienteTienda(id) {
+    const fila = await dbGetSCM(
+        `SELECT pg.*, o.cliente_id, o.estado AS estado_orden, o.inventario_aplicado
+         FROM pagos pg
+         INNER JOIN ordenes_empresariales o ON o.id = pg.pedido_id
+         WHERE pg.id = ?`,
+        [id]
+    );
+
+    if (!fila) throw errorTienda(404, 'Pago no encontrado.');
+    if (fila.estado !== 'pendiente') {
+        throw errorTienda(409, `Este pago ya está ${fila.estado}.`);
+    }
+
+    return fila;
+}
+
+app.put('/api/pagos/:id/confirmar', async (req, res) => {
+    try {
+        const personal = await exigirRolesTienda(req, ROLES_PAGOS_TIENDA);
+
+        const resultado = await ejecutarExclusivoTienda(async () => {
+            const pago = await cargarPagoPendienteTienda(Number(req.params.id));
+            let transaccion = false;
+            let requerimientos = null;
+
+            try {
+                await dbRunSCM('BEGIN IMMEDIATE TRANSACTION');
+                transaccion = true;
+
+                await dbRunSCM(`UPDATE pagos SET estado = 'aprobado' WHERE id = ? AND estado = 'pendiente'`, [pago.id]);
+                await dbRunSCM(
+                    `INSERT INTO procesos_erp (orden_id, tipo, descripcion, estado, usuario_id)
+                     VALUES (?, 'PAGO', ?, 'correcto', ?)`,
+                    [pago.pedido_id, `Transferencia de ${dineroMensajeTienda(pago.monto)} confirmada.`, personal.id]
+                );
+
+                ({ requerimientos } = await aplicarProcesamientoOrdenERP(pago.pedido_id, personal.id));
+
+                await dbRunSCM('COMMIT');
+                transaccion = false;
+            } catch (error) {
+                if (transaccion) {
+                    try { await dbRunSCM('ROLLBACK'); } catch (errorRollback) { /* sin acción */ }
+                }
+                throw error;
+            }
+
+            try {
+                await completarProcesamientoOrdenERP(requerimientos, personal.id);
+            } catch (error) {
+                console.warn('El pago se confirmó, pero falló el recálculo posterior:', error.message);
+            }
+
+            return pago;
+        });
+
+        registrarActividad(personal.id, 'PAGO', 'TIENDA', `Confirmó la transferencia del pedido ${folioPedidoTienda(resultado.pedido_id)}`, 'orden', resultado.pedido_id);
+
+        res.json({ mensaje: 'Pago confirmado. El pedido pasó a preparación.', pedido_id: resultado.pedido_id });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo confirmar el pago.');
+    }
+});
+
+app.put('/api/pagos/:id/rechazar', async (req, res) => {
+    try {
+        const personal = await exigirRolesTienda(req, ROLES_PAGOS_TIENDA);
+        const motivo = String(req.body?.motivo || 'No se recibió la transferencia.').trim().slice(0, 150);
+
+        const pago = await ejecutarExclusivoTienda(async () => {
+            const fila = await cargarPagoPendienteTienda(Number(req.params.id));
+            let transaccion = false;
+
+            try {
+                await dbRunSCM('BEGIN IMMEDIATE TRANSACTION');
+                transaccion = true;
+
+                await dbRunSCM(`UPDATE pagos SET estado = 'rechazado' WHERE id = ? AND estado = 'pendiente'`, [fila.id]);
+                // El inventario aún no se había descontado, por eso solo se cancela la orden
+                await dbRunSCM(
+                    `UPDATE ordenes_empresariales SET estado = 'cancelado'
+                     WHERE id = ? AND COALESCE(inventario_aplicado, 0) = 0`,
+                    [fila.pedido_id]
+                );
+                await dbRunSCM(
+                    `INSERT INTO procesos_erp (orden_id, tipo, descripcion, estado, usuario_id)
+                     VALUES (?, 'PAGO_RECHAZADO', ?, 'cancelado', ?)`,
+                    [fila.pedido_id, `Transferencia rechazada: ${motivo}`, personal.id]
+                );
+
+                await dbRunSCM('COMMIT');
+                transaccion = false;
+            } catch (error) {
+                if (transaccion) {
+                    try { await dbRunSCM('ROLLBACK'); } catch (errorRollback) { /* sin acción */ }
+                }
+                throw error;
+            }
+
+            return fila;
+        });
+
+        registrarActividad(personal.id, 'PAGO', 'TIENDA', `Rechazó la transferencia del pedido ${folioPedidoTienda(pago.pedido_id)}`, 'orden', pago.pedido_id);
+
+        res.json({ mensaje: 'Pago rechazado. El pedido fue cancelado.', pedido_id: pago.pedido_id });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo rechazar el pago.');
+    }
+});
+
+// ------------------------------------------------------------
+// MIS PEDIDOS
+// ------------------------------------------------------------
+function etiquetaEstadoPedidoTienda(estadoOrden, estadoPago) {
+    if (estadoOrden === 'cancelado') return 'Cancelado';
+    if (estadoPago === 'pendiente') return 'Pago pendiente';
+    if (estadoOrden === 'preparacion') return 'En preparación';
+    if (estadoOrden === 'entregado') return 'Entregado';
+    if (estadoOrden === 'pendiente') return 'Recibido';
+    return String(estadoOrden || '').charAt(0).toUpperCase() + String(estadoOrden || '').slice(1);
+}
+
+app.get('/api/tienda/pedidos', async (req, res) => {
+    try {
+        const { cliente } = await clienteDeSesionTienda(req);
+
+        const filas = await dbAllSCM(
+            `SELECT o.id, o.fecha, o.total, o.estado, o.tipo_entrega,
+                    pg.id AS pago_id, pg.metodo_pago, pg.estado AS estado_pago
+             FROM ordenes_empresariales o
+             LEFT JOIN pagos pg ON pg.pedido_id = o.id
+             WHERE o.cliente_id = ?
+             ORDER BY o.id DESC
+             LIMIT 100`,
+            [cliente.id]
+        );
+
+        res.json({
+            mensaje: 'Éxito',
+            data: filas.map(fila => ({
+                id: fila.id,
+                folio: folioPedidoTienda(fila.id),
+                fecha: fila.fecha,
+                total: redondearMonedaTienda(fila.total),
+                estado: fila.estado,
+                estado_pago: fila.estado_pago || null,
+                metodo_pago: fila.metodo_pago || null,
+                tipo_entrega: fila.tipo_entrega,
+                pago_id: fila.pago_id || null,
+                etiqueta: etiquetaEstadoPedidoTienda(fila.estado, fila.estado_pago)
+            }))
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudieron consultar tus pedidos.');
+    }
+});
+
+app.get('/api/tienda/pedidos/:id', async (req, res) => {
+    try {
+        const { cliente } = await clienteDeSesionTienda(req);
+
+        const orden = await dbGetSCM(
+            `SELECT o.*, pg.id AS pago_id, pg.metodo_pago, pg.estado AS estado_pago, pg.referencia
+             FROM ordenes_empresariales o
+             LEFT JOIN pagos pg ON pg.pedido_id = o.id
+             WHERE o.id = ? AND o.cliente_id = ?`,
+            [Number(req.params.id), cliente.id]
+        );
+
+        if (!orden) throw errorTienda(404, 'Pedido no encontrado.');
+
+        const detalle = await dbAllSCM(
+            `SELECT d.producto_id, p.nombre, d.cantidad, d.precio_unitario, d.subtotal, d.opciones_json, d.nota
+             FROM orden_detalle d
+             INNER JOIN productos p ON p.id = d.producto_id
+             WHERE d.orden_id = ?
+             ORDER BY d.id ASC`,
+            [orden.id]
+        );
+
+        res.json({
+            mensaje: 'Éxito',
+            data: {
+                id: orden.id,
+                folio: folioPedidoTienda(orden.id),
+                fecha: orden.fecha,
+                estado: orden.estado,
+                etiqueta: etiquetaEstadoPedidoTienda(orden.estado, orden.estado_pago),
+                tipo_entrega: orden.tipo_entrega,
+                direccion_entrega: orden.direccion_entrega,
+                subtotal: redondearMonedaTienda(orden.subtotal),
+                descuento: redondearMonedaTienda(orden.descuento),
+                impuesto: redondearMonedaTienda(orden.impuesto),
+                propina: redondearMonedaTienda(orden.propina),
+                total: redondearMonedaTienda(orden.total),
+                pago: orden.pago_id
+                    ? { id: orden.pago_id, metodo_pago: orden.metodo_pago, estado: orden.estado_pago, referencia: orden.referencia }
+                    : null,
+                items: detalle.map(d => {
+                    let opciones = [];
+                    try { opciones = d.opciones_json ? JSON.parse(d.opciones_json) : []; } catch (error) { opciones = []; }
+                    return {
+                        producto_id: d.producto_id,
+                        nombre: d.nombre,
+                        cantidad: d.cantidad,
+                        precio_unitario: redondearMonedaTienda(d.precio_unitario),
+                        subtotal: redondearMonedaTienda(d.subtotal),
+                        opcion_texto: opciones.length ? opciones.map(o => o.nombre).join(' + ') : null,
+                        nota: d.nota
+                    };
+                })
+            }
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo consultar el pedido.');
+    }
+});
+
 app.post('/api/productos/:id/insumos', (req, res) => {
     const productoId = Number(req.params.id);
     const { insumo_id, porciones_requeridas, usuario_id } = req.body;
@@ -5749,6 +6739,452 @@ app.put('/api/ordenes/:id/estado',async(req,res)=>{
 // AUTOMATIZACIÓN ERP: CRM + SCM + INVENTARIO
 // ============================================================
 
+// ------------------------------------------------------------
+// NÚCLEO DEL PROCESAMIENTO ERP (sin transacción propia)
+// Valida orden/cliente/recetas/inventario, descuenta insumos, registra
+// movimientos y CRM, y deja la orden en 'preparacion'.
+// Debe llamarse dentro de una transacción abierta por quien la invoque.
+// Lo usan el procesamiento manual del ERP y el checkout de la tienda.
+// ------------------------------------------------------------
+async function aplicarProcesamientoOrdenERP(ordenId,usuarioId,contexto={}){
+    // ----------------------------------------------------
+    // 1. ORDEN + CLIENTE CRM
+    // ----------------------------------------------------
+    const orden=await dbGetSCM(`
+        SELECT
+            o.id,
+            o.cliente_id,
+            o.estado,
+            o.total,
+            o.usuario_id,
+            o.inventario_aplicado,
+            o.fecha,
+            c.nombre AS cliente_nombre,
+            c.correo AS cliente_correo,
+            c.estado AS cliente_estado
+        FROM ordenes_empresariales o
+        INNER JOIN clientes c
+            ON c.id=o.cliente_id
+        WHERE o.id=?
+    `,[ordenId]);
+
+    contexto.orden=orden;
+
+    if(!orden){
+        throw crearErrorERP(
+            'Orden no encontrada.',
+            404
+        );
+    }
+
+    if(orden.estado!=='pendiente'){
+        throw crearErrorERP(
+            'Solo una orden pendiente puede iniciar preparación.',
+            409
+        );
+    }
+
+    if(Number(orden.inventario_aplicado||0)===1){
+        throw crearErrorERP(
+            'El inventario de esta orden ya fue procesado.',
+            409
+        );
+    }
+
+    if(orden.cliente_estado!=='activo'){
+        throw crearErrorERP(
+            'El cliente asociado a la orden está inactivo.',
+            409
+        );
+    }
+
+    // ----------------------------------------------------
+    // 2. PRODUCTOS DE LA ORDEN
+    // ----------------------------------------------------
+    const productos=await dbAllSCM(`
+        SELECT
+            od.producto_id,
+            od.cantidad,
+            od.precio_unitario,
+            od.subtotal,
+            p.nombre AS producto_nombre,
+            p.estado AS producto_estado
+        FROM orden_detalle od
+        INNER JOIN productos p
+            ON p.id=od.producto_id
+        WHERE od.orden_id=?
+        ORDER BY od.id ASC
+    `,[ordenId]);
+
+    if(!productos.length){
+        throw crearErrorERP(
+            'La orden no contiene productos.',
+            409
+        );
+    }
+
+    // ----------------------------------------------------
+    // 3. RECETAS Y REQUERIMIENTOS DE INSUMOS
+    // ----------------------------------------------------
+    const requerimientos=new Map();
+    const movimientosDetalle=[];
+
+    for(const producto of productos){
+        if(producto.producto_estado==='inactivo'){
+            throw crearErrorERP(
+                `El producto ${producto.producto_nombre} se encuentra inactivo.`,
+                409
+            );
+        }
+
+        const receta=await dbAllSCM(`
+            SELECT
+                pi.insumo_id,
+                pi.porciones_requeridas,
+                i.nombre AS insumo_nombre,
+                i.estado AS insumo_estado,
+                COALESCE(inv.stock_actual,0) AS stock_actual,
+                COALESCE(inv.stock_minimo,0) AS stock_minimo
+            FROM producto_insumo pi
+            INNER JOIN insumos i
+                ON i.id=pi.insumo_id
+            LEFT JOIN inventario inv
+                ON inv.insumo_id=i.id
+            WHERE pi.producto_id=?
+        `,[producto.producto_id]);
+
+        if(!receta.length){
+            throw crearErrorERP(
+                `El producto ${producto.producto_nombre} no tiene una receta configurada.`,
+                409
+            );
+        }
+
+        for(const ingrediente of receta){
+            if(ingrediente.insumo_estado!=='activo'){
+                throw crearErrorERP(
+                    `El insumo ${ingrediente.insumo_nombre} está inactivo.`,
+                    409
+                );
+            }
+
+            const cantidadNecesaria=
+                Number(ingrediente.porciones_requeridas||0) *
+                Number(producto.cantidad||0);
+
+            if(!Number.isInteger(cantidadNecesaria) || cantidadNecesaria<=0){
+                throw crearErrorERP(
+                    `La receta de ${producto.producto_nombre} contiene una cantidad inválida.`,
+                    409
+                );
+            }
+
+            const actual=
+                requerimientos.get(
+                    ingrediente.insumo_id
+                );
+
+            if(actual){
+                actual.cantidad+=cantidadNecesaria;
+            }else{
+                requerimientos.set(
+                    ingrediente.insumo_id,
+                    {
+                        insumo_id:ingrediente.insumo_id,
+                        nombre:ingrediente.insumo_nombre,
+                        stock_actual:Number(ingrediente.stock_actual||0),
+                        stock_minimo:Number(ingrediente.stock_minimo||0),
+                        cantidad:cantidadNecesaria
+                    }
+                );
+            }
+
+            movimientosDetalle.push({
+                producto_id:producto.producto_id,
+                producto_nombre:producto.producto_nombre,
+                insumo_id:ingrediente.insumo_id,
+                insumo_nombre:ingrediente.insumo_nombre,
+                cantidad:cantidadNecesaria
+            });
+        }
+    }
+
+    if(requerimientos.size===0){
+        throw crearErrorERP(
+            'No se encontraron insumos para procesar la orden.',
+            409
+        );
+    }
+
+    // ----------------------------------------------------
+    // 4. VALIDAR TODO EL INVENTARIO ANTES DE DESCONTAR
+    // ----------------------------------------------------
+    for(const requerimiento of requerimientos.values()){
+        if(requerimiento.stock_actual < requerimiento.cantidad){
+            const faltante=
+                requerimiento.cantidad -
+                requerimiento.stock_actual;
+
+            throw crearErrorERP(
+                `Inventario insuficiente de ${requerimiento.nombre}. ` +
+                `Se necesitan ${requerimiento.cantidad}, ` +
+                `hay ${requerimiento.stock_actual} y faltan ${faltante}.`,
+                409
+            );
+        }
+    }
+
+    // ----------------------------------------------------
+    // 5. HISTORIAL: INICIO + VALIDACIONES
+    // ----------------------------------------------------
+    await dbRunSCM(`
+        INSERT INTO procesos_erp(
+            orden_id,tipo,descripcion,estado,usuario_id
+        )
+        VALUES(
+            ?,'PROCESAMIENTO',?,'procesando',?
+        )
+    `,[
+        ordenId,
+        `Se inició el procesamiento automático de la orden #${ordenId}.`,
+        usuarioId
+    ]);
+
+    await dbRunSCM(`
+        INSERT INTO procesos_erp(
+            orden_id,tipo,descripcion,estado,usuario_id
+        )
+        VALUES(
+            ?,'VALIDACION_CLIENTE',?,'correcto',?
+        )
+    `,[
+        ordenId,
+        `Cliente ${orden.cliente_nombre} validado correctamente.`,
+        usuarioId
+    ]);
+
+    await dbRunSCM(`
+        INSERT INTO procesos_erp(
+            orden_id,tipo,descripcion,estado,usuario_id
+        )
+        VALUES(
+            ?,'VALIDACION_INVENTARIO',?,'correcto',?
+        )
+    `,[
+        ordenId,
+        `Existencias suficientes para ${requerimientos.size} insumo(s).`,
+        usuarioId
+    ]);
+
+    // ----------------------------------------------------
+    // 6. DESCONTAR INVENTARIO
+    // ----------------------------------------------------
+    const insumosDescontados=[];
+
+    for(const requerimiento of requerimientos.values()){
+        const resultado=await dbRunSCM(`
+            UPDATE inventario
+            SET
+                stock_actual=stock_actual-?,
+                fecha_actualizacion=CURRENT_TIMESTAMP
+            WHERE
+                insumo_id=?
+                AND stock_actual>=?
+        `,[
+            requerimiento.cantidad,
+            requerimiento.insumo_id,
+            requerimiento.cantidad
+        ]);
+
+        if(resultado.changes!==1){
+            throw crearErrorERP(
+                `El inventario de ${requerimiento.nombre} cambió durante el procesamiento.`,
+                409
+            );
+        }
+
+        insumosDescontados.push({
+            insumo_id:requerimiento.insumo_id,
+            nombre:requerimiento.nombre,
+            stock_anterior:requerimiento.stock_actual,
+            utilizado:requerimiento.cantidad,
+            stock_actual:
+                requerimiento.stock_actual-
+                requerimiento.cantidad
+        });
+    }
+
+    // ----------------------------------------------------
+    // 7. MOVIMIENTOS DE INVENTARIO
+    // ----------------------------------------------------
+    for(const movimiento of movimientosDetalle){
+        await dbRunSCM(`
+            INSERT INTO movimientos_inventario(
+                producto_id,
+                insumo_id,
+                tipo,
+                cantidad,
+                motivo,
+                usuario_id
+            )
+            VALUES(
+                ?,?,'salida',?,?,?
+            )
+        `,[
+            movimiento.producto_id,
+            movimiento.insumo_id,
+            movimiento.cantidad,
+            `venta ERP orden #${ordenId}`,
+            usuarioId
+        ]);
+    }
+
+    await dbRunSCM(`
+        INSERT INTO procesos_erp(
+            orden_id,tipo,descripcion,estado,usuario_id
+        )
+        VALUES(
+            ?,'ACTUALIZACION_INVENTARIO',?,'correcto',?
+        )
+    `,[
+        ordenId,
+        `Se descontaron existencias de ${requerimientos.size} insumo(s).`,
+        usuarioId
+    ]);
+
+    await dbRunSCM(`
+        INSERT INTO procesos_erp(
+            orden_id,tipo,descripcion,estado,usuario_id
+        )
+        VALUES(
+            ?,'MOVIMIENTOS_INVENTARIO',?,'correcto',?
+        )
+    `,[
+        ordenId,
+        `Se registraron ${movimientosDetalle.length} movimiento(s) de salida.`,
+        usuarioId
+    ]);
+
+    // ----------------------------------------------------
+    // 8. INTEGRACIÓN CRM
+    // ----------------------------------------------------
+    await dbRunSCM(`
+        INSERT INTO interacciones(
+            cliente_id,
+            usuario_id,
+            tipo,
+            descripcion
+        )
+        VALUES(
+            ?,?,'Venta ERP',?
+        )
+    `,[
+        orden.cliente_id,
+        usuarioId,
+        `Orden #${ordenId} enviada a preparación por $${Number(orden.total||0).toFixed(2)}.`
+    ]);
+
+    await dbRunSCM(`
+        INSERT INTO procesos_erp(
+            orden_id,tipo,descripcion,estado,usuario_id
+        )
+        VALUES(
+            ?,'INTEGRACION_CRM',?,'correcto',?
+        )
+    `,[
+        ordenId,
+        `La operación fue registrada en el historial CRM de ${orden.cliente_nombre}.`,
+        usuarioId
+    ]);
+
+    // ----------------------------------------------------
+    // 9. FINALIZAR ORDEN
+    // ----------------------------------------------------
+    const actualizacionOrden=await dbRunSCM(`
+        UPDATE ordenes_empresariales
+        SET
+            estado='preparacion',
+            inventario_aplicado=1,
+            fecha_procesado=CURRENT_TIMESTAMP
+        WHERE
+            id=?
+            AND estado='pendiente'
+            AND COALESCE(inventario_aplicado,0)=0
+    `,[ordenId]);
+
+    if(actualizacionOrden.changes!==1){
+        throw crearErrorERP(
+            'La orden cambió durante el procesamiento. Intenta nuevamente.',
+            409
+        );
+    }
+
+    await dbRunSCM(`
+        INSERT INTO procesos_erp(
+            orden_id,tipo,descripcion,estado,usuario_id
+        )
+        VALUES(
+            ?,'FINALIZACION',?,'preparacion',?
+        )
+    `,[
+        ordenId,
+        `Orden #${ordenId} procesada correctamente y enviada a preparación.`,
+        usuarioId
+    ]);
+
+    return {
+        orden,
+        requerimientos,
+        insumosDescontados,
+        movimientosDetalle
+    };
+}
+
+// Después del COMMIT: recalcula disponibilidad SCM y revisa reposición PUSH.
+async function completarProcesamientoOrdenERP(requerimientos,usuarioId){
+    // ----------------------------------------------------
+    // 11. RECALCULAR DISPONIBILIDAD SCM
+    // ----------------------------------------------------
+    try{
+        await recalcularProductosERP();
+    }catch(errorRecalculo){
+        console.warn(
+            'La orden se procesó, pero hubo un error recalculando productos:',
+            errorRecalculo.message
+        );
+    }
+
+    // ----------------------------------------------------
+    // 12. VERIFICAR REPOSICIÓN AUTOMÁTICA PUSH
+    // ----------------------------------------------------
+    const reposicionesAutomaticas=[];
+
+    for(const requerimiento of requerimientos.values()){
+        try{
+            const resultadoPush=
+                await verificarReposicionAutomaticaPush(
+                    requerimiento.insumo_id,
+                    usuarioId
+                );
+
+            if(resultadoPush?.creado){
+                reposicionesAutomaticas.push({
+                    insumo_id:requerimiento.insumo_id,
+                    insumo:requerimiento.nombre,
+                    pedido_id:resultadoPush.pedido_id
+                });
+            }
+        }catch(errorPush){
+            console.warn(
+                `No se pudo verificar PUSH del insumo ${requerimiento.insumo_id}:`,
+                errorPush.message
+            );
+        }
+    }
+
+    return reposicionesAutomaticas;
+}
+
 async function procesarOrdenERPBackend(req,res){
     const ordenId=
         enteroPositivoERP(
@@ -5760,7 +7196,7 @@ async function procesarOrdenERPBackend(req,res){
         usuarioIdERP(req);
 
     let transaccion=false;
-    let ordenCargada=null;
+    const contexto={};
 
     if(!ordenId){
         return res.status(400).json({
@@ -5775,390 +7211,16 @@ async function procesarOrdenERPBackend(req,res){
         );
         transaccion=true;
 
-        // ----------------------------------------------------
-        // 1. ORDEN + CLIENTE CRM
-        // ----------------------------------------------------
-        const orden=await dbGetSCM(`
-            SELECT
-                o.id,
-                o.cliente_id,
-                o.estado,
-                o.total,
-                o.usuario_id,
-                o.inventario_aplicado,
-                o.fecha,
-                c.nombre AS cliente_nombre,
-                c.correo AS cliente_correo,
-                c.estado AS cliente_estado
-            FROM ordenes_empresariales o
-            INNER JOIN clientes c
-                ON c.id=o.cliente_id
-            WHERE o.id=?
-        `,[ordenId]);
-
-        ordenCargada=orden;
-
-        if(!orden){
-            throw crearErrorERP(
-                'Orden no encontrada.',
-                404
-            );
-        }
-
-        if(orden.estado!=='pendiente'){
-            throw crearErrorERP(
-                'Solo una orden pendiente puede iniciar preparación.',
-                409
-            );
-        }
-
-        if(Number(orden.inventario_aplicado||0)===1){
-            throw crearErrorERP(
-                'El inventario de esta orden ya fue procesado.',
-                409
-            );
-        }
-
-        if(orden.cliente_estado!=='activo'){
-            throw crearErrorERP(
-                'El cliente asociado a la orden está inactivo.',
-                409
-            );
-        }
-
-        // ----------------------------------------------------
-        // 2. PRODUCTOS DE LA ORDEN
-        // ----------------------------------------------------
-        const productos=await dbAllSCM(`
-            SELECT
-                od.producto_id,
-                od.cantidad,
-                od.precio_unitario,
-                od.subtotal,
-                p.nombre AS producto_nombre,
-                p.estado AS producto_estado
-            FROM orden_detalle od
-            INNER JOIN productos p
-                ON p.id=od.producto_id
-            WHERE od.orden_id=?
-            ORDER BY od.id ASC
-        `,[ordenId]);
-
-        if(!productos.length){
-            throw crearErrorERP(
-                'La orden no contiene productos.',
-                409
-            );
-        }
-
-        // ----------------------------------------------------
-        // 3. RECETAS Y REQUERIMIENTOS DE INSUMOS
-        // ----------------------------------------------------
-        const requerimientos=new Map();
-        const movimientosDetalle=[];
-
-        for(const producto of productos){
-            if(producto.producto_estado==='inactivo'){
-                throw crearErrorERP(
-                    `El producto ${producto.producto_nombre} se encuentra inactivo.`,
-                    409
-                );
-            }
-
-            const receta=await dbAllSCM(`
-                SELECT
-                    pi.insumo_id,
-                    pi.porciones_requeridas,
-                    i.nombre AS insumo_nombre,
-                    i.estado AS insumo_estado,
-                    COALESCE(inv.stock_actual,0) AS stock_actual,
-                    COALESCE(inv.stock_minimo,0) AS stock_minimo
-                FROM producto_insumo pi
-                INNER JOIN insumos i
-                    ON i.id=pi.insumo_id
-                LEFT JOIN inventario inv
-                    ON inv.insumo_id=i.id
-                WHERE pi.producto_id=?
-            `,[producto.producto_id]);
-
-            if(!receta.length){
-                throw crearErrorERP(
-                    `El producto ${producto.producto_nombre} no tiene una receta configurada.`,
-                    409
-                );
-            }
-
-            for(const ingrediente of receta){
-                if(ingrediente.insumo_estado!=='activo'){
-                    throw crearErrorERP(
-                        `El insumo ${ingrediente.insumo_nombre} está inactivo.`,
-                        409
-                    );
-                }
-
-                const cantidadNecesaria=
-                    Number(ingrediente.porciones_requeridas||0) *
-                    Number(producto.cantidad||0);
-
-                if(!Number.isInteger(cantidadNecesaria) || cantidadNecesaria<=0){
-                    throw crearErrorERP(
-                        `La receta de ${producto.producto_nombre} contiene una cantidad inválida.`,
-                        409
-                    );
-                }
-
-                const actual=
-                    requerimientos.get(
-                        ingrediente.insumo_id
-                    );
-
-                if(actual){
-                    actual.cantidad+=cantidadNecesaria;
-                }else{
-                    requerimientos.set(
-                        ingrediente.insumo_id,
-                        {
-                            insumo_id:ingrediente.insumo_id,
-                            nombre:ingrediente.insumo_nombre,
-                            stock_actual:Number(ingrediente.stock_actual||0),
-                            stock_minimo:Number(ingrediente.stock_minimo||0),
-                            cantidad:cantidadNecesaria
-                        }
-                    );
-                }
-
-                movimientosDetalle.push({
-                    producto_id:producto.producto_id,
-                    producto_nombre:producto.producto_nombre,
-                    insumo_id:ingrediente.insumo_id,
-                    insumo_nombre:ingrediente.insumo_nombre,
-                    cantidad:cantidadNecesaria
-                });
-            }
-        }
-
-        if(requerimientos.size===0){
-            throw crearErrorERP(
-                'No se encontraron insumos para procesar la orden.',
-                409
-            );
-        }
-
-        // ----------------------------------------------------
-        // 4. VALIDAR TODO EL INVENTARIO ANTES DE DESCONTAR
-        // ----------------------------------------------------
-        for(const requerimiento of requerimientos.values()){
-            if(requerimiento.stock_actual < requerimiento.cantidad){
-                const faltante=
-                    requerimiento.cantidad -
-                    requerimiento.stock_actual;
-
-                throw crearErrorERP(
-                    `Inventario insuficiente de ${requerimiento.nombre}. ` +
-                    `Se necesitan ${requerimiento.cantidad}, ` +
-                    `hay ${requerimiento.stock_actual} y faltan ${faltante}.`,
-                    409
-                );
-            }
-        }
-
-        // ----------------------------------------------------
-        // 5. HISTORIAL: INICIO + VALIDACIONES
-        // ----------------------------------------------------
-        await dbRunSCM(`
-            INSERT INTO procesos_erp(
-                orden_id,tipo,descripcion,estado,usuario_id
-            )
-            VALUES(
-                ?,'PROCESAMIENTO',?,'procesando',?
-            )
-        `,[
+        const {
+            orden,
+            requerimientos,
+            insumosDescontados,
+            movimientosDetalle
+        }=await aplicarProcesamientoOrdenERP(
             ordenId,
-            `Se inició el procesamiento automático de la orden #${ordenId}.`,
-            usuarioId
-        ]);
-
-        await dbRunSCM(`
-            INSERT INTO procesos_erp(
-                orden_id,tipo,descripcion,estado,usuario_id
-            )
-            VALUES(
-                ?,'VALIDACION_CLIENTE',?,'correcto',?
-            )
-        `,[
-            ordenId,
-            `Cliente ${orden.cliente_nombre} validado correctamente.`,
-            usuarioId
-        ]);
-
-        await dbRunSCM(`
-            INSERT INTO procesos_erp(
-                orden_id,tipo,descripcion,estado,usuario_id
-            )
-            VALUES(
-                ?,'VALIDACION_INVENTARIO',?,'correcto',?
-            )
-        `,[
-            ordenId,
-            `Existencias suficientes para ${requerimientos.size} insumo(s).`,
-            usuarioId
-        ]);
-
-        // ----------------------------------------------------
-        // 6. DESCONTAR INVENTARIO
-        // ----------------------------------------------------
-        const insumosDescontados=[];
-
-        for(const requerimiento of requerimientos.values()){
-            const resultado=await dbRunSCM(`
-                UPDATE inventario
-                SET
-                    stock_actual=stock_actual-?,
-                    fecha_actualizacion=CURRENT_TIMESTAMP
-                WHERE
-                    insumo_id=?
-                    AND stock_actual>=?
-            `,[
-                requerimiento.cantidad,
-                requerimiento.insumo_id,
-                requerimiento.cantidad
-            ]);
-
-            if(resultado.changes!==1){
-                throw crearErrorERP(
-                    `El inventario de ${requerimiento.nombre} cambió durante el procesamiento.`,
-                    409
-                );
-            }
-
-            insumosDescontados.push({
-                insumo_id:requerimiento.insumo_id,
-                nombre:requerimiento.nombre,
-                stock_anterior:requerimiento.stock_actual,
-                utilizado:requerimiento.cantidad,
-                stock_actual:
-                    requerimiento.stock_actual-
-                    requerimiento.cantidad
-            });
-        }
-
-        // ----------------------------------------------------
-        // 7. MOVIMIENTOS DE INVENTARIO
-        // ----------------------------------------------------
-        for(const movimiento of movimientosDetalle){
-            await dbRunSCM(`
-                INSERT INTO movimientos_inventario(
-                    producto_id,
-                    insumo_id,
-                    tipo,
-                    cantidad,
-                    motivo,
-                    usuario_id
-                )
-                VALUES(
-                    ?,?,'salida',?,?,?
-                )
-            `,[
-                movimiento.producto_id,
-                movimiento.insumo_id,
-                movimiento.cantidad,
-                `venta ERP orden #${ordenId}`,
-                usuarioId
-            ]);
-        }
-
-        await dbRunSCM(`
-            INSERT INTO procesos_erp(
-                orden_id,tipo,descripcion,estado,usuario_id
-            )
-            VALUES(
-                ?,'ACTUALIZACION_INVENTARIO',?,'correcto',?
-            )
-        `,[
-            ordenId,
-            `Se descontaron existencias de ${requerimientos.size} insumo(s).`,
-            usuarioId
-        ]);
-
-        await dbRunSCM(`
-            INSERT INTO procesos_erp(
-                orden_id,tipo,descripcion,estado,usuario_id
-            )
-            VALUES(
-                ?,'MOVIMIENTOS_INVENTARIO',?,'correcto',?
-            )
-        `,[
-            ordenId,
-            `Se registraron ${movimientosDetalle.length} movimiento(s) de salida.`,
-            usuarioId
-        ]);
-
-        // ----------------------------------------------------
-        // 8. INTEGRACIÓN CRM
-        // ----------------------------------------------------
-        await dbRunSCM(`
-            INSERT INTO interacciones(
-                cliente_id,
-                usuario_id,
-                tipo,
-                descripcion
-            )
-            VALUES(
-                ?,?,'Venta ERP',?
-            )
-        `,[
-            orden.cliente_id,
             usuarioId,
-            `Orden #${ordenId} enviada a preparación por $${Number(orden.total||0).toFixed(2)}.`
-        ]);
-
-        await dbRunSCM(`
-            INSERT INTO procesos_erp(
-                orden_id,tipo,descripcion,estado,usuario_id
-            )
-            VALUES(
-                ?,'INTEGRACION_CRM',?,'correcto',?
-            )
-        `,[
-            ordenId,
-            `La operación fue registrada en el historial CRM de ${orden.cliente_nombre}.`,
-            usuarioId
-        ]);
-
-        // ----------------------------------------------------
-        // 9. FINALIZAR ORDEN
-        // ----------------------------------------------------
-        const actualizacionOrden=await dbRunSCM(`
-            UPDATE ordenes_empresariales
-            SET
-                estado='preparacion',
-                inventario_aplicado=1,
-                fecha_procesado=CURRENT_TIMESTAMP
-            WHERE
-                id=?
-                AND estado='pendiente'
-                AND COALESCE(inventario_aplicado,0)=0
-        `,[ordenId]);
-
-        if(actualizacionOrden.changes!==1){
-            throw crearErrorERP(
-                'La orden cambió durante el procesamiento. Intenta nuevamente.',
-                409
-            );
-        }
-
-        await dbRunSCM(`
-            INSERT INTO procesos_erp(
-                orden_id,tipo,descripcion,estado,usuario_id
-            )
-            VALUES(
-                ?,'FINALIZACION',?,'preparacion',?
-            )
-        `,[
-            ordenId,
-            `Orden #${ordenId} procesada correctamente y enviada a preparación.`,
-            usuarioId
-        ]);
+            contexto
+        );
 
         // ----------------------------------------------------
         // 10. CONFIRMAR TRANSACCIÓN
@@ -6166,45 +7228,11 @@ async function procesarOrdenERPBackend(req,res){
         await dbRunSCM('COMMIT');
         transaccion=false;
 
-        // ----------------------------------------------------
-        // 11. RECALCULAR DISPONIBILIDAD SCM
-        // ----------------------------------------------------
-        try{
-            await recalcularProductosERP();
-        }catch(errorRecalculo){
-            console.warn(
-                'La orden se procesó, pero hubo un error recalculando productos:',
-                errorRecalculo.message
+        const reposicionesAutomaticas=
+            await completarProcesamientoOrdenERP(
+                requerimientos,
+                usuarioId
             );
-        }
-
-        // ----------------------------------------------------
-        // 12. VERIFICAR REPOSICIÓN AUTOMÁTICA PUSH
-        // ----------------------------------------------------
-        const reposicionesAutomaticas=[];
-
-        for(const requerimiento of requerimientos.values()){
-            try{
-                const resultadoPush=
-                    await verificarReposicionAutomaticaPush(
-                        requerimiento.insumo_id,
-                        usuarioId
-                    );
-
-                if(resultadoPush?.creado){
-                    reposicionesAutomaticas.push({
-                        insumo_id:requerimiento.insumo_id,
-                        insumo:requerimiento.nombre,
-                        pedido_id:resultadoPush.pedido_id
-                    });
-                }
-            }catch(errorPush){
-                console.warn(
-                    `No se pudo verificar PUSH del insumo ${requerimiento.insumo_id}:`,
-                    errorPush.message
-                );
-            }
-        }
 
         registrarActividad(
             usuarioId,
@@ -6253,7 +7281,7 @@ async function procesarOrdenERPBackend(req,res){
         }
 
         // El intento fallido se registra fuera de la transacción.
-        if(ordenCargada){
+        if(contexto.orden){
             try{
                 await dbRunSCM(`
                     INSERT INTO procesos_erp(
