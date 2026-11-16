@@ -382,6 +382,9 @@ async function agregarColumnaEtapa4(h, tabla, columna, definicion) {
 async function migrarEtapa4(db) {
     const h = crearHelpersEtapa4(db);
 
+    // IMPORTANTE: la primera llamada a db se hace de forma síncrona
+    // (antes de cualquier await) para quedar encolada después de
+    // inicializarTablas() dentro de db.serialize().
     const primeraConsulta = h.all('PRAGMA table_info(productos)');
 
     try {
@@ -553,7 +556,7 @@ async function migrarEtapa4(db) {
         await agregarColumnaEtapa4(h, 'orden_detalle', 'nota', 'TEXT');
 
         // --------------------------------------------------------
-        // 3. DATOS SEMILLA Y ENLACES
+        // 3. DATOS SEMILLA Y ENLACES (sin pisar lo existente)
         // --------------------------------------------------------
         for (const [clave, nombre, orden] of CATEGORIAS_ETAPA4) {
             await h.run(
@@ -821,6 +824,11 @@ function reglaAccesoCasaBarro(req) {
         ruta === '/api/metricas-crm'
     ) {
         return { roles: ['admin', 'vendedor'] };
+    }
+
+    // Comercialización (destacados/novedades): el manejador valida admin o vendedor.
+    if (metodo === 'PUT' && /^\/api\/productos\/\d+\/comercial$/.test(ruta)) {
+        return null;
     }
 
     // El catálogo público usa este endpoint para validar existencias.
@@ -2727,6 +2735,1324 @@ app.get('/api/catalogo/productos', async (req, res) => {
             error:
                 'No se pudo cargar el catálogo.'
         });
+    }
+});
+
+// ============================================================
+// ETAPA 4 · DÍA 2 · CATÁLOGO PÚBLICO (consulta, filtros, detalle)
+// GET /api/catalogo                      (?categoria= &buscar= &destacado=1 &novedad=1)
+// GET /api/catalogo/categorias
+// GET /api/catalogo/:id
+// (La ruta anterior /api/catalogo/productos se conserva sin cambios)
+// ============================================================
+
+function normalizarBusquedaTienda(texto) {
+    return String(texto || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+}
+
+function redondearMonedaTienda(valor) {
+    return Math.round((Number(valor || 0) + Number.EPSILON) * 100) / 100;
+}
+
+function errorTienda(status, mensaje) {
+    const error = new Error(mensaje);
+    error.status = status;
+    return error;
+}
+
+function responderErrorTienda(res, error, mensajeGenerico) {
+    if (error && error.status) {
+        return res.status(error.status).json({ error: error.message });
+    }
+    console.error(mensajeGenerico, error);
+    return res.status(500).json({ error: mensajeGenerico });
+}
+
+async function cargarGruposTienda(productoId) {
+    const grupos = await dbAllSCM(
+        `SELECT id, producto_id, nombre, seleccion_minima, seleccion_maxima
+         FROM producto_grupo
+         WHERE producto_id = ?
+         ORDER BY id ASC`,
+        [productoId]
+    );
+
+    for (const grupo of grupos) {
+        grupo.opciones = await dbAllSCM(
+            `SELECT id, grupo_id, nombre, precio_extra
+             FROM producto_opcion
+             WHERE grupo_id = ?
+             ORDER BY id ASC`,
+            [grupo.id]
+        );
+    }
+
+    return grupos;
+}
+
+function presentarProductoTienda(producto) {
+    const stock = Number(producto.stock_actual || 0);
+
+    return {
+        ...producto,
+        imagen_url: producto.imagen,
+        destacado: Number(producto.destacado || 0) === 1,
+        es_novedad: Number(producto.es_novedad || 0) === 1,
+        disponible: producto.estado === 'disponible' && stock > 0
+    };
+}
+
+const SQL_CATALOGO_TIENDA = `
+    SELECT
+        p.id,
+        p.nombre,
+        p.descripcion,
+        p.categoria,
+        p.categoria_id,
+        c.nombre AS categoria_nombre,
+        p.precio,
+        p.estado,
+        p.stock_actual,
+        p.imagen,
+        p.imagen_posicion,
+        p.etiqueta,
+        p.etiqueta_tipo,
+        p.orden_catalogo,
+        p.destacado,
+        p.es_novedad
+    FROM productos p
+    LEFT JOIN categorias c ON c.id = p.categoria_id
+    WHERE p.publicado = 1
+      AND p.estado <> 'inactivo'
+      AND p.imagen IS NOT NULL
+      AND TRIM(p.imagen) <> ''
+`;
+
+app.get('/api/catalogo', async (req, res) => {
+    try {
+        const categoria = normalizarBusquedaTienda(req.query.categoria);
+        const buscar = normalizarBusquedaTienda(req.query.buscar);
+        const soloDestacados = String(req.query.destacado || '') === '1';
+        const soloNovedades = String(req.query.novedad || '') === '1';
+
+        let productos = await dbAllSCM(
+            `${SQL_CATALOGO_TIENDA}
+             ORDER BY COALESCE(c.orden, 99) ASC, p.orden_catalogo ASC, p.id ASC`
+        );
+
+        if (categoria && categoria !== 'todos' && categoria !== 'todas') {
+            productos = productos.filter(
+                p => normalizarBusquedaTienda(p.categoria) === categoria
+            );
+        }
+
+        if (soloDestacados) {
+            productos = productos.filter(p => Number(p.destacado) === 1);
+        }
+
+        if (soloNovedades) {
+            productos = productos.filter(p => Number(p.es_novedad) === 1);
+        }
+
+        for (const producto of productos) {
+            producto.grupos = await cargarGruposTienda(producto.id);
+        }
+
+        if (buscar) {
+            productos = productos.filter(producto => {
+                const opciones = producto.grupos
+                    .flatMap(g => g.opciones.map(o => o.nombre))
+                    .join(' ');
+
+                const texto = normalizarBusquedaTienda(
+                    `${producto.nombre} ${producto.descripcion || ''} ` +
+                    `${producto.categoria_nombre || producto.categoria || ''} ${opciones}`
+                );
+
+                return texto.includes(buscar);
+            });
+        }
+
+        const promocionesVigentes = await cargarPromocionesVigentesTienda();
+
+        res.json({
+            mensaje: 'Éxito',
+            total: productos.length,
+            filtros: {
+                categoria: categoria || 'todos',
+                buscar: req.query.buscar ? String(req.query.buscar).trim() : ''
+            },
+            data: productos.map(producto => ({
+                ...presentarProductoTienda(producto),
+                promocion: mejorPromocionProductoTienda(producto, promocionesVigentes)
+            }))
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo consultar el catálogo.');
+    }
+});
+
+app.get('/api/catalogo/categorias', async (req, res) => {
+    try {
+        const categorias = await dbAllSCM(
+            `SELECT
+                c.id,
+                c.clave,
+                c.nombre,
+                COUNT(p.id) AS total_productos
+             FROM categorias c
+             LEFT JOIN productos p
+                ON p.categoria_id = c.id
+               AND p.publicado = 1
+               AND p.estado <> 'inactivo'
+               AND p.imagen IS NOT NULL
+               AND TRIM(p.imagen) <> ''
+             WHERE c.estado = 'activo'
+             GROUP BY c.id
+             ORDER BY c.orden ASC, c.id ASC`
+        );
+
+        res.json({ mensaje: 'Éxito', data: categorias });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudieron consultar las categorías.');
+    }
+});
+
+app.get('/api/catalogo/:id', async (req, res, next) => {
+    // Rutas como /productos o /categorias se resuelven antes; aquí solo ids numéricos.
+    if (!/^\d+$/.test(req.params.id)) return next();
+
+    try {
+        const producto = await dbGetSCM(
+            `${SQL_CATALOGO_TIENDA} AND p.id = ?`,
+            [Number(req.params.id)]
+        );
+
+        if (!producto) {
+            return res.status(404).json({ error: 'Producto no encontrado.' });
+        }
+
+        producto.grupos = await cargarGruposTienda(producto.id);
+
+        const promocionesVigentes = await cargarPromocionesVigentesTienda();
+
+        res.json({
+            mensaje: 'Éxito',
+            data: {
+                ...presentarProductoTienda(producto),
+                promocion: mejorPromocionProductoTienda(producto, promocionesVigentes)
+            }
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo consultar el producto.');
+    }
+});
+
+// ============================================================
+// ETAPA 4 · DÍA 2 · CARRITO DE COMPRAS (persistente en BD)
+// POST   /api/carrito/agregar
+// POST   /api/carrito/fusionar          (pasa el carrito de invitado a la cuenta)
+// GET    /api/carrito/:cliente_id       ("mi" = cliente de la sesión)
+// PUT    /api/carrito/item/:id
+// DELETE /api/carrito/item/:id
+// DELETE /api/carrito/vaciar/:cliente_id
+// El precio SIEMPRE se calcula en el servidor (precio base + extras).
+// ============================================================
+
+const CANTIDAD_MAXIMA_ITEM_CARRITO = 50;
+
+async function clienteDeSesionTienda(req) {
+    const usuario = await obtenerUsuarioSesion(req);
+
+    if (!usuario) {
+        throw errorTienda(401, 'Inicia sesión para usar tu carrito.');
+    }
+
+    let cliente = await dbGetSCM(
+        'SELECT id, nombre, correo, usuario_id FROM clientes WHERE usuario_id = ?',
+        [usuario.id]
+    );
+
+    if (!cliente) {
+        cliente = await dbGetSCM(
+            'SELECT id, nombre, correo, usuario_id FROM clientes WHERE LOWER(correo) = LOWER(?)',
+            [usuario.correo]
+        );
+
+        if (cliente) {
+            await dbRunSCM(
+                'UPDATE clientes SET usuario_id = ? WHERE id = ?',
+                [usuario.id, cliente.id]
+            );
+        }
+    }
+
+    if (!cliente) {
+        const nuevo = await dbRunSCM(
+            'INSERT INTO clientes (nombre, correo, empresa, usuario_id) VALUES (?, ?, ?, ?)',
+            [usuario.nombre, usuario.correo, usuario.empresa || null, usuario.id]
+        );
+        cliente = { id: nuevo.lastID, nombre: usuario.nombre, correo: usuario.correo };
+    }
+
+    await dbRunSCM(
+        'INSERT OR IGNORE INTO monedero (cliente_id, saldo) VALUES (?, 0)',
+        [cliente.id]
+    );
+
+    return { usuario, cliente };
+}
+
+function validarClienteDelCarrito(parametro, cliente) {
+    const valor = String(parametro || '').toLowerCase();
+
+    if (valor === 'mi' || Number(valor) === Number(cliente.id)) {
+        return;
+    }
+
+    throw errorTienda(403, 'No puedes consultar el carrito de otro cliente.');
+}
+
+async function obtenerCarritoActivoTienda(clienteId, crear = false) {
+    let carrito = await dbGetSCM(
+        `SELECT * FROM carrito WHERE cliente_id = ? AND estado = 'activo'`,
+        [clienteId]
+    );
+
+    if (!carrito && crear) {
+        try {
+            await dbRunSCM('INSERT INTO carrito (cliente_id) VALUES (?)', [clienteId]);
+        } catch (error) {
+            // Otra petición pudo crearlo al mismo tiempo (índice único)
+        }
+
+        carrito = await dbGetSCM(
+            `SELECT * FROM carrito WHERE cliente_id = ? AND estado = 'activo'`,
+            [clienteId]
+        );
+    }
+
+    return carrito;
+}
+
+async function construirRespuestaCarritoTienda(carrito) {
+    let items = [];
+
+    if (carrito) {
+        items = await dbAllSCM(
+            `SELECT
+                d.id,
+                d.producto_id,
+                d.cantidad,
+                d.precio_unitario,
+                d.opciones_json,
+                d.nota,
+                p.nombre,
+                p.imagen,
+                p.estado,
+                p.stock_actual
+             FROM carrito_detalle d
+             INNER JOIN productos p ON p.id = d.producto_id
+             WHERE d.carrito_id = ?
+             ORDER BY d.id ASC`,
+            [carrito.id]
+        );
+    }
+
+    items = items.map(item => {
+        let opciones = [];
+
+        try {
+            opciones = item.opciones_json ? JSON.parse(item.opciones_json) : [];
+        } catch (error) {
+            opciones = [];
+        }
+
+        const stock = Number(item.stock_actual || 0);
+
+        return {
+            id: item.id,
+            producto_id: item.producto_id,
+            nombre: item.nombre,
+            imagen_url: item.imagen,
+            cantidad: item.cantidad,
+            precio_unitario: redondearMonedaTienda(item.precio_unitario),
+            subtotal: redondearMonedaTienda(item.cantidad * item.precio_unitario),
+            opciones,
+            opcion_texto: opciones.length ? opciones.map(o => o.nombre).join(' + ') : null,
+            nota: item.nota,
+            stock_actual: stock,
+            disponible: item.estado === 'disponible' && stock >= item.cantidad
+        };
+    });
+
+    return {
+        carrito_id: carrito ? carrito.id : null,
+        cliente_id: carrito ? carrito.cliente_id : null,
+        items,
+        total_items: items.reduce((total, item) => total + item.cantidad, 0),
+        subtotal: redondearMonedaTienda(
+            items.reduce((total, item) => total + item.subtotal, 0)
+        )
+    };
+}
+
+async function resolverOpcionesTienda(productoId, nombresSolicitados) {
+    const nombres = (Array.isArray(nombresSolicitados) ? nombresSolicitados : [])
+        .map(nombre => String(nombre || '').trim())
+        .filter(Boolean)
+        .slice(0, 10);
+
+    if (!nombres.length) {
+        return { opciones: [], extra: 0 };
+    }
+
+    const grupos = await cargarGruposTienda(productoId);
+    const gruposUsados = new Set();
+    const opciones = [];
+
+    for (const nombre of nombres) {
+        let encontrada = null;
+
+        for (const grupo of grupos) {
+            if (gruposUsados.has(grupo.id)) continue;
+
+            const opcion = grupo.opciones.find(
+                o => normalizarBusquedaTienda(o.nombre) === normalizarBusquedaTienda(nombre)
+            );
+
+            if (opcion) {
+                encontrada = { grupo: grupo.nombre, nombre: opcion.nombre, precio_extra: Number(opcion.precio_extra || 0) };
+                gruposUsados.add(grupo.id);
+                break;
+            }
+        }
+
+        if (!encontrada) {
+            throw errorTienda(400, `La opción "${nombre}" no es válida para este producto.`);
+        }
+
+        opciones.push(encontrada);
+    }
+
+    return {
+        opciones,
+        extra: opciones.reduce((total, o) => total + o.precio_extra, 0)
+    };
+}
+
+function validarCantidadTienda(valor) {
+    const cantidad = Number(valor);
+
+    if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > CANTIDAD_MAXIMA_ITEM_CARRITO) {
+        throw errorTienda(
+            400,
+            `La cantidad debe ser un número entero entre 1 y ${CANTIDAD_MAXIMA_ITEM_CARRITO}.`
+        );
+    }
+
+    return cantidad;
+}
+
+async function agregarItemCarritoTienda(clienteId, datos) {
+    const productoId = Number(datos.producto_id);
+
+    if (!Number.isInteger(productoId) || productoId <= 0) {
+        throw errorTienda(400, 'Producto no válido.');
+    }
+
+    const cantidad = validarCantidadTienda(datos.cantidad ?? 1);
+
+    const producto = await dbGetSCM(
+        `SELECT id, nombre, precio, estado, stock_actual
+         FROM productos
+         WHERE id = ? AND publicado = 1 AND estado <> 'inactivo'`,
+        [productoId]
+    );
+
+    if (!producto) {
+        throw errorTienda(404, 'El producto no existe o ya no está disponible.');
+    }
+
+    const stock = Number(producto.stock_actual || 0);
+
+    if (producto.estado !== 'disponible' || stock <= 0) {
+        throw errorTienda(409, `${producto.nombre} está agotado.`);
+    }
+
+    const { opciones, extra } = await resolverOpcionesTienda(productoId, datos.opciones);
+    const opcionesJson = opciones.length ? JSON.stringify(opciones) : null;
+    const nota = String(datos.nota || '').trim().slice(0, 200) || null;
+    const precioUnitario = redondearMonedaTienda(Number(producto.precio) + extra);
+
+    const carrito = await obtenerCarritoActivoTienda(clienteId, true);
+
+    const { total_producto: enCarrito } = await dbGetSCM(
+        `SELECT COALESCE(SUM(cantidad), 0) AS total_producto
+         FROM carrito_detalle
+         WHERE carrito_id = ? AND producto_id = ?`,
+        [carrito.id, productoId]
+    );
+
+    if (enCarrito + cantidad > stock) {
+        const restantes = Math.max(0, stock - enCarrito);
+        throw errorTienda(
+            409,
+            restantes > 0
+                ? `Solo puedes agregar ${restantes} pieza(s) más de ${producto.nombre}.`
+                : `Ya tienes en tu carrito todas las piezas disponibles de ${producto.nombre}.`
+        );
+    }
+
+    const existente = await dbGetSCM(
+        `SELECT id FROM carrito_detalle
+         WHERE carrito_id = ?
+           AND producto_id = ?
+           AND COALESCE(opciones_json, '') = COALESCE(?, '')
+           AND COALESCE(nota, '') = COALESCE(?, '')`,
+        [carrito.id, productoId, opcionesJson, nota]
+    );
+
+    if (existente) {
+        await dbRunSCM(
+            'UPDATE carrito_detalle SET cantidad = cantidad + ?, precio_unitario = ? WHERE id = ?',
+            [cantidad, precioUnitario, existente.id]
+        );
+    } else {
+        await dbRunSCM(
+            `INSERT INTO carrito_detalle
+                (carrito_id, producto_id, cantidad, precio_unitario, opciones_json, nota)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [carrito.id, productoId, cantidad, precioUnitario, opcionesJson, nota]
+        );
+    }
+
+    await dbRunSCM(
+        'UPDATE carrito SET fecha_actualizacion = CURRENT_TIMESTAMP WHERE id = ?',
+        [carrito.id]
+    );
+
+    return carrito;
+}
+
+async function obtenerItemDelClienteTienda(itemId, clienteId) {
+    const item = await dbGetSCM(
+        `SELECT d.id, d.carrito_id, d.producto_id, d.cantidad,
+                p.nombre, p.estado, p.stock_actual
+         FROM carrito_detalle d
+         INNER JOIN carrito c ON c.id = d.carrito_id
+         INNER JOIN productos p ON p.id = d.producto_id
+         WHERE d.id = ? AND c.cliente_id = ? AND c.estado = 'activo'`,
+        [itemId, clienteId]
+    );
+
+    if (!item) {
+        throw errorTienda(404, 'El producto no está en tu carrito.');
+    }
+
+    return item;
+}
+
+app.post('/api/carrito/agregar', async (req, res) => {
+    try {
+        const { cliente } = await clienteDeSesionTienda(req);
+        const carrito = await agregarItemCarritoTienda(cliente.id, req.body || {});
+
+        res.status(201).json({
+            mensaje: 'Producto agregado al carrito.',
+            carrito: await construirRespuestaCarritoTienda(carrito)
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo agregar el producto al carrito.');
+    }
+});
+
+app.post('/api/carrito/fusionar', async (req, res) => {
+    try {
+        const { cliente } = await clienteDeSesionTienda(req);
+        const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 100) : [];
+        const omitidos = [];
+
+        for (const item of items) {
+            try {
+                await agregarItemCarritoTienda(cliente.id, item);
+            } catch (error) {
+                if (!error.status) throw error;
+                omitidos.push({ producto_id: item?.producto_id ?? null, motivo: error.message });
+            }
+        }
+
+        const carrito = await obtenerCarritoActivoTienda(cliente.id);
+
+        res.json({
+            mensaje: 'Carrito sincronizado.',
+            omitidos,
+            carrito: await construirRespuestaCarritoTienda(carrito)
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo sincronizar el carrito.');
+    }
+});
+
+app.get('/api/carrito/:cliente_id', async (req, res) => {
+    try {
+        const { cliente } = await clienteDeSesionTienda(req);
+        validarClienteDelCarrito(req.params.cliente_id, cliente);
+
+        const carrito = await obtenerCarritoActivoTienda(cliente.id);
+
+        res.json({
+            mensaje: 'Éxito',
+            carrito: await construirRespuestaCarritoTienda(carrito)
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo consultar el carrito.');
+    }
+});
+
+app.put('/api/carrito/item/:id', async (req, res) => {
+    try {
+        const { cliente } = await clienteDeSesionTienda(req);
+        const cantidad = validarCantidadTienda(req.body?.cantidad);
+        const item = await obtenerItemDelClienteTienda(Number(req.params.id), cliente.id);
+
+        const stock = Number(item.stock_actual || 0);
+
+        const { otros } = await dbGetSCM(
+            `SELECT COALESCE(SUM(cantidad), 0) AS otros
+             FROM carrito_detalle
+             WHERE carrito_id = ? AND producto_id = ? AND id <> ?`,
+            [item.carrito_id, item.producto_id, item.id]
+        );
+
+        if (item.estado !== 'disponible' || otros + cantidad > stock) {
+            throw errorTienda(
+                409,
+                `Solo hay ${stock} pieza(s) disponible(s) de ${item.nombre}.`
+            );
+        }
+
+        await dbRunSCM('UPDATE carrito_detalle SET cantidad = ? WHERE id = ?', [cantidad, item.id]);
+        await dbRunSCM(
+            'UPDATE carrito SET fecha_actualizacion = CURRENT_TIMESTAMP WHERE id = ?',
+            [item.carrito_id]
+        );
+
+        const carrito = await obtenerCarritoActivoTienda(cliente.id);
+
+        res.json({
+            mensaje: 'Cantidad actualizada.',
+            carrito: await construirRespuestaCarritoTienda(carrito)
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo actualizar el producto del carrito.');
+    }
+});
+
+app.delete('/api/carrito/item/:id', async (req, res) => {
+    try {
+        const { cliente } = await clienteDeSesionTienda(req);
+        const item = await obtenerItemDelClienteTienda(Number(req.params.id), cliente.id);
+
+        await dbRunSCM('DELETE FROM carrito_detalle WHERE id = ?', [item.id]);
+        await dbRunSCM(
+            'UPDATE carrito SET fecha_actualizacion = CURRENT_TIMESTAMP WHERE id = ?',
+            [item.carrito_id]
+        );
+
+        const carrito = await obtenerCarritoActivoTienda(cliente.id);
+
+        res.json({
+            mensaje: 'Producto eliminado del carrito.',
+            carrito: await construirRespuestaCarritoTienda(carrito)
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo eliminar el producto del carrito.');
+    }
+});
+
+app.delete('/api/carrito/vaciar/:cliente_id', async (req, res) => {
+    try {
+        const { cliente } = await clienteDeSesionTienda(req);
+        validarClienteDelCarrito(req.params.cliente_id, cliente);
+
+        const carrito = await obtenerCarritoActivoTienda(cliente.id);
+
+        if (carrito) {
+            await dbRunSCM('DELETE FROM carrito_detalle WHERE carrito_id = ?', [carrito.id]);
+            await dbRunSCM(
+                'UPDATE carrito SET fecha_actualizacion = CURRENT_TIMESTAMP WHERE id = ?',
+                [carrito.id]
+            );
+        }
+
+        res.json({
+            mensaje: 'Carrito vaciado.',
+            carrito: await construirRespuestaCarritoTienda(carrito)
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo vaciar el carrito.');
+    }
+});
+
+// ============================================================
+// ETAPA 4 · DÍA 3 · PROMOCIONES, IMPUESTOS Y COTIZADOR
+// GET  /api/promociones            (vigentes; ?todas=1 solo admin/vendedor)
+// POST /api/promociones            (admin/vendedor)
+// PUT  /api/promociones/:id        (admin/vendedor)
+// GET  /api/impuestos              (activos; ?todos=1 solo admin/vendedor)
+// POST /api/impuestos              (admin)
+// PUT  /api/impuestos/:id          (admin)
+// POST /api/carrito/cotizar        (subtotal → descuento → IVA → propina → total)
+// GET  /api/comercializacion/productos
+// PUT  /api/productos/:id/comercial   (destacado / novedad)
+// ============================================================
+
+const ROLES_COMERCIALES_TIENDA = ['admin', 'vendedor'];
+const PROPINA_MAXIMA_TIENDA = 30;
+const REGEX_CODIGO_PROMOCION_TIENDA = /^[A-Z0-9Ñ_-]{3,20}$/;
+
+function fechaHoyTienda() {
+    const ahora = new Date();
+    const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+    const dia = String(ahora.getDate()).padStart(2, '0');
+    return `${ahora.getFullYear()}-${mes}-${dia}`;
+}
+
+function estadoEfectivoPromocionTienda(promocion, hoy = fechaHoyTienda()) {
+    if (promocion.estado !== 'activa') return 'inactiva';
+
+    const inicio = promocion.fecha_inicio ? String(promocion.fecha_inicio).slice(0, 10) : null;
+    const fin = promocion.fecha_fin ? String(promocion.fecha_fin).slice(0, 10) : null;
+
+    if (inicio && inicio > hoy) return 'programada';
+    if (fin && fin < hoy) return 'expirada';
+
+    return 'vigente';
+}
+
+function presentarPromocionTienda(promocion) {
+    const estadoEfectivo = estadoEfectivoPromocionTienda(promocion);
+
+    return {
+        id: promocion.id,
+        codigo: promocion.codigo,
+        nombre: promocion.nombre,
+        descripcion: promocion.descripcion,
+        tipo_descuento: promocion.tipo_descuento,
+        valor: Number(promocion.valor),
+        aplica_a: promocion.aplica_a,
+        categoria_id: promocion.categoria_id,
+        categoria_nombre: promocion.categoria_nombre || null,
+        producto_id: promocion.producto_id,
+        producto_nombre: promocion.producto_nombre || null,
+        solo_registrados: Number(promocion.solo_registrados) === 1,
+        destacada: Number(promocion.destacada) === 1,
+        fecha_inicio: promocion.fecha_inicio ? String(promocion.fecha_inicio).slice(0, 10) : null,
+        fecha_fin: promocion.fecha_fin ? String(promocion.fecha_fin).slice(0, 10) : null,
+        estado: promocion.estado,
+        estado_efectivo: estadoEfectivo,
+        vigente: estadoEfectivo === 'vigente'
+    };
+}
+
+const SQL_PROMOCIONES_TIENDA = `
+    SELECT
+        pr.*,
+        p.nombre AS producto_nombre,
+        c.nombre AS categoria_nombre
+    FROM promociones pr
+    LEFT JOIN productos p ON p.id = pr.producto_id
+    LEFT JOIN categorias c ON c.id = pr.categoria_id
+`;
+
+async function cargarPromocionesVigentesTienda() {
+    const filas = await dbAllSCM(
+        `${SQL_PROMOCIONES_TIENDA} ORDER BY pr.destacada DESC, pr.id DESC`
+    );
+
+    return filas.map(presentarPromocionTienda).filter(p => p.vigente);
+}
+
+function calcularDescuentoTienda(promocion, montoElegible) {
+    const elegible = Number(montoElegible || 0);
+
+    if (elegible <= 0) return 0;
+
+    const descuento = promocion.tipo_descuento === 'porcentaje'
+        ? elegible * (Number(promocion.valor) / 100)
+        : Math.min(Number(promocion.valor), elegible);
+
+    return redondearMonedaTienda(Math.min(descuento, elegible));
+}
+
+// Promoción dirigida (a un producto o a una categoría) más conveniente para mostrar en catálogo
+function mejorPromocionProductoTienda(producto, promocionesVigentes) {
+    const precio = Number(producto.precio || 0);
+    let mejor = null;
+
+    for (const promocion of promocionesVigentes) {
+        const aplica =
+            (promocion.aplica_a === 'producto' && Number(promocion.producto_id) === Number(producto.id)) ||
+            (promocion.aplica_a === 'categoria' && Number(promocion.categoria_id) === Number(producto.categoria_id));
+
+        if (!aplica) continue;
+
+        const precioFinal = redondearMonedaTienda(precio - calcularDescuentoTienda(promocion, precio));
+
+        if (!mejor || precioFinal < mejor.precio_con_descuento) {
+            mejor = {
+                codigo: promocion.codigo,
+                nombre: promocion.nombre,
+                tipo_descuento: promocion.tipo_descuento,
+                valor: promocion.valor,
+                solo_registrados: promocion.solo_registrados,
+                precio_con_descuento: precioFinal
+            };
+        }
+    }
+
+    return mejor;
+}
+
+function validarFechaPromocionTienda(valor, etiqueta) {
+    if (valor === undefined || valor === null || String(valor).trim() === '') return null;
+
+    const texto = String(valor).trim().slice(0, 10);
+    const fecha = new Date(`${texto}T00:00:00`);
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(texto) || Number.isNaN(fecha.getTime())) {
+        throw errorTienda(400, `La ${etiqueta} no es una fecha válida (AAAA-MM-DD).`);
+    }
+
+    return texto;
+}
+
+async function validarDatosPromocionTienda(datos, existente = null) {
+    const base = existente || {};
+    const tomar = (campo, predeterminado) =>
+        datos[campo] !== undefined ? datos[campo] : (base[campo] !== undefined ? base[campo] : predeterminado);
+
+    const codigo = String(tomar('codigo', '')).trim().toUpperCase();
+    const nombre = String(tomar('nombre', '')).trim();
+    const descripcion = String(tomar('descripcion', '') || '').trim().slice(0, 300) || null;
+    const tipo = String(tomar('tipo_descuento', 'porcentaje')).trim();
+    const valor = Number(tomar('valor', 0));
+    const aplicaA = String(tomar('aplica_a', 'todo')).trim();
+    const estado = String(tomar('estado', 'activa')).trim();
+
+    if (!REGEX_CODIGO_PROMOCION_TIENDA.test(codigo)) {
+        throw errorTienda(400, 'El código debe tener de 3 a 20 caracteres (letras, números, guion o guion bajo).');
+    }
+    if (nombre.length < 3 || nombre.length > 80) {
+        throw errorTienda(400, 'El nombre de la promoción debe tener entre 3 y 80 caracteres.');
+    }
+    if (!['porcentaje', 'monto'].includes(tipo)) {
+        throw errorTienda(400, 'El tipo de descuento debe ser "porcentaje" o "monto".');
+    }
+    if (!Number.isFinite(valor) || valor <= 0) {
+        throw errorTienda(400, 'El valor del descuento debe ser mayor que cero.');
+    }
+    if (tipo === 'porcentaje' && valor > 100) {
+        throw errorTienda(400, 'Un descuento porcentual no puede ser mayor a 100%.');
+    }
+    if (!['todo', 'categoria', 'producto'].includes(aplicaA)) {
+        throw errorTienda(400, 'El alcance de la promoción no es válido.');
+    }
+    if (!['activa', 'inactiva'].includes(estado)) {
+        throw errorTienda(400, 'El estado de la promoción no es válido.');
+    }
+
+    let categoriaId = null;
+    let productoId = null;
+
+    if (aplicaA === 'categoria') {
+        categoriaId = Number(tomar('categoria_id', null));
+        const categoria = Number.isInteger(categoriaId)
+            ? await dbGetSCM('SELECT id FROM categorias WHERE id = ?', [categoriaId])
+            : null;
+        if (!categoria) throw errorTienda(400, 'Selecciona una categoría válida para la promoción.');
+    }
+
+    if (aplicaA === 'producto') {
+        productoId = Number(tomar('producto_id', null));
+        const producto = Number.isInteger(productoId)
+            ? await dbGetSCM('SELECT id FROM productos WHERE id = ?', [productoId])
+            : null;
+        if (!producto) throw errorTienda(400, 'Selecciona un producto válido para la promoción.');
+    }
+
+    const fechaInicio = validarFechaPromocionTienda(tomar('fecha_inicio', null), 'fecha de inicio');
+    const fechaFin = validarFechaPromocionTienda(tomar('fecha_fin', null), 'fecha de fin');
+
+    if (fechaInicio && fechaFin && fechaFin < fechaInicio) {
+        throw errorTienda(400, 'La fecha de fin no puede ser anterior a la de inicio.');
+    }
+
+    return {
+        codigo,
+        nombre,
+        descripcion,
+        tipo_descuento: tipo,
+        valor: redondearMonedaTienda(valor),
+        aplica_a: aplicaA,
+        categoria_id: categoriaId,
+        producto_id: productoId,
+        solo_registrados: Number(tomar('solo_registrados', 0)) === 1 || tomar('solo_registrados', 0) === true ? 1 : 0,
+        destacada: Number(tomar('destacada', 0)) === 1 || tomar('destacada', 0) === true ? 1 : 0,
+        fecha_inicio: fechaInicio,
+        fecha_fin: fechaFin,
+        estado
+    };
+}
+
+async function exigirRolComercialTienda(req) {
+    const usuario = await obtenerUsuarioSesion(req);
+
+    if (!usuario) throw errorTienda(401, 'Inicia sesión para continuar.');
+    if (!ROLES_COMERCIALES_TIENDA.includes(usuario.rol)) {
+        throw errorTienda(403, 'No tienes permisos para realizar esta acción.');
+    }
+
+    return usuario;
+}
+
+app.get('/api/promociones', async (req, res) => {
+    try {
+        const verTodas = String(req.query.todas || '') === '1';
+
+        if (verTodas) await exigirRolComercialTienda(req);
+
+        const filas = await dbAllSCM(
+            `${SQL_PROMOCIONES_TIENDA} ORDER BY pr.destacada DESC, pr.id DESC`
+        );
+
+        let promociones = filas.map(presentarPromocionTienda);
+
+        if (!verTodas) {
+            promociones = promociones.filter(p => p.vigente);
+        }
+
+        res.json({ mensaje: 'Éxito', total: promociones.length, data: promociones });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudieron consultar las promociones.');
+    }
+});
+
+app.post('/api/promociones', async (req, res) => {
+    try {
+        await exigirRolComercialTienda(req);
+        const datos = await validarDatosPromocionTienda(req.body || {});
+
+        const repetida = await dbGetSCM('SELECT id FROM promociones WHERE codigo = ?', [datos.codigo]);
+        if (repetida) throw errorTienda(409, 'Ya existe una promoción con ese código.');
+
+        const resultado = await dbRunSCM(
+            `INSERT INTO promociones
+                (codigo, nombre, descripcion, tipo_descuento, valor, aplica_a, categoria_id,
+                 producto_id, solo_registrados, destacada, fecha_inicio, fecha_fin, estado)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                datos.codigo, datos.nombre, datos.descripcion, datos.tipo_descuento, datos.valor,
+                datos.aplica_a, datos.categoria_id, datos.producto_id, datos.solo_registrados,
+                datos.destacada, datos.fecha_inicio, datos.fecha_fin, datos.estado
+            ]
+        );
+
+        const creada = await dbGetSCM(`${SQL_PROMOCIONES_TIENDA} WHERE pr.id = ?`, [resultado.lastID]);
+
+        res.status(201).json({ mensaje: 'Promoción creada.', data: presentarPromocionTienda(creada) });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo crear la promoción.');
+    }
+});
+
+app.put('/api/promociones/:id', async (req, res) => {
+    try {
+        await exigirRolComercialTienda(req);
+
+        const existente = await dbGetSCM('SELECT * FROM promociones WHERE id = ?', [Number(req.params.id)]);
+        if (!existente) throw errorTienda(404, 'Promoción no encontrada.');
+
+        const datos = await validarDatosPromocionTienda(req.body || {}, existente);
+
+        const repetida = await dbGetSCM(
+            'SELECT id FROM promociones WHERE codigo = ? AND id <> ?',
+            [datos.codigo, existente.id]
+        );
+        if (repetida) throw errorTienda(409, 'Ya existe otra promoción con ese código.');
+
+        await dbRunSCM(
+            `UPDATE promociones
+             SET codigo = ?, nombre = ?, descripcion = ?, tipo_descuento = ?, valor = ?,
+                 aplica_a = ?, categoria_id = ?, producto_id = ?, solo_registrados = ?,
+                 destacada = ?, fecha_inicio = ?, fecha_fin = ?, estado = ?
+             WHERE id = ?`,
+            [
+                datos.codigo, datos.nombre, datos.descripcion, datos.tipo_descuento, datos.valor,
+                datos.aplica_a, datos.categoria_id, datos.producto_id, datos.solo_registrados,
+                datos.destacada, datos.fecha_inicio, datos.fecha_fin, datos.estado, existente.id
+            ]
+        );
+
+        const actualizada = await dbGetSCM(`${SQL_PROMOCIONES_TIENDA} WHERE pr.id = ?`, [existente.id]);
+
+        res.json({ mensaje: 'Promoción actualizada.', data: presentarPromocionTienda(actualizada) });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo actualizar la promoción.');
+    }
+});
+
+// ------------------------------------------------------------
+// IMPUESTOS
+// ------------------------------------------------------------
+function validarDatosImpuestoTienda(datos, existente = null) {
+    const base = existente || {};
+    const tomar = (campo, predeterminado) =>
+        datos[campo] !== undefined ? datos[campo] : (base[campo] !== undefined ? base[campo] : predeterminado);
+
+    const nombre = String(tomar('nombre', '')).trim();
+    const porcentaje = Number(tomar('porcentaje', NaN));
+    const estado = String(tomar('estado', 'activo')).trim();
+
+    if (nombre.length < 2 || nombre.length > 40) {
+        throw errorTienda(400, 'El nombre del impuesto debe tener entre 2 y 40 caracteres.');
+    }
+    if (!Number.isFinite(porcentaje) || porcentaje < 0 || porcentaje > 100) {
+        throw errorTienda(400, 'El porcentaje debe estar entre 0 y 100.');
+    }
+    if (!['activo', 'inactivo'].includes(estado)) {
+        throw errorTienda(400, 'El estado del impuesto no es válido.');
+    }
+
+    return { nombre, porcentaje: redondearMonedaTienda(porcentaje), estado };
+}
+
+async function obtenerImpuestosActivosTienda() {
+    return dbAllSCM(
+        `SELECT id, nombre, porcentaje FROM impuestos WHERE estado = 'activo' ORDER BY id ASC`
+    );
+}
+
+app.get('/api/impuestos', async (req, res) => {
+    try {
+        const verTodos = String(req.query.todos || '') === '1';
+
+        if (verTodos) await exigirRolComercialTienda(req);
+
+        const impuestos = await dbAllSCM(
+            `SELECT id, nombre, porcentaje, estado, fecha_actualizacion
+             FROM impuestos
+             ${verTodos ? '' : "WHERE estado = 'activo'"}
+             ORDER BY id ASC`
+        );
+
+        res.json({ mensaje: 'Éxito', data: impuestos });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudieron consultar los impuestos.');
+    }
+});
+
+app.post('/api/impuestos', async (req, res) => {
+    try {
+        const usuario = await obtenerUsuarioSesion(req);
+        if (!usuario) throw errorTienda(401, 'Inicia sesión para continuar.');
+        if (usuario.rol !== 'admin') throw errorTienda(403, 'Solo un administrador puede configurar impuestos.');
+
+        const datos = validarDatosImpuestoTienda(req.body || {});
+
+        const repetido = await dbGetSCM('SELECT id FROM impuestos WHERE nombre = ?', [datos.nombre]);
+        if (repetido) throw errorTienda(409, 'Ya existe un impuesto con ese nombre.');
+
+        const resultado = await dbRunSCM(
+            'INSERT INTO impuestos (nombre, porcentaje, estado) VALUES (?, ?, ?)',
+            [datos.nombre, datos.porcentaje, datos.estado]
+        );
+
+        const creado = await dbGetSCM('SELECT * FROM impuestos WHERE id = ?', [resultado.lastID]);
+
+        res.status(201).json({ mensaje: 'Impuesto creado.', data: creado });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo crear el impuesto.');
+    }
+});
+
+app.put('/api/impuestos/:id', async (req, res) => {
+    try {
+        const usuario = await obtenerUsuarioSesion(req);
+        if (!usuario) throw errorTienda(401, 'Inicia sesión para continuar.');
+        if (usuario.rol !== 'admin') throw errorTienda(403, 'Solo un administrador puede configurar impuestos.');
+
+        const existente = await dbGetSCM('SELECT * FROM impuestos WHERE id = ?', [Number(req.params.id)]);
+        if (!existente) throw errorTienda(404, 'Impuesto no encontrado.');
+
+        const datos = validarDatosImpuestoTienda(req.body || {}, existente);
+
+        const repetido = await dbGetSCM(
+            'SELECT id FROM impuestos WHERE nombre = ? AND id <> ?',
+            [datos.nombre, existente.id]
+        );
+        if (repetido) throw errorTienda(409, 'Ya existe otro impuesto con ese nombre.');
+
+        await dbRunSCM(
+            `UPDATE impuestos
+             SET nombre = ?, porcentaje = ?, estado = ?, fecha_actualizacion = CURRENT_TIMESTAMP
+             WHERE id = ?`,
+            [datos.nombre, datos.porcentaje, datos.estado, existente.id]
+        );
+
+        const actualizado = await dbGetSCM('SELECT * FROM impuestos WHERE id = ?', [existente.id]);
+
+        res.json({ mensaje: 'Impuesto actualizado.', data: actualizado });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo actualizar el impuesto.');
+    }
+});
+
+// ------------------------------------------------------------
+// COTIZADOR: subtotal → descuento → impuestos → propina → total
+// Ejemplo: subtotal 1000, IVA 16% → total 1160
+// ------------------------------------------------------------
+async function evaluarPromocionTienda(codigo, lineas, usuario) {
+    const promocion = await dbGetSCM('SELECT * FROM promociones WHERE codigo = ?', [codigo]);
+
+    if (!promocion) {
+        throw errorTienda(404, 'El cupón no existe.');
+    }
+
+    const estadoEfectivo = estadoEfectivoPromocionTienda(promocion);
+
+    if (estadoEfectivo === 'inactiva') throw errorTienda(409, 'Este cupón no está activo.');
+    if (estadoEfectivo === 'programada') throw errorTienda(409, 'Este cupón todavía no está vigente.');
+    if (estadoEfectivo === 'expirada') throw errorTienda(409, 'Este cupón ya expiró.');
+
+    if (Number(promocion.solo_registrados) === 1 && !usuario) {
+        throw errorTienda(401, 'Inicia sesión para usar este cupón.');
+    }
+
+    let lineasElegibles = lineas;
+
+    if (promocion.aplica_a !== 'todo') {
+        const ids = [...new Set(lineas.map(l => Number(l.producto_id)))];
+        const marcas = ids.map(() => '?').join(',');
+        const productos = ids.length
+            ? await dbAllSCM(`SELECT id, categoria_id FROM productos WHERE id IN (${marcas})`, ids)
+            : [];
+        const categoriaPorProducto = new Map(productos.map(p => [p.id, p.categoria_id]));
+
+        lineasElegibles = lineas.filter(linea =>
+            promocion.aplica_a === 'producto'
+                ? Number(linea.producto_id) === Number(promocion.producto_id)
+                : Number(categoriaPorProducto.get(Number(linea.producto_id))) === Number(promocion.categoria_id)
+        );
+    }
+
+    const montoElegible = redondearMonedaTienda(
+        lineasElegibles.reduce((total, linea) => total + linea.subtotal, 0)
+    );
+
+    if (montoElegible <= 0) {
+        throw errorTienda(409, 'Este cupón no aplica a los productos de tu carrito.');
+    }
+
+    return {
+        promocion: {
+            id: promocion.id,
+            codigo: promocion.codigo,
+            nombre: promocion.nombre,
+            tipo_descuento: promocion.tipo_descuento,
+            valor: Number(promocion.valor),
+            aplica_a: promocion.aplica_a
+        },
+        descuento: calcularDescuentoTienda(promocion, montoElegible)
+    };
+}
+
+async function calcularTotalesTienda({ items, codigo, propinaPorcentaje, usuario }) {
+    const lineas = (items || []).map(item => ({
+        producto_id: item.producto_id,
+        nombre: item.nombre,
+        cantidad: item.cantidad,
+        precio_unitario: redondearMonedaTienda(item.precio_unitario),
+        subtotal: redondearMonedaTienda(item.cantidad * item.precio_unitario)
+    }));
+
+    const subtotal = redondearMonedaTienda(lineas.reduce((total, l) => total + l.subtotal, 0));
+
+    const codigoNormalizado = String(codigo || '').trim().toUpperCase();
+    let promocion = null;
+    let descuento = 0;
+    let cuponError = null;
+
+    if (codigoNormalizado) {
+        if (subtotal <= 0) {
+            cuponError = 'Agrega productos a tu carrito para usar un cupón.';
+        } else {
+            try {
+                ({ promocion, descuento } = await evaluarPromocionTienda(codigoNormalizado, lineas, usuario));
+            } catch (error) {
+                if (!error.status) throw error;
+                cuponError = error.message;
+            }
+        }
+    }
+
+    const baseImponible = redondearMonedaTienda(subtotal - descuento);
+
+    const impuestosActivos = await obtenerImpuestosActivosTienda();
+    const impuestos = impuestosActivos.map(impuesto => ({
+        id: impuesto.id,
+        nombre: impuesto.nombre,
+        porcentaje: Number(impuesto.porcentaje),
+        monto: redondearMonedaTienda(baseImponible * (Number(impuesto.porcentaje) / 100))
+    }));
+    const totalImpuestos = redondearMonedaTienda(impuestos.reduce((total, i) => total + i.monto, 0));
+
+    let porcentajePropina = Number(propinaPorcentaje);
+    if (!Number.isFinite(porcentajePropina) || porcentajePropina < 0 || porcentajePropina > PROPINA_MAXIMA_TIENDA) {
+        porcentajePropina = 0;
+    }
+    const propina = redondearMonedaTienda(baseImponible * (porcentajePropina / 100));
+
+    return {
+        items: lineas,
+        total_items: lineas.reduce((total, l) => total + l.cantidad, 0),
+        subtotal,
+        promocion,
+        cupon_error: cuponError,
+        descuento,
+        base_imponible: baseImponible,
+        impuestos,
+        total_impuestos: totalImpuestos,
+        propina_porcentaje: porcentajePropina,
+        propina,
+        total: redondearMonedaTienda(baseImponible + totalImpuestos + propina)
+    };
+}
+
+// Invitado: el servidor vuelve a calcular precios (nunca confía en el precio del navegador)
+async function resolverItemsInvitadoTienda(itemsSolicitados) {
+    const items = [];
+    const solicitados = Array.isArray(itemsSolicitados) ? itemsSolicitados.slice(0, 100) : [];
+
+    for (const solicitado of solicitados) {
+        try {
+            const productoId = Number(solicitado?.producto_id);
+            const cantidad = validarCantidadTienda(solicitado?.cantidad ?? 1);
+
+            const producto = await dbGetSCM(
+                `SELECT id, nombre, precio FROM productos
+                 WHERE id = ? AND publicado = 1 AND estado <> 'inactivo'`,
+                [productoId]
+            );
+            if (!producto) continue;
+
+            const { extra } = await resolverOpcionesTienda(productoId, solicitado.opciones);
+
+            items.push({
+                producto_id: producto.id,
+                nombre: producto.nombre,
+                cantidad,
+                precio_unitario: redondearMonedaTienda(Number(producto.precio) + extra)
+            });
+        } catch (error) {
+            if (!error.status) throw error;
+        }
+    }
+
+    return items;
+}
+
+app.post('/api/carrito/cotizar', async (req, res) => {
+    try {
+        const usuario = await obtenerUsuarioSesion(req);
+        let items;
+
+        if (usuario) {
+            const { cliente } = await clienteDeSesionTienda(req);
+            const carrito = await obtenerCarritoActivoTienda(cliente.id);
+            const detalle = await construirRespuestaCarritoTienda(carrito);
+
+            items = detalle.items.map(item => ({
+                producto_id: item.producto_id,
+                nombre: item.nombre,
+                cantidad: item.cantidad,
+                precio_unitario: item.precio_unitario
+            }));
+        } else {
+            items = await resolverItemsInvitadoTienda(req.body?.items);
+        }
+
+        const cotizacion = await calcularTotalesTienda({
+            items,
+            codigo: req.body?.codigo,
+            propinaPorcentaje: req.body?.propina,
+            usuario
+        });
+
+        res.json({ mensaje: 'Éxito', ...cotizacion });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo calcular el total.');
+    }
+});
+
+// ------------------------------------------------------------
+// COMERCIALIZACIÓN: productos destacados y novedades
+// ------------------------------------------------------------
+app.get('/api/comercializacion/productos', async (req, res) => {
+    try {
+        await exigirRolComercialTienda(req);
+
+        const productos = await dbAllSCM(
+            `SELECT p.id, p.nombre, p.categoria, c.nombre AS categoria_nombre, p.precio,
+                    p.estado, p.publicado, p.destacado, p.es_novedad
+             FROM productos p
+             LEFT JOIN categorias c ON c.id = p.categoria_id
+             ORDER BY COALESCE(c.orden, 99) ASC, p.orden_catalogo ASC, p.id ASC`
+        );
+
+        res.json({
+            mensaje: 'Éxito',
+            data: productos.map(p => ({
+                ...p,
+                publicado: Number(p.publicado) === 1,
+                destacado: Number(p.destacado) === 1,
+                es_novedad: Number(p.es_novedad) === 1
+            }))
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudieron consultar los productos.');
+    }
+});
+
+app.put('/api/productos/:id/comercial', async (req, res) => {
+    try {
+        await exigirRolComercialTienda(req);
+
+        const producto = await dbGetSCM('SELECT id, destacado, es_novedad FROM productos WHERE id = ?', [Number(req.params.id)]);
+        if (!producto) throw errorTienda(404, 'Producto no encontrado.');
+
+        const booleano = (valor, actual) =>
+            valor === undefined ? Number(actual) : (valor === true || Number(valor) === 1 ? 1 : 0);
+
+        const destacado = booleano(req.body?.destacado, producto.destacado);
+        const esNovedad = booleano(req.body?.es_novedad, producto.es_novedad);
+
+        await dbRunSCM(
+            'UPDATE productos SET destacado = ?, es_novedad = ? WHERE id = ?',
+            [destacado, esNovedad, producto.id]
+        );
+
+        res.json({
+            mensaje: 'Comercialización actualizada.',
+            data: { id: producto.id, destacado: destacado === 1, es_novedad: esNovedad === 1 }
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo actualizar el producto.');
     }
 });
 
