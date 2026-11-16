@@ -69,7 +69,7 @@ const PAGINAS_POR_ROL_CASA_BARRO = {
     'admin-crm-resumen.html': ['admin', 'vendedor'],
     'admin-clientes.html': ['admin', 'vendedor'],
     'admin-promociones.html': ['admin', 'vendedor'],
-
+    'admin-monedero.html': ['admin', 'vendedor'],
     'admin-scm-resumen.html': ['admin', 'logistica'],
     'admin-productos.html': ['admin', 'logistica'],
     'admin-inventario.html': ['admin', 'logistica'],
@@ -408,7 +408,7 @@ function htmlResumenCarritoTienda(cotizacion) {
         ${bloqueCupon}
         <div style="margin-bottom:15px;"><p style="color:#555; margin-bottom:8px; font-size:0.95rem;">¿Deseas agregar propina?</p><div style="display:flex; gap:8px;">${botonesPropina}</div></div>
         <div style="display:flex; justify-content:space-between; margin-top:20px; padding-top:15px; border-top:2px dashed #eae5db; font-weight:bold; font-size:1.4rem; color:var(--verde-logo);"><span>Total:</span><span>${dineroTienda(cotizacion.total)}</span></div>
-        <button class="btn-primary" style="width:100%; margin-top:25px; border-radius:8px;" onclick="window.location.href='pago.html'">Ir a pagar</button></div></div>`;
+        <button class="btn-primary" style="width:100%; margin-top:25px; border-radius:8px;" onclick="irAPagarTienda()">Ir a pagar</button></div></div>`;
 }
 
 // Resumen lateral de pago.html (mismo cálculo que el carrito)
@@ -439,6 +439,9 @@ window.cargarResumenCheckout = async function () {
             cuponAplicado = null;
             localStorage.removeItem('casaBarro_cupon');
         }
+
+        cotizacionCheckoutTienda = cotizacion;
+        actualizarOpcionMonederoTienda();
 
         if (desglose) desglose.innerHTML = htmlDesgloseTienda(cotizacion);
         if (totalEtiqueta) totalEtiqueta.innerText = dineroTienda(cotizacion.total);
@@ -590,6 +593,469 @@ window.cargarPromocionesPublicas = async function () {
         });
     } catch (error) {
         generales.innerHTML = '<p style="color:#b7410e;">No se pudieron cargar las promociones. Intenta de nuevo.</p>';
+    }
+};
+
+// ------------------------------------------------------------
+// ETAPA 4 · DÍA 4 · CHECKOUT Y PAGOS
+// Entrega → método de pago → confirmación. Para pagar se necesita cuenta.
+// El servidor valida stock, calcula el total y registra pedido, pago e inventario.
+// ------------------------------------------------------------
+let cotizacionCheckoutTienda = null;
+
+const estadoCheckoutTienda = {
+    entrega: 'sucursal',
+    metodo: 'tarjeta',
+    saldo: 0,
+    cliente: null,
+    procesando: false,
+    paso: 1
+};
+
+const ETIQUETAS_METODO_TIENDA = {
+    tarjeta: 'Tarjeta de crédito o débito',
+    monedero: 'Monedero Casa Barro',
+    transferencia: 'Transferencia (SPEI)'
+};
+
+function mostrarEnlacesClienteTienda() {
+    const enlace = document.getElementById('nav-monedero');
+    if (!enlace) return;
+
+    let usuario = null;
+    try { usuario = JSON.parse(localStorage.getItem('casaBarro_usuario')); } catch (error) { usuario = null; }
+
+    enlace.style.display = haySesionTienda() && usuario && usuario.rol === 'cliente' ? '' : 'none';
+}
+
+window.irAPagarTienda = function () {
+    if (haySesionTienda()) {
+        window.location.href = 'pago.html';
+        return;
+    }
+
+    Swal.fire({
+        icon: 'info',
+        title: 'Inicia sesión para pagar',
+        text: 'Tu pedido se conserva. Entra con tu cuenta o crea una en un minuto.',
+        showCancelButton: true,
+        showDenyButton: true,
+        confirmButtonText: 'Iniciar sesión',
+        denyButtonText: 'Crear cuenta',
+        cancelButtonText: 'Seguir viendo',
+        confirmButtonColor: '#3c4a45',
+        denyButtonColor: '#557268'
+    }).then(resultado => {
+        if (resultado.isConfirmed || resultado.isDenied) {
+            localStorage.setItem('casaBarro_volver', 'pago.html');
+            window.location.href = resultado.isConfirmed ? 'login.html' : 'registro.html';
+        }
+    });
+};
+
+function mostrarAvisoCheckoutTienda(titulo, mensaje, enlace, textoEnlace) {
+    const aviso = document.getElementById('checkout-aviso');
+    const flujo = document.getElementById('checkout-flujo');
+    if (flujo) flujo.style.display = 'none';
+    if (!aviso) return;
+
+    aviso.style.display = '';
+    aviso.innerHTML = `
+        <div style="background:#fff; padding:30px; border-radius:12px; border:1px solid #eae5db; text-align:center;">
+            <h2 style="color:var(--verde-logo); margin-bottom:10px;">${titulo}</h2>
+            <p style="color:#555; margin-bottom:20px;">${mensaje}</p>
+            <a href="${enlace}" class="btn-primary" style="display:inline-block; padding:12px 24px; border-radius:8px; text-decoration:none;">${textoEnlace}</a>
+        </div>`;
+}
+
+window.actualizarOpcionMonederoTienda = function () {
+    const saldoEtiqueta = document.getElementById('monedero-saldo-checkout');
+    const leyenda = document.getElementById('monedero-leyenda');
+    const aviso = document.getElementById('monedero-aviso');
+    const radio = document.querySelector('input[name="pago"][value="monedero"]');
+
+    if (saldoEtiqueta) saldoEtiqueta.innerText = dineroTienda(estadoCheckoutTienda.saldo);
+    if (leyenda) leyenda.innerText = `Saldo disponible: ${dineroTienda(estadoCheckoutTienda.saldo)}`;
+
+    const total = cotizacionCheckoutTienda ? Number(cotizacionCheckoutTienda.total) : 0;
+    const insuficiente = total > 0 && Number(estadoCheckoutTienda.saldo) < total;
+
+    if (aviso) aviso.style.display = insuficiente ? '' : 'none';
+    if (radio) radio.disabled = insuficiente;
+
+    // Si estaba elegido y ya no alcanza, se regresa a tarjeta
+    if (insuficiente && estadoCheckoutTienda.metodo === 'monedero') {
+        const tarjeta = document.querySelector('input[name="pago"][value="tarjeta"]');
+        if (tarjeta) tarjeta.checked = true;
+        seleccionarMetodoTienda('tarjeta');
+    }
+};
+
+window.iniciarCheckoutTienda = async function () {
+    if (!document.getElementById('paso-1')) return;
+
+    if (!haySesionTienda()) {
+        mostrarAvisoCheckoutTienda('Necesitas una cuenta para pagar', 'Inicia sesión o crea tu cuenta; tu pedido se conserva.', 'login.html', 'Iniciar sesión');
+        localStorage.setItem('casaBarro_volver', 'pago.html');
+        return;
+    }
+
+    if (carrito.length === 0) {
+        mostrarAvisoCheckoutTienda('Tu pedido está vacío', 'Agrega productos desde el menú para poder pagar.', 'catalogo.html', 'Ver el menú');
+        return;
+    }
+
+    try {
+        const datos = await apiCarritoTienda('/tienda/checkout');
+        estadoCheckoutTienda.cliente = datos.cliente;
+        estadoCheckoutTienda.saldo = Number(datos.monedero.saldo);
+
+        const calle = document.getElementById('dom-calle');
+        if (calle && datos.cliente.direccion && !calle.value) calle.value = datos.cliente.direccion;
+
+        const titular = document.getElementById('tarjeta-titular');
+        if (titular && !titular.value) titular.value = datos.cliente.nombre || '';
+
+        actualizarOpcionMonederoTienda();
+    } catch (error) {
+        if (error.status === 401) {
+            localStorage.removeItem('casaBarro_token');
+            localStorage.removeItem('casaBarro_usuario');
+            localStorage.setItem('casaBarro_volver', 'pago.html');
+            mostrarAvisoCheckoutTienda('Tu sesión expiró', 'Inicia sesión de nuevo para continuar con tu pago.', 'login.html', 'Iniciar sesión');
+        } else {
+            mostrarAvisoCheckoutTienda('No pudimos preparar tu pago', error.message, 'carrito.html', 'Volver al pedido');
+        }
+    }
+};
+
+window.seleccionarEntregaTienda = function (tipo) {
+    estadoCheckoutTienda.entrega = tipo;
+    document.getElementById('opcion-entrega-sucursal').classList.toggle('activa', tipo === 'sucursal');
+    document.getElementById('opcion-entrega-domicilio').classList.toggle('activa', tipo === 'domicilio');
+    document.getElementById('form-domicilio').style.display = tipo === 'domicilio' ? '' : 'none';
+};
+
+window.seleccionarMetodoTienda = function (metodo) {
+    estadoCheckoutTienda.metodo = metodo;
+
+    ['tarjeta', 'monedero', 'transferencia'].forEach(clave => {
+        document.getElementById(`opcion-pago-${clave}`).classList.toggle('activa', clave === metodo);
+        document.getElementById(`detalle-${clave}`).style.display = clave === metodo ? '' : 'none';
+    });
+};
+
+window.formatearNumeroTarjetaTienda = function (campo) {
+    const digitos = campo.value.replace(/\D/g, '').slice(0, 19);
+    campo.value = digitos.replace(/(.{4})/g, '$1 ').trim();
+};
+
+window.formatearVencimientoTarjetaTienda = function (campo) {
+    const digitos = campo.value.replace(/\D/g, '').slice(0, 4);
+    campo.value = digitos.length > 2 ? `${digitos.slice(0, 2)}/${digitos.slice(2)}` : digitos;
+};
+
+function cumpleLuhnTienda(numero) {
+    let suma = 0;
+    let duplicar = false;
+    for (let i = numero.length - 1; i >= 0; i--) {
+        let digito = Number(numero[i]);
+        if (duplicar) { digito *= 2; if (digito > 9) digito -= 9; }
+        suma += digito;
+        duplicar = !duplicar;
+    }
+    return suma % 10 === 0;
+}
+
+// Devuelve { error } o { tarjeta }. Los datos nunca se guardan en el navegador.
+function leerTarjetaFormularioTienda() {
+    const numero = document.getElementById('tarjeta-numero').value.replace(/\s/g, '');
+    const titular = document.getElementById('tarjeta-titular').value.trim();
+    const vence = document.getElementById('tarjeta-vence').value.trim();
+    const cvv = document.getElementById('tarjeta-cvv').value.trim();
+
+    if (!/^\d{13,19}$/.test(numero) || !cumpleLuhnTienda(numero)) return { error: 'El número de tarjeta no es válido.' };
+    if (titular.length < 3) return { error: 'Escribe el nombre del titular de la tarjeta.' };
+
+    const partes = /^(\d{2})\/(\d{2})$/.exec(vence);
+    const ahora = new Date();
+    const claveActual = ahora.getFullYear() * 100 + (ahora.getMonth() + 1);
+    if (!partes || Number(partes[1]) < 1 || Number(partes[1]) > 12 || (2000 + Number(partes[2])) * 100 + Number(partes[1]) < claveActual) {
+        return { error: 'La fecha de vencimiento no es válida o la tarjeta ya venció (MM/AA).' };
+    }
+
+    if (!/^\d{3,4}$/.test(cvv)) return { error: 'El código de seguridad (CVV) no es válido.' };
+
+    return { tarjeta: { numero, titular, vence, cvv }, ultimos4: numero.slice(-4) };
+}
+
+function textoDireccionDomicilioTienda() {
+    const calle = document.getElementById('dom-calle').value.trim();
+    const colonia = document.getElementById('dom-colonia').value.trim();
+    const cp = document.getElementById('dom-cp').value.trim();
+    const referencias = document.getElementById('dom-referencias').value.trim();
+
+    return `${calle}, Col. ${colonia}, C.P. ${cp}${referencias ? `. Ref: ${referencias}` : ''}`;
+}
+
+function validarPasoCheckoutTienda(paso) {
+    if (paso === 1 && estadoCheckoutTienda.entrega === 'domicilio') {
+        const calle = document.getElementById('dom-calle').value.trim();
+        const colonia = document.getElementById('dom-colonia').value.trim();
+        const cp = document.getElementById('dom-cp').value.trim();
+
+        if (calle.length < 5) return 'Escribe la calle y el número de tu domicilio.';
+        if (colonia.length < 3) return 'Escribe la colonia de tu domicilio.';
+        if (!/^\d{5}$/.test(cp)) return 'El código postal debe tener 5 dígitos.';
+    }
+
+    if (paso === 2) {
+        if (estadoCheckoutTienda.metodo === 'tarjeta') {
+            const lectura = leerTarjetaFormularioTienda();
+            if (lectura.error) return lectura.error;
+        }
+
+        if (estadoCheckoutTienda.metodo === 'monedero') {
+            const total = cotizacionCheckoutTienda ? Number(cotizacionCheckoutTienda.total) : 0;
+            if (!total) return 'Espera a que se calcule el total de tu pedido.';
+            if (estadoCheckoutTienda.saldo < total) return 'Tu saldo no alcanza para esta compra. Recarga tu monedero o elige otro método.';
+        }
+    }
+
+    return null;
+}
+
+window.siguientePaso = function (destino) {
+    if (estadoCheckoutTienda.procesando) return;
+
+    // Al avanzar se validan los pasos anteriores
+    for (let paso = estadoCheckoutTienda.paso; paso < destino; paso++) {
+        const problema = validarPasoCheckoutTienda(paso);
+        if (problema) {
+            Swal.fire({ icon: 'warning', title: 'Revisa tus datos', text: problema, confirmButtonColor: '#3c4a45' });
+            return;
+        }
+    }
+
+    estadoCheckoutTienda.paso = destino;
+
+    [1, 2, 3].forEach(numero => {
+        const caja = document.getElementById(`paso-${numero}`);
+        if (!caja) return;
+
+        if (numero === destino) {
+            caja.style.opacity = '1';
+            caja.style.pointerEvents = 'auto';
+            caja.style.border = '1px solid var(--verde-logo)';
+            caja.style.boxShadow = '0 4px 15px rgba(85, 114, 104, 0.15)';
+        } else if (numero < destino) {
+            caja.style.opacity = '0.75';
+            caja.style.pointerEvents = 'auto';
+            caja.style.border = '1px solid #eae5db';
+            caja.style.boxShadow = 'none';
+        } else {
+            caja.style.opacity = '0.4';
+            caja.style.pointerEvents = 'none';
+            caja.style.border = '1px solid #eae5db';
+            caja.style.boxShadow = 'none';
+        }
+    });
+
+    if (destino === 3) pintarResumenDatosCheckoutTienda();
+
+    const caja = document.getElementById(`paso-${destino}`);
+    if (caja && caja.scrollIntoView) caja.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
+function pintarResumenDatosCheckoutTienda() {
+    const contenedor = document.getElementById('resumen-datos-checkout');
+    if (!contenedor) return;
+
+    const cliente = estadoCheckoutTienda.cliente || {};
+    const entrega = estadoCheckoutTienda.entrega === 'domicilio'
+        ? `Envío a domicilio: ${escaparHtmlSCM(textoDireccionDomicilioTienda())}`
+        : 'Recoger en Casa Barro (Constitución 101, Barrio La Purísima)';
+
+    let metodo = ETIQUETAS_METODO_TIENDA[estadoCheckoutTienda.metodo];
+    const total = cotizacionCheckoutTienda ? Number(cotizacionCheckoutTienda.total) : 0;
+
+    if (estadoCheckoutTienda.metodo === 'tarjeta') {
+        const lectura = leerTarjetaFormularioTienda();
+        metodo = `Tarjeta terminada en **** ${lectura.ultimos4 || '----'}`;
+    } else if (estadoCheckoutTienda.metodo === 'monedero') {
+        metodo = `Monedero Casa Barro (saldo después de pagar: ${dineroTienda(estadoCheckoutTienda.saldo - total)})`;
+    } else {
+        metodo = 'Transferencia SPEI (el pedido se prepara cuando confirmemos el pago)';
+    }
+
+    contenedor.innerHTML = `
+        <h4 style="color:var(--verde-logo); margin-bottom:10px; font-size:1.05rem; border-bottom:1px solid #eae5db; padding-bottom:5px;">Tus Datos</h4>
+        <p style="margin-bottom:5px;"><strong>Cliente:</strong> ${escaparHtmlSCM(cliente.nombre || '')} (${escaparHtmlSCM(cliente.correo || '')})</p>
+        <p style="margin-bottom:5px;"><strong>Entrega:</strong> ${entrega}</p>
+        <p style="margin-bottom:5px;"><strong>Método de pago:</strong> ${escaparHtmlSCM(metodo)}</p>
+        <p style="margin-bottom:0;"><strong>Total a pagar:</strong> ${dineroTienda(total)}</p>`;
+}
+
+function mostrarResultadoCompraTienda(resultado) {
+    const { pedido, pago } = resultado;
+
+    // El pedido ya quedó registrado: se limpia el carrito local y los datos temporales
+    carrito = [];
+    localStorage.removeItem('casaBarro_carrito');
+    localStorage.removeItem('casaBarro_cupon');
+    localStorage.removeItem('casaBarro_propina');
+    localStorage.removeItem('casaBarro_totalFinal');
+    cuponAplicado = null;
+    propinaPorcentaje = 0;
+    actualizarUI();
+
+    ['tarjeta-numero', 'tarjeta-cvv', 'tarjeta-vence'].forEach(id => {
+        const campo = document.getElementById(id);
+        if (campo) campo.value = '';
+    });
+
+    const aprobado = pago.estado === 'aprobado';
+    const fila = (etiqueta, valor) => `<div style="display:flex; justify-content:space-between; gap:10px; margin-bottom:8px;"><span style="color:#777;">${etiqueta}</span><strong style="text-align:right;">${valor}</strong></div>`;
+
+    const instruccionesSpei = aprobado ? '' : `
+        <div style="background:#fcf9f2; border:1px dashed #ccc; border-radius:8px; padding:15px; margin:15px 0; text-align:left; font-size:.92rem;">
+            <p style="margin-bottom:5px;"><strong>Banco:</strong> BBVA México</p>
+            <p style="margin-bottom:5px;"><strong>CLABE:</strong> 012345678910111213</p>
+            <p style="margin-bottom:5px;"><strong>Concepto / referencia:</strong> ${escaparHtmlSCM(pago.referencia)}</p>
+            <p style="margin-bottom:0; color:#777;">Tu pedido pasará a preparación en cuanto confirmemos la transferencia.</p>
+        </div>`;
+
+    const contenedor = document.getElementById('checkout-resultado');
+    const flujo = document.getElementById('checkout-flujo');
+    if (flujo) flujo.style.display = 'none';
+
+    contenedor.style.display = '';
+    contenedor.innerHTML = `
+        <div class="compra-exito">
+            <div class="compra-exito-icono ${aprobado ? '' : 'pendiente'}">${aprobado ? '✓' : '…'}</div>
+            <h2>${aprobado ? '¡Compra realizada con éxito!' : 'Pedido registrado'}</h2>
+            <p style="color:#555; margin-bottom:20px;">${aprobado
+                ? 'Tu pedido ya está en preparación en Casa Barro.'
+                : 'Te esperamos con tu pago para comenzar a prepararlo.'}</p>
+            <div style="text-align:left; max-width:380px; margin:0 auto;">
+                ${fila('Orden:', escaparHtmlSCM(pedido.folio))}
+                ${fila('Pago:', escaparHtmlSCM(ETIQUETAS_METODO_TIENDA[pago.metodo_pago]) + (aprobado ? '' : ' (pendiente)'))}
+                ${fila('Entrega:', pedido.tipo_entrega === 'domicilio' ? 'A domicilio' : 'Recoger en sucursal')}
+                ${fila('Total:', dineroTienda(pedido.total))}
+                ${resultado.monedero ? fila('Saldo actual del monedero:', dineroTienda(resultado.monedero.saldo)) : ''}
+            </div>
+            ${instruccionesSpei}
+            <p style="color:#777; font-size:.9rem; margin:15px 0 20px 0;">Puedes consultar el detalle de esta compra cuando quieras desde tu cuenta (${escaparHtmlSCM(resultado.correo_confirmacion || '')}).</p>
+            <div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center;">
+                <button class="btn-primary" style="padding:12px 24px; border-radius:8px;" onclick="verPedidoTienda(${pedido.id})">Ver mi pedido</button>
+                <a href="catalogo.html" class="btn-primary" style="padding:12px 24px; border-radius:8px; text-decoration:none; background:#8a8a8a;">Seguir comprando</a>
+            </div>
+        </div>`;
+
+    // El resumen lateral pasa a mostrar lo que se cobró
+    const lista = document.getElementById('checkout-lista-items');
+    const desglose = document.getElementById('checkout-desglose');
+    const totalEtiqueta = document.getElementById('checkout-total');
+    if (lista) lista.innerHTML = `<p style="color:#3c4a45;"><strong>${escaparHtmlSCM(pedido.folio)}</strong> registrado.</p>`;
+    if (desglose) desglose.innerHTML = htmlDesgloseTienda({
+        subtotal: pedido.subtotal,
+        promocion: pedido.descuento > 0 ? { codigo: 'cupón' } : null,
+        descuento: pedido.descuento,
+        impuestos: pedido.impuestos,
+        propina: pedido.propina,
+        propina_porcentaje: pedido.subtotal - pedido.descuento > 0 ? Math.round(pedido.propina / (pedido.subtotal - pedido.descuento) * 100) : 0
+    });
+    if (totalEtiqueta) totalEtiqueta.innerText = dineroTienda(pedido.total);
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+window.finalizarPedido = async function () {
+    if (estadoCheckoutTienda.procesando) return;
+
+    if (!haySesionTienda()) {
+        irAPagarTienda();
+        return;
+    }
+
+    for (const paso of [1, 2]) {
+        const problema = validarPasoCheckoutTienda(paso);
+        if (problema) {
+            Swal.fire({ icon: 'warning', title: 'Revisa tus datos', text: problema, confirmButtonColor: '#3c4a45' });
+            return;
+        }
+    }
+
+    const cuerpo = {
+        metodo_pago: estadoCheckoutTienda.metodo,
+        entrega: {
+            tipo: estadoCheckoutTienda.entrega,
+            direccion: estadoCheckoutTienda.entrega === 'domicilio' ? textoDireccionDomicilioTienda() : null
+        },
+        codigo: cuponAplicado ? cuponAplicado.codigo : '',
+        propina: propinaPorcentaje
+    };
+
+    if (estadoCheckoutTienda.metodo === 'tarjeta') {
+        cuerpo.tarjeta = leerTarjetaFormularioTienda().tarjeta;
+    }
+
+    const boton = document.getElementById('btn-confirmar-compra');
+    estadoCheckoutTienda.procesando = true;
+    if (boton) { boton.disabled = true; boton.innerText = 'Procesando pago...'; }
+
+    try {
+        const resultado = await apiCarritoTienda('/pagos/procesar', { method: 'POST', body: JSON.stringify(cuerpo) });
+        mostrarResultadoCompraTienda(resultado);
+    } catch (error) {
+        if (error.status === 401) {
+            localStorage.setItem('casaBarro_volver', 'pago.html');
+            Swal.fire({ icon: 'info', title: 'Tu sesión expiró', text: 'Inicia sesión de nuevo; tu pedido se conserva.', confirmButtonColor: '#3c4a45' })
+                .then(() => { window.location.href = 'login.html'; });
+        } else if (error.status === 409) {
+            Swal.fire({ icon: 'warning', title: 'Revisa tu pedido', text: error.message, confirmButtonText: 'Volver al pedido', confirmButtonColor: '#3c4a45' })
+                .then(() => { window.location.href = 'carrito.html'; });
+        } else {
+            Swal.fire({ icon: error.status === 402 ? 'warning' : 'error', title: error.status === 402 ? 'Pago no aprobado' : 'No se pudo completar la compra', text: error.message, confirmButtonColor: '#3c4a45' });
+        }
+    } finally {
+        estadoCheckoutTienda.procesando = false;
+        if (boton) { boton.disabled = false; boton.innerText = 'Confirmar y Pagar'; }
+    }
+};
+
+window.verPedidoTienda = async function (pedidoId) {
+    try {
+        const { data } = await apiCarritoTienda(`/tienda/pedidos/${Number(pedidoId)}`);
+        const filas = data.items.map(item => `
+            <tr>
+                <td style="padding:6px 4px; text-align:left;">${item.cantidad}× ${escaparHtmlSCM(item.nombre)}${item.opcion_texto ? `<br><small style="color:#777;">${escaparHtmlSCM(item.opcion_texto)}</small>` : ''}</td>
+                <td style="padding:6px 4px; text-align:right;">${dineroTienda(item.subtotal)}</td>
+            </tr>`).join('');
+
+        const linea = (etiqueta, valor, estilo = '') => `<div style="display:flex; justify-content:space-between; margin-top:6px; ${estilo}"><span>${etiqueta}</span><span>${valor}</span></div>`;
+
+        Swal.fire({
+            title: `Pedido ${escaparHtmlSCM(data.folio)}`,
+            confirmButtonColor: '#3c4a45',
+            confirmButtonText: 'Cerrar',
+            html: `
+                <p style="margin-bottom:10px;"><span class="etiqueta-estado-pedido">${escaparHtmlSCM(data.etiqueta)}</span></p>
+                <table style="width:100%; border-collapse:collapse; font-size:.95rem;">${filas}</table>
+                <div style="border-top:1px dashed #ccc; margin-top:10px; padding-top:8px; text-align:left; font-size:.95rem;">
+                    ${linea('Subtotal', dineroTienda(data.subtotal))}
+                    ${data.descuento > 0 ? linea('Descuento', `-${dineroTienda(data.descuento)}`, 'color:#b7410e;') : ''}
+                    ${linea('Impuestos', dineroTienda(data.impuesto))}
+                    ${data.propina > 0 ? linea('Propina', dineroTienda(data.propina)) : ''}
+                    ${linea('Total', dineroTienda(data.total), 'font-weight:bold; font-size:1.1rem;')}
+                </div>
+                <p style="margin-top:12px; text-align:left; font-size:.9rem; color:#555;">
+                    <strong>Pago:</strong> ${data.pago ? escaparHtmlSCM(ETIQUETAS_METODO_TIENDA[data.pago.metodo_pago] || data.pago.metodo_pago) : '—'}<br>
+                    <strong>Entrega:</strong> ${data.tipo_entrega === 'domicilio' ? escaparHtmlSCM(data.direccion_entrega || 'A domicilio') : 'Recoger en sucursal'}
+                </p>`
+        });
+    } catch (error) {
+        Swal.fire({ icon: 'error', title: 'No se pudo cargar el pedido', text: error.message, confirmButtonColor: '#3c4a45' });
     }
 };
 
@@ -8250,6 +8716,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         'components/footer.html'
     );
 
+    mostrarEnlacesClienteTienda();
+
 
     // 2. Cargar Menú Lateral (Vista Admin)
     const adminSidebarContainer =
@@ -8444,6 +8912,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderizarCarrito();
 
     cargarResumenCheckout();
+    iniciarCheckoutTienda();
     cargarComercializacionTienda();
     cargarPromocionesPublicas();
 
@@ -8677,14 +9146,6 @@ window.abrirFormularioSubasta = function() {
     }).then((result) => { if (result.isConfirmed) Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 1500 }); });
 }
 
-window.finalizarPedido = function() {
-    let numeroPedido = Math.floor(Math.random() * 90000) + 10000;
-    carrito = [];
-    localStorage.removeItem('casaBarro_carrito');
-    localStorage.removeItem('casaBarro_cupon');
-    localStorage.removeItem('casaBarro_totalFinal');
-    Swal.fire({ title: '¡Pago Aprobado!', text: `Folio: #CB-${numeroPedido}`, confirmButtonText: 'Factura', showCancelButton: true, cancelButtonText: 'Ir a mi perfil', confirmButtonColor: '#3c4a45' }).then(() => window.location.href = 'perfil.html');
-}
 
 // MÓDULO CRM (CLIENTES) Y FILTROS MEJORADOS
 window.cargarClientesCRM = async function() {
@@ -9097,7 +9558,11 @@ window.iniciarSesion = async function(event) {
             localStorage.setItem('casaBarro_usuario', JSON.stringify(resultado.usuario));
             localStorage.setItem('casaBarro_token', resultado.token || '');
             Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Sesión iniciada', showConfirmButton: false, timer: 1500 }).then(() => {
-                window.location.href = ['admin', 'vendedor', 'logistica'].includes(resultado.usuario.rol) ? 'admin.html' : 'perfil.html';
+                const esPersonalCasaBarro = ['admin', 'vendedor', 'logistica'].includes(resultado.usuario.rol);
+                const volverA = localStorage.getItem('casaBarro_volver');
+                localStorage.removeItem('casaBarro_volver');
+                const destinosPermitidos = ['pago.html', 'carrito.html', 'monedero.html'];
+                window.location.href = esPersonalCasaBarro ? 'admin.html' : (destinosPermitidos.includes(volverA) ? volverA : 'perfil.html');
             });
         } else { Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: resultado.error || 'Credenciales inválidas', showConfirmButton: false, timer: 2500 }); }
     } catch (error) { Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Sin conexión', showConfirmButton: false, timer: 2500 }); }

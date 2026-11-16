@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Monedero | Casa Barro</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        @media (max-width: 800px) {
+            .monedero-layout { grid-template-columns: 1fr !important; }
+        }
+    </style>
+</head>
+<body>
+    <div id="navbar-container"></div>
+
+    <main style="max-width: 1000px; margin: 40px auto; padding: 0 20px;">
+        <h1 style="color: var(--verde-logo); margin-bottom: 8px;">Mi Monedero</h1>
+        <p style="color: #777; margin-bottom: 25px;">Recarga saldo y úsalo para pagar tus pedidos en Casa Barro.</p>
+
+        <div id="monedero-aviso-sesion" style="display: none;"></div>
+
+        <div id="monedero-contenido" class="monedero-layout" style="display: grid; grid-template-columns: 1fr 1.4fr; gap: 30px; align-items: start;">
+
+            <!-- Saldo y recarga -->
+            <div>
+                <div class="monedero-saldo-card">
+                    <span>Saldo actual</span>
+                    <strong id="monedero-saldo">$0.00</strong>
+                </div>
+
+                <div style="background: #fff; border: 1px solid #eae5db; border-radius: 12px; padding: 22px; margin-top: 20px;">
+                    <h3 style="color: var(--verde-logo); margin-bottom: 12px;">Recargar monedero</h3>
+
+                    <p style="font-size: .85rem; color: #777; margin-bottom: 8px;">Monto de recarga</p>
+                    <div class="monedero-presets" id="monedero-presets">
+                        <button type="button" data-monto="100">$100</button>
+                        <button type="button" data-monto="200">$200</button>
+                        <button type="button" data-monto="500">$500</button>
+                        <button type="button" data-monto="1000">$1,000</button>
+                    </div>
+                    <input type="number" id="recarga-monto" class="swal2-input" style="width: 100%; margin: 10px 0 15px 0; font-size: .95rem; box-sizing: border-box;" placeholder="Otro monto ($10 a $5,000)" min="10" max="5000" step="0.01">
+
+                    <p style="font-size: .85rem; color: #777; margin-bottom: 8px;">Tarjeta de crédito o débito</p>
+                    <input type="text" id="recarga-numero" class="swal2-input" style="width: 100%; margin: 0 0 10px 0; font-size: .9rem; box-sizing: border-box;" placeholder="Número de la tarjeta" inputmode="numeric" autocomplete="off" maxlength="23">
+                    <input type="text" id="recarga-titular" class="swal2-input" style="width: 100%; margin: 0 0 10px 0; font-size: .9rem; box-sizing: border-box;" placeholder="Nombre del titular" autocomplete="off" maxlength="60">
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                        <input type="text" id="recarga-vence" class="swal2-input" style="flex: 1; margin: 0; font-size: .9rem; min-width: 0;" placeholder="MM/AA" inputmode="numeric" autocomplete="off" maxlength="5">
+                        <input type="password" id="recarga-cvv" class="swal2-input" style="flex: 1; margin: 0; font-size: .9rem; min-width: 0;" placeholder="CVV" inputmode="numeric" autocomplete="off" maxlength="4">
+                    </div>
+
+                    <button type="button" id="btn-recargar" class="btn-primary" style="width: 100%; padding: 12px; border-radius: 8px;">Recargar</button>
+                    <p style="margin: 10px 0 0 0; font-size: .8rem; color: #777;">No guardamos el número completo de tu tarjeta ni el CVV.</p>
+                </div>
+            </div>
+
+            <!-- Historial -->
+            <div style="background: #fff; border: 1px solid #eae5db; border-radius: 12px; padding: 22px;">
+                <h3 style="color: var(--verde-logo); margin-bottom: 12px;">Historial de movimientos</h3>
+                <div style="overflow-x: auto;">
+                    <table class="admin-table" style="width: 100%;">
+                        <thead>
+                            <tr><th>Fecha</th><th>Concepto</th><th style="text-align:right;">Monto</th><th style="text-align:right;">Saldo</th></tr>
+                        </thead>
+                        <tbody id="monedero-movimientos">
+                            <tr><td colspan="4" style="text-align:center; color:#777;">Cargando movimientos...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="footer-container"></div>
+    <script src="js/app.js"></script>
+    <script>
+    (function () {
+        const esc = valor => String(valor ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const dinero = valor => `$${Number(valor || 0).toFixed(2)}`;
+        let procesando = false;
+
+        async function api(ruta, opciones = {}) {
+            const respuesta = await fetch(`http://localhost:3000/api${ruta}`, {
+                ...opciones,
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${localStorage.getItem('casaBarro_token') || ''}`
+                }
+            });
+            const datos = await respuesta.json().catch(() => ({}));
+            if (!respuesta.ok) {
+                const error = new Error(datos.error || 'No se pudo completar la operación.');
+                error.status = respuesta.status;
+                throw error;
+            }
+            return datos;
+        }
+
+        function mostrarAviso(titulo, mensaje) {
+            document.getElementById('monedero-contenido').style.display = 'none';
+            const aviso = document.getElementById('monedero-aviso-sesion');
+            aviso.style.display = '';
+            aviso.innerHTML = `<div style="background:#fff; padding:30px; border-radius:12px; border:1px solid #eae5db; text-align:center;">
+                <h2 style="color:var(--verde-logo); margin-bottom:10px;">${titulo}</h2>
+                <p style="color:#555; margin-bottom:20px;">${mensaje}</p>
+                <a href="login.html" class="btn-primary" style="display:inline-block; padding:12px 24px; border-radius:8px; text-decoration:none;">Iniciar sesión</a></div>`;
+        }
+
+        function pintarMovimientos(movimientos) {
+            const cuerpo = document.getElementById('monedero-movimientos');
+
+            if (!movimientos.length) {
+                cuerpo.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#777;">Aún no tienes movimientos. Haz tu primera recarga.</td></tr>';
+                return;
+            }
+
+            cuerpo.innerHTML = movimientos.map(m => {
+                const positivo = Number(m.monto) >= 0;
+                const fecha = new Date(String(m.fecha).replace(' ', 'T') + 'Z').toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+                return `<tr>
+                    <td style="white-space:nowrap;">${esc(fecha)}</td>
+                    <td>${esc(m.concepto || m.tipo)}${m.folio ? ` <small style="color:#777;">(${esc(m.folio)})</small>` : ''}</td>
+                    <td style="text-align:right; font-weight:bold; color:${positivo ? '#2e7d4f' : '#b7410e'};">${positivo ? '+' : '-'}${dinero(Math.abs(m.monto))}</td>
+                    <td style="text-align:right;">${dinero(m.saldo_resultante)}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        async function cargarMonedero() {
+            try {
+                const datos = await api('/monedero');
+                document.getElementById('monedero-saldo').textContent = dinero(datos.saldo);
+                pintarMovimientos(datos.movimientos);
+            } catch (error) {
+                if (error.status === 401) {
+                    localStorage.removeItem('casaBarro_token');
+                    localStorage.removeItem('casaBarro_usuario');
+                    localStorage.setItem('casaBarro_volver', 'monedero.html');
+                    mostrarAviso('Tu sesión expiró', 'Inicia sesión de nuevo para ver tu monedero.');
+                } else {
+                    document.getElementById('monedero-movimientos').innerHTML = `<tr><td colspan="4" style="text-align:center; color:#b7410e;">${esc(error.message)}</td></tr>`;
+                }
+            }
+        }
+
+        async function recargar() {
+            if (procesando) return;
+
+            const monto = Number(document.getElementById('recarga-monto').value);
+            if (!Number.isFinite(monto) || monto < 10 || monto > 5000) {
+                return Swal.fire({ icon: 'warning', title: 'Monto no válido', text: 'Elige o escribe un monto entre $10 y $5,000.', confirmButtonColor: '#3c4a45' });
+            }
+
+            const tarjeta = {
+                numero: document.getElementById('recarga-numero').value.replace(/\s/g, ''),
+                titular: document.getElementById('recarga-titular').value.trim(),
+                vence: document.getElementById('recarga-vence').value.trim(),
+                cvv: document.getElementById('recarga-cvv').value.trim()
+            };
+
+            const boton = document.getElementById('btn-recargar');
+            procesando = true;
+            boton.disabled = true;
+            boton.textContent = 'Procesando...';
+
+            try {
+                const resultado = await api('/monedero/recargar', { method: 'POST', body: JSON.stringify({ monto, tarjeta }) });
+
+                ['recarga-numero', 'recarga-vence', 'recarga-cvv', 'recarga-monto'].forEach(id => { document.getElementById(id).value = ''; });
+                document.querySelectorAll('#monedero-presets button').forEach(b => b.classList.remove('activo'));
+
+                await Swal.fire({ icon: 'success', title: '¡Recarga exitosa!', text: resultado.mensaje, confirmButtonColor: '#3c4a45' });
+                await cargarMonedero();
+            } catch (error) {
+                Swal.fire({ icon: error.status === 402 ? 'warning' : 'error', title: 'No se pudo recargar', text: error.message, confirmButtonColor: '#3c4a45' });
+            } finally {
+                procesando = false;
+                boton.disabled = false;
+                boton.textContent = 'Recargar';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            let usuario = null;
+            try { usuario = JSON.parse(localStorage.getItem('casaBarro_usuario')); } catch (error) { usuario = null; }
+
+            if (!localStorage.getItem('casaBarro_token') || !usuario) {
+                localStorage.setItem('casaBarro_volver', 'monedero.html');
+                return mostrarAviso('Inicia sesión', 'Entra con tu cuenta para consultar y recargar tu monedero.');
+            }
+
+            document.querySelectorAll('#monedero-presets button').forEach(boton => {
+                boton.addEventListener('click', () => {
+                    document.getElementById('recarga-monto').value = boton.dataset.monto;
+                    document.querySelectorAll('#monedero-presets button').forEach(b => b.classList.toggle('activo', b === boton));
+                });
+            });
+
+            document.getElementById('recarga-numero').addEventListener('input', evento => {
+                evento.target.value = evento.target.value.replace(/\D/g, '').slice(0, 19).replace(/(.{4})/g, '$1 ').trim();
+            });
+            document.getElementById('recarga-vence').addEventListener('input', evento => {
+                const digitos = evento.target.value.replace(/\D/g, '').slice(0, 4);
+                evento.target.value = digitos.length > 2 ? `${digitos.slice(0, 2)}/${digitos.slice(2)}` : digitos;
+            });
+            document.getElementById('btn-recargar').addEventListener('click', recargar);
+
+            cargarMonedero();
+        });
+    })();
+    </script>
+</body>
+</html>

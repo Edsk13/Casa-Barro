@@ -1480,3 +1480,143 @@ nav a:hover {
     font-size: 1.25rem;
     margin: 30px 0 12px 0;
 }
+
+/* ============================================================
+   ETAPA 4 · DÍA 4 · CHECKOUT, PAGOS Y MONEDERO
+   ============================================================ */
+.opcion-pago {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px;
+    border: 1px solid #eae5db;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.3s, border-color 0.3s;
+}
+
+.opcion-pago:hover {
+    background: #f9f6ef;
+}
+
+.opcion-pago.activa {
+    border-color: var(--verde-logo);
+    background: #fcf9f2;
+}
+
+.panel-detalle-pago {
+    padding: 15px;
+    border: 1px dashed #ccc;
+    border-radius: 8px;
+    margin-top: -5px;
+    background: #fafafa;
+}
+
+.compra-exito {
+    background: #fff;
+    border: 1px solid #eae5db;
+    border-radius: 12px;
+    padding: 35px 25px;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.compra-exito h2 {
+    color: var(--verde-logo);
+    margin: 15px 0 8px 0;
+}
+
+.compra-exito-icono {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background: #2e7d4f;
+    color: #fff;
+    font-size: 2.2rem;
+    line-height: 70px;
+    margin: 0 auto;
+}
+
+.compra-exito-icono.pendiente {
+    background: #e0a43a;
+}
+
+.etiqueta-estado-pedido {
+    display: inline-block;
+    padding: 3px 12px;
+    border-radius: 12px;
+    background: #eef5f2;
+    color: var(--verde-logo);
+    font-weight: bold;
+    font-size: 0.85rem;
+}
+
+.monedero-saldo-card {
+    background: linear-gradient(135deg, #3c4a45, #557268);
+    color: #fff;
+    border-radius: 14px;
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.monedero-saldo-card span {
+    opacity: 0.85;
+    font-size: 0.95rem;
+}
+
+.monedero-saldo-card strong {
+    font-size: 2.4rem;
+}
+
+.monedero-presets {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.monedero-presets button {
+    flex: 1;
+    min-width: 64px;
+    padding: 9px 0;
+    border-radius: 8px;
+    border: 1px solid var(--verde-logo);
+    background: transparent;
+    color: var(--verde-logo);
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.monedero-presets button.activo,
+.monedero-presets button:hover {
+    background: var(--verde-logo);
+    color: #fff;
+}
+
+.monedero-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 15px;
+    margin-bottom: 18px;
+}
+
+.monedero-kpi {
+    background: #fff;
+    border: 1px solid #eae5db;
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.monedero-kpi span {
+    color: #777;
+    font-size: 0.85rem;
+}
+
+.monedero-kpi strong {
+    color: var(--verde-logo);
+    font-size: 1.3rem;
+}

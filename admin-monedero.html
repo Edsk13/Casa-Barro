@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pagos y Monedero | Casa Barro</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="admin-body">
+    <div class="admin-layout">
+        <div id="admin-sidebar-container"></div>
+        <main class="admin-main">
+            <header class="admin-header">
+                <div>
+                    <h1>Pagos y Monedero</h1>
+                    <p style="color: #777;">Confirma transferencias, revisa pagos y administra los monederos de los clientes.</p>
+                </div>
+            </header>
+
+            <!-- ============ TRANSFERENCIAS POR CONFIRMAR ============ -->
+            <h2 class="admin-seccion-titulo">Transferencias por confirmar</h2>
+            <p style="color:#777; margin:-5px 0 12px 0; font-size:.9rem;">Al confirmar, el pedido pasa a preparación y se descuenta el inventario.</p>
+            <div class="admin-table-container">
+                <table class="admin-table">
+                    <thead>
+                        <tr><th>Pedido</th><th>Cliente</th><th>Monto</th><th>Referencia</th><th>Fecha</th><th>Acciones</th></tr>
+                    </thead>
+                    <tbody id="tabla-pendientes">
+                        <tr><td colspan="6" style="text-align:center; color:#777;">Cargando pagos...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- ============ PAGOS RECIENTES ============ -->
+            <h2 class="admin-seccion-titulo">Pagos recientes</h2>
+            <div class="admin-table-container">
+                <table class="admin-table">
+                    <thead>
+                        <tr><th>Pedido</th><th>Cliente</th><th>Método</th><th>Monto</th><th>Estado</th><th>Fecha</th></tr>
+                    </thead>
+                    <tbody id="tabla-pagos">
+                        <tr><td colspan="6" style="text-align:center; color:#777;">Cargando pagos...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- ============ MONEDEROS (solo admin) ============ -->
+            <div id="seccion-monederos" style="display:none;">
+                <h2 class="admin-seccion-titulo">Monederos de clientes</h2>
+                <div class="monedero-kpis" id="monedero-kpis"></div>
+                <div class="admin-table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr><th>Cliente</th><th>Saldo</th><th>Recargado</th><th>Consumido</th><th>Último movimiento</th><th>Acciones</th></tr>
+                        </thead>
+                        <tbody id="tabla-monederos">
+                            <tr><td colspan="6" style="text-align:center; color:#777;">Cargando monederos...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+    (function () {
+        const API = 'http://localhost:3000/api';
+        let usuario = null;
+        try { usuario = JSON.parse(localStorage.getItem('casaBarro_usuario')); } catch (error) { usuario = null; }
+        const esAdmin = Boolean(usuario && usuario.rol === 'admin');
+        let monederos = [];
+
+        const esc = valor => String(valor ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const dinero = valor => `$${Number(valor || 0).toFixed(2)}`;
+        const fechaCorta = valor => valor ? new Date(String(valor).replace(' ', 'T') + 'Z').toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+        const ETIQUETAS = { tarjeta: 'Tarjeta', monedero: 'Monedero', transferencia: 'Transferencia', efectivo: 'Efectivo' };
+        const CLASES_ESTADO = { aprobado: 'activa', pendiente: 'pendiente', rechazado: 'expirada', reembolsado: 'expirada' };
+
+        async function api(ruta, opciones = {}) {
+            const respuesta = await fetch(`${API}${ruta}`, {
+                ...opciones,
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('casaBarro_token') || ''}` }
+            });
+            const datos = await respuesta.json().catch(() => ({}));
+            if (!respuesta.ok) throw new Error(datos.error || 'No se pudo completar la operación.');
+            return datos;
+        }
+
+        function aviso(icono, titulo) {
+            Swal.fire({ toast: true, position: 'top-end', icon: icono, title: titulo, showConfirmButton: false, timer: 2500 });
+        }
+
+        // ---------------- PAGOS ----------------
+        async function cargarPagos() {
+            try {
+                const { data } = await api('/pagos');
+                const pendientes = data.filter(p => p.estado === 'pendiente');
+
+                document.getElementById('tabla-pendientes').innerHTML = pendientes.length
+                    ? pendientes.map(p => `<tr>
+                        <td><strong>${esc(p.folio)}</strong></td>
+                        <td>${esc(p.cliente.nombre)}<br><small style="color:#777;">${esc(p.cliente.correo)}</small></td>
+                        <td>${dinero(p.monto)}</td>
+                        <td><code>${esc(p.referencia || '')}</code></td>
+                        <td>${esc(fechaCorta(p.fecha))}</td>
+                        <td class="admin-actions">
+                            <button onclick="confirmarPagoTienda(${p.id}, '${esc(p.folio)}')">Confirmar</button>
+                            <button class="btn-eliminar-admin" onclick="rechazarPagoTienda(${p.id}, '${esc(p.folio)}')">Rechazar</button>
+                        </td></tr>`).join('')
+                    : '<tr><td colspan="6" style="text-align:center; color:#777;">No hay transferencias pendientes.</td></tr>';
+
+                document.getElementById('tabla-pagos').innerHTML = data.length
+                    ? data.slice(0, 30).map(p => `<tr>
+                        <td><strong>${esc(p.folio)}</strong></td>
+                        <td>${esc(p.cliente.nombre)}</td>
+                        <td>${esc(ETIQUETAS[p.metodo_pago] || p.metodo_pago)}</td>
+                        <td>${dinero(p.monto)}</td>
+                        <td><span class="badge-status ${CLASES_ESTADO[p.estado] || 'pendiente'}">${esc(p.estado)}</span></td>
+                        <td>${esc(fechaCorta(p.fecha))}</td></tr>`).join('')
+                    : '<tr><td colspan="6" style="text-align:center; color:#777;">Aún no hay pagos registrados.</td></tr>';
+            } catch (error) {
+                const fila = `<tr><td colspan="6" style="text-align:center; color:#b7410e;">${esc(error.message)}</td></tr>`;
+                document.getElementById('tabla-pendientes').innerHTML = fila;
+                document.getElementById('tabla-pagos').innerHTML = fila;
+            }
+        }
+
+        window.confirmarPagoTienda = async function (id, folio) {
+            const decision = await Swal.fire({
+                icon: 'question', title: `Confirmar pago de ${folio}`,
+                text: 'Verifica que el dinero ya llegó a la cuenta. El pedido pasará a preparación.',
+                showCancelButton: true, confirmButtonText: 'Sí, confirmar', cancelButtonText: 'Cancelar', confirmButtonColor: '#3c4a45'
+            });
+            if (!decision.isConfirmed) return;
+
+            try {
+                const resultado = await api(`/pagos/${id}/confirmar`, { method: 'PUT' });
+                aviso('success', resultado.mensaje);
+                await cargarPagos();
+            } catch (error) {
+                Swal.fire({ icon: 'error', title: 'No se pudo confirmar', text: error.message, confirmButtonColor: '#3c4a45' });
+            }
+        };
+
+        window.rechazarPagoTienda = async function (id, folio) {
+            const decision = await Swal.fire({
+                icon: 'warning', title: `Rechazar pago de ${folio}`,
+                input: 'text', inputLabel: 'Motivo', inputValue: 'No se recibió la transferencia.',
+                showCancelButton: true, confirmButtonText: 'Rechazar y cancelar pedido', cancelButtonText: 'Volver', confirmButtonColor: '#b7410e'
+            });
+            if (!decision.isConfirmed) return;
+
+            try {
+                const resultado = await api(`/pagos/${id}/rechazar`, { method: 'PUT', body: JSON.stringify({ motivo: decision.value }) });
+                aviso('success', resultado.mensaje);
+                await cargarPagos();
+            } catch (error) {
+                Swal.fire({ icon: 'error', title: 'No se pudo rechazar', text: error.message, confirmButtonColor: '#3c4a45' });
+            }
+        };
+
+        // ---------------- MONEDEROS ----------------
+        async function cargarMonederos() {
+            try {
+                const resultado = await api('/monedero/admin/resumen');
+                monederos = resultado.data;
+                const t = resultado.totales;
+
+                document.getElementById('monedero-kpis').innerHTML = [
+                    ['Monederos', t.monederos], ['Saldo en circulación', dinero(t.saldo_total)],
+                    ['Total recargado', dinero(t.recargas_total)], ['Total consumido', dinero(t.consumos_total)]
+                ].map(([etiqueta, valor]) => `<div class="monedero-kpi"><span>${etiqueta}</span><strong>${valor}</strong></div>`).join('');
+
+                document.getElementById('tabla-monederos').innerHTML = monederos.length
+                    ? monederos.map(m => `<tr>
+                        <td><strong>${esc(m.nombre)}</strong><br><small style="color:#777;">${esc(m.correo)}</small></td>
+                        <td><strong>${dinero(m.saldo)}</strong></td>
+                        <td>${dinero(m.recargas)}</td>
+                        <td>${dinero(m.consumos)}</td>
+                        <td>${esc(fechaCorta(m.ultimo_movimiento))}</td>
+                        <td class="admin-actions">
+                            <button onclick="verMovimientosMonederoTienda(${m.cliente_id})">Movimientos</button>
+                            <button onclick="ajustarMonederoTienda(${m.cliente_id})">Ajustar</button>
+                        </td></tr>`).join('')
+                    : '<tr><td colspan="6" style="text-align:center; color:#777;">Todavía no hay monederos.</td></tr>';
+            } catch (error) {
+                document.getElementById('tabla-monederos').innerHTML = `<tr><td colspan="6" style="text-align:center; color:#b7410e;">${esc(error.message)}</td></tr>`;
+            }
+        }
+
+        window.verMovimientosMonederoTienda = async function (clienteId) {
+            const cliente = monederos.find(m => m.cliente_id === clienteId);
+
+            try {
+                const { data } = await api(`/monedero/admin/${clienteId}/movimientos`);
+                const filas = data.length
+                    ? data.map(m => `<tr>
+                        <td style="padding:5px; white-space:nowrap;">${esc(fechaCorta(m.fecha))}</td>
+                        <td style="padding:5px; text-align:left;">${esc(m.concepto || m.tipo)}</td>
+                        <td style="padding:5px; text-align:right; color:${m.monto >= 0 ? '#2e7d4f' : '#b7410e'}; font-weight:bold;">${m.monto >= 0 ? '+' : '-'}${dinero(Math.abs(m.monto))}</td>
+                        <td style="padding:5px; text-align:right;">${dinero(m.saldo_resultante)}</td></tr>`).join('')
+                    : '<tr><td colspan="4" style="padding:10px; color:#777;">Sin movimientos.</td></tr>';
+
+                Swal.fire({
+                    title: `Movimientos de ${esc(cliente ? cliente.nombre : '')}`, width: 640, confirmButtonColor: '#3c4a45', confirmButtonText: 'Cerrar',
+                    html: `<div style="max-height:320px; overflow-y:auto;"><table style="width:100%; font-size:.9rem; border-collapse:collapse;">
+                        <thead><tr style="text-align:left; border-bottom:1px solid #eee;"><th style="padding:5px;">Fecha</th><th style="padding:5px;">Concepto</th><th style="padding:5px; text-align:right;">Monto</th><th style="padding:5px; text-align:right;">Saldo</th></tr></thead>
+                        <tbody>${filas}</tbody></table></div>`
+                });
+            } catch (error) {
+                aviso('error', error.message);
+            }
+        };
+
+        window.ajustarMonederoTienda = async function (clienteId) {
+            const cliente = monederos.find(m => m.cliente_id === clienteId);
+            const campo = 'width:100%; padding:9px; border:1px solid #ccc; border-radius:8px; font-family:inherit; box-sizing:border-box;';
+
+            const resultado = await Swal.fire({
+                title: `Ajustar monedero de ${esc(cliente ? cliente.nombre : '')}`,
+                confirmButtonColor: '#3c4a45', showCancelButton: true, confirmButtonText: 'Aplicar ajuste', cancelButtonText: 'Cancelar',
+                html: `<div style="text-align:left;">
+                    <p style="color:#777; font-size:.9rem; margin-bottom:10px;">Saldo actual: <strong>${dinero(cliente ? cliente.saldo : 0)}</strong>. Usa un monto negativo para descontar.</p>
+                    <label style="display:block; font-size:.8rem; font-weight:bold; color:#555; margin-bottom:4px;">Monto (+ abona, − descuenta)</label>
+                    <input id="aj-monto" type="number" step="0.01" style="${campo}" placeholder="Ej. 50 o -20">
+                    <label style="display:block; font-size:.8rem; font-weight:bold; color:#555; margin:12px 0 4px 0;">Motivo</label>
+                    <input id="aj-concepto" style="${campo}" maxlength="120" placeholder="Ej. Cortesía por demora">
+                </div>`,
+                preConfirm: async () => {
+                    try {
+                        return await api(`/monedero/admin/${clienteId}/ajuste`, {
+                            method: 'POST',
+                            body: JSON.stringify({ monto: Number(document.getElementById('aj-monto').value), concepto: document.getElementById('aj-concepto').value.trim() })
+                        });
+                    } catch (error) {
+                        Swal.showValidationMessage(error.message);
+                        return false;
+                    }
+                }
+            });
+
+            if (resultado.isConfirmed) {
+                aviso('success', 'Ajuste aplicado');
+                await cargarMonederos();
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await cargarPagos();
+
+            if (esAdmin) {
+                document.getElementById('seccion-monederos').style.display = '';
+                await cargarMonederos();
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

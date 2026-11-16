@@ -19,169 +19,144 @@
 <body>
     <!-- Navbar -->
     <div id="navbar-container"></div>
-    
+
     <main class="checkout-container" style="max-width: 1000px; margin: 40px auto; padding: 0 20px; display: grid; grid-template-columns: 2fr 1fr; gap: 30px;">
-        
-        <!-- COLUMNA IZQUIERDA: 3 Pasos del Checkout -->
+
+        <!-- COLUMNA IZQUIERDA: Pasos del Checkout -->
         <div class="checkout-pasos">
             <h1 style="color: var(--verde-logo); margin-bottom: 25px;">Finalizar Pedido</h1>
-            
-            <!-- PASO 1: Opciones de Entrega -->
-            <div id="paso-1" class="checkout-step" style="background: #fff; padding: 25px; border-radius: 12px; border: 1px solid var(--verde-logo); margin-bottom: 20px; box-shadow: 0 4px 15px rgba(85, 114, 104, 0.15);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                    <h2 style="font-size: 1.3rem; color: #3c4a45; margin: 0;">1. Opciones de Entrega</h2>
-                </div>
-                
-                <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
-                    
-                    <p style="font-size: 0.9rem; color: #777; margin: 5px 0;">Retiro en sucursal</p>
 
-                    <!-- Opción: Recoger en establecimiento -->
-                    <label style="display: flex; align-items: flex-start; gap: 15px; padding: 15px; border: 1px solid var(--verde-logo); border-radius: 8px; cursor: pointer; background: #fcf9f2;">
-                        <input type="radio" name="direccion" checked style="margin-top: 5px;">
-                        <div>
-                            <p style="margin: 0; font-weight: bold; color: #3c4a45;">Recoger en Casa Barro</p>
-                            <p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #555;">Constitución 101, Barrio La Purísima</p>
-                            <p style="margin: 5px 0 0 0; font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">Gratis - Listo en 25 minutos</p>
-                        </div>
-                    </label>
+            <!-- Avisos (carrito vacío / necesita sesión) -->
+            <div id="checkout-aviso" style="display: none;"></div>
 
-                    <p style="font-size: 0.9rem; color: #777; margin: 15px 0 5px 0;">Envío a domicilio</p>
+            <!-- Resultado de la compra (se muestra al terminar) -->
+            <div id="checkout-resultado" style="display: none;"></div>
 
-                    <!-- Dirección 1 (Principal) -->
-                    <label style="display: flex; align-items: flex-start; gap: 15px; padding: 15px; border: 1px solid #eae5db; border-radius: 8px; cursor: pointer; transition: background 0.3s;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='transparent'">
-                        <input type="radio" name="direccion" style="margin-top: 5px;">
-                        <div>
-                            <p style="margin: 0; font-weight: bold; color: #3c4a45;">Av. de la Convención de 1914 #450</p>
-                            <p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #555;">Col. Centro, C.P. 20000, Aguascalientes, Ags.</p>
-                            <p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #777;">Eduardo G. - +52 449 123 4567</p>
-                        </div>
-                    </label>
-                </div>
+            <div id="checkout-flujo">
 
-                <!-- Botón Agregar Nueva Dirección -->
-                <button type="button" onclick="mostrarFormNuevo('direccion')" style="background: none; border: none; color: var(--verde-logo); font-weight: bold; cursor: pointer; font-size: 0.95rem; margin-bottom: 20px; display: flex; align-items: center; gap: 5px;">
-                    <span style="font-size: 1.2rem;">+</span> Agregar nueva dirección
-                </button>
-
-                <!-- Formulario Oculto de Nueva Dirección -->
-                <div id="form-nueva-direccion" style="display: none; padding: 15px; border: 1px dashed #ccc; border-radius: 8px; margin-bottom: 20px; background: #fafafa;">
-                    <input type="text" class="swal2-input" style="width: 100%; margin: 0 0 10px 0; font-size: 0.9rem;" placeholder="Calle y número">
-                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                        <input type="text" class="swal2-input" style="flex: 1; margin: 0; font-size: 0.9rem;" placeholder="Colonia">
-                        <input type="text" class="swal2-input" style="flex: 1; margin: 0; font-size: 0.9rem;" placeholder="C.P.">
+                <!-- PASO 1: Opciones de Entrega -->
+                <div id="paso-1" class="checkout-step" style="background: #fff; padding: 25px; border-radius: 12px; border: 1px solid var(--verde-logo); margin-bottom: 20px; box-shadow: 0 4px 15px rgba(85, 114, 104, 0.15);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h2 style="font-size: 1.3rem; color: #3c4a45; margin: 0;">1. Opciones de Entrega</h2>
                     </div>
-                    <button type="button" class="btn-primary" style="width: 100%; padding: 10px; border-radius: 8px;" onclick="simularGuardado('direccion')">Guardar Dirección</button>
+
+                    <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
+
+                        <p style="font-size: 0.9rem; color: #777; margin: 5px 0;">Retiro en sucursal</p>
+
+                        <label class="opcion-pago activa" id="opcion-entrega-sucursal">
+                            <input type="radio" name="entrega" value="sucursal" checked onclick="seleccionarEntregaTienda('sucursal')" style="margin-top: 5px;">
+                            <div>
+                                <p style="margin: 0; font-weight: bold; color: #3c4a45;">Recoger en Casa Barro</p>
+                                <p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #555;">Constitución 101, Barrio La Purísima</p>
+                                <p style="margin: 5px 0 0 0; font-size: 0.85rem; font-weight: bold; color: var(--verde-logo);">Gratis - Listo en 25 minutos</p>
+                            </div>
+                        </label>
+
+                        <p style="font-size: 0.9rem; color: #777; margin: 15px 0 5px 0;">Envío a domicilio</p>
+
+                        <label class="opcion-pago" id="opcion-entrega-domicilio">
+                            <input type="radio" name="entrega" value="domicilio" onclick="seleccionarEntregaTienda('domicilio')" style="margin-top: 5px;">
+                            <div>
+                                <p style="margin: 0; font-weight: bold; color: #3c4a45;">Enviar a mi domicilio</p>
+                                <p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #555;">Captura la dirección donde recibirás tu pedido.</p>
+                            </div>
+                        </label>
+
+                        <div id="form-domicilio" style="display: none; padding: 15px; border: 1px dashed #ccc; border-radius: 8px; background: #fafafa;">
+                            <input type="text" id="dom-calle" class="swal2-input" style="width: 100%; margin: 0 0 10px 0; font-size: 0.9rem; box-sizing: border-box;" placeholder="Calle y número" maxlength="80">
+                            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                                <input type="text" id="dom-colonia" class="swal2-input" style="flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;" placeholder="Colonia" maxlength="60">
+                                <input type="text" id="dom-cp" class="swal2-input" style="flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;" placeholder="C.P." maxlength="5" inputmode="numeric">
+                            </div>
+                            <input type="text" id="dom-referencias" class="swal2-input" style="width: 100%; margin: 0; font-size: 0.9rem; box-sizing: border-box;" placeholder="Referencias (opcional)" maxlength="80">
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn-primary" style="width: 100%; padding: 12px; border-radius: 8px;" onclick="siguientePaso(2)">Continuar al Pago</button>
                 </div>
 
-                <button type="button" class="btn-primary" style="width: 100%; padding: 12px; border-radius: 8px;" onclick="siguientePaso(2)">Continuar al Pago</button>
+                <!-- PASO 2: Método de Pago -->
+                <div id="paso-2" class="checkout-step" style="background: #fff; padding: 25px; border-radius: 12px; border: 1px solid #eae5db; margin-bottom: 20px; opacity: 0.4; pointer-events: none;">
+                    <h2 style="font-size: 1.3rem; margin-bottom: 15px; color: #3c4a45;">2. Método de Pago</h2>
+
+                    <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
+
+                        <!-- Tarjeta -->
+                        <label class="opcion-pago activa" id="opcion-pago-tarjeta">
+                            <input type="radio" name="pago" value="tarjeta" checked onclick="seleccionarMetodoTienda('tarjeta')">
+                            <div>
+                                <p style="margin: 0; font-weight: bold; color: #3c4a45;">Tarjeta de crédito o débito</p>
+                                <p style="margin: 0; font-size: 0.85rem; color: #777;">Aprobación inmediata</p>
+                            </div>
+                        </label>
+
+                        <div id="detalle-tarjeta" class="panel-detalle-pago">
+                            <input type="text" id="tarjeta-numero" class="swal2-input" style="width: 100%; margin: 0 0 10px 0; font-size: 0.9rem; box-sizing: border-box;" placeholder="Número de la tarjeta" inputmode="numeric" autocomplete="off" maxlength="23" oninput="formatearNumeroTarjetaTienda(this)">
+                            <input type="text" id="tarjeta-titular" class="swal2-input" style="width: 100%; margin: 0 0 10px 0; font-size: 0.9rem; box-sizing: border-box;" placeholder="Nombre del titular" autocomplete="off" maxlength="60">
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" id="tarjeta-vence" class="swal2-input" style="flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;" placeholder="MM/AA" inputmode="numeric" autocomplete="off" maxlength="5" oninput="formatearVencimientoTarjetaTienda(this)">
+                                <input type="password" id="tarjeta-cvv" class="swal2-input" style="flex: 1; margin: 0; font-size: 0.9rem; min-width: 0;" placeholder="CVV" inputmode="numeric" autocomplete="off" maxlength="4">
+                            </div>
+                            <p style="margin: 10px 0 0 0; font-size: 0.8rem; color: #777;">Tus datos solo se usan para esta compra; no guardamos el número completo ni el CVV.</p>
+                        </div>
+
+                        <!-- Monedero -->
+                        <label class="opcion-pago" id="opcion-pago-monedero">
+                            <input type="radio" name="pago" value="monedero" onclick="seleccionarMetodoTienda('monedero')">
+                            <div>
+                                <p style="margin: 0; font-weight: bold; color: #3c4a45;">Monedero Casa Barro</p>
+                                <p style="margin: 0; font-size: 0.85rem; color: #777;" id="monedero-leyenda">Saldo disponible</p>
+                            </div>
+                        </label>
+
+                        <div id="detalle-monedero" class="panel-detalle-pago" style="display: none; background: #eef5f2; border-color: var(--verde-logo);">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 0.95rem; color: #555;">Tu saldo actual:</span>
+                                <strong style="color: var(--verde-logo); font-size: 1.2rem;" id="monedero-saldo-checkout">$0.00</strong>
+                            </div>
+                            <p id="monedero-aviso" style="margin: 10px 0 0 0; font-size: 0.85rem; color: #b7410e; display: none;">
+                                Tu saldo no alcanza para esta compra. <a href="monedero.html" style="color: var(--verde-logo); font-weight: bold;">Recargar saldo</a>
+                            </p>
+                        </div>
+
+                        <!-- Transferencia -->
+                        <label class="opcion-pago" id="opcion-pago-transferencia">
+                            <input type="radio" name="pago" value="transferencia" onclick="seleccionarMetodoTienda('transferencia')">
+                            <div>
+                                <p style="margin: 0; font-weight: bold; color: #3c4a45;">Transferencia (SPEI)</p>
+                                <p style="margin: 0; font-size: 0.85rem; color: #777;">Tu pedido se prepara al confirmar el pago</p>
+                            </div>
+                        </label>
+
+                        <div id="detalle-transferencia" class="panel-detalle-pago" style="display: none;">
+                            <p style="margin-bottom: 5px; font-size: 0.9rem;"><strong>Banco:</strong> BBVA México</p>
+                            <p style="margin-bottom: 5px; font-size: 0.9rem;"><strong>CLABE:</strong> 012345678910111213</p>
+                            <p style="margin-bottom: 0; font-size: 0.85rem; color: #777;">Al confirmar te daremos tu referencia. Nuestro equipo validará la transferencia y enviará tu pedido a preparación.</p>
+                        </div>
+
+                    </div>
+
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 25px;">
+                        <button type="button" class="btn-primary" style="background: #8a8a8a; flex: 1; min-width: 100px; padding: 12px; border-radius: 8px;" onclick="siguientePaso(1)">Atrás</button>
+                        <button type="button" class="btn-primary" style="flex: 2; min-width: 200px; padding: 12px; border-radius: 8px;" onclick="siguientePaso(3)">Revisar Pedido</button>
+                    </div>
+                </div>
+
+                <!-- PASO 3: Confirmación -->
+                <div id="paso-3" class="checkout-step" style="background: #fff; padding: 25px; border-radius: 12px; border: 1px solid #eae5db; margin-bottom: 20px; opacity: 0.4; pointer-events: none;">
+                    <h2 style="font-size: 1.3rem; margin-bottom: 15px; color: #3c4a45;">3. Confirmación</h2>
+
+                    <p style="color: #555; margin-bottom: 15px; line-height: 1.5;">Tu pedido está casi listo. Verifica que tus datos y el monto total sean correctos antes de confirmar.</p>
+                    <div id="resumen-datos-checkout" style="background-color: #fcf9f2; padding: 15px; border-radius: 8px; border: 1px dashed #ccc; margin-bottom: 20px; font-size: 0.95rem; color: #444; line-height: 1.6;"></div>
+
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                        <button type="button" class="btn-primary" style="background: #8a8a8a; flex: 1; min-width: 100px; padding: 12px; border-radius: 8px;" onclick="siguientePaso(2)">Atrás</button>
+                        <button type="button" id="btn-confirmar-compra" class="btn-primary" style="flex: 2; min-width: 200px; padding: 12px; background: var(--verde-logo); border-radius: 8px;" onclick="finalizarPedido()">Confirmar y Pagar</button>
+                    </div>
+                </div>
+
             </div>
-
-            <!-- PASO 2: Método de Pago -->
-            <div id="paso-2" class="checkout-step" style="background: #fff; padding: 25px; border-radius: 12px; border: 1px solid #eae5db; margin-bottom: 20px; opacity: 0.4; pointer-events: none;">
-                <h2 style="font-size: 1.3rem; margin-bottom: 15px; color: #3c4a45;">2. Método de Pago</h2>
-                
-                <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
-                    
-                    <p style="font-size: 0.9rem; color: #777; margin: 5px 0;">Tus tarjetas guardadas</p>
-                    
-                    <!-- Tarjeta Guardada 1 -->
-                    <label style="display: flex; align-items: center; gap: 15px; padding: 15px; border: 1px solid var(--verde-logo); border-radius: 8px; cursor: pointer; background: #fcf9f2;">
-                        <input type="radio" name="pago" onclick="mostrarDetallePagoML('ninguno')" checked>
-                        <div style="background: #1a1f36; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; font-size: 0.8rem;">VISA</div>
-                        <div>
-                            <p style="margin: 0; font-weight: bold; color: #3c4a45;">Terminada en 4589</p>
-                            <p style="margin: 0; font-size: 0.85rem; color: #777;">Crédito</p>
-                        </div>
-                    </label>
-
-                    <!-- Tarjeta Guardada 2 -->
-                    <label style="display: flex; align-items: center; gap: 15px; padding: 15px; border: 1px solid #eae5db; border-radius: 8px; cursor: pointer; transition: background 0.3s;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='transparent'">
-                        <input type="radio" name="pago" onclick="mostrarDetallePagoML('ninguno')">
-                        <div style="background: #eb001b; color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; font-size: 0.8rem;">MC</div>
-                        <div>
-                            <p style="margin: 0; font-weight: bold; color: #3c4a45;">Terminada en 1234</p>
-                            <p style="margin: 0; font-size: 0.85rem; color: #777;">Débito</p>
-                        </div>
-                    </label>
-
-                    <!-- Botón Agregar Nueva Tarjeta -->
-                    <button type="button" onclick="mostrarFormNuevo('tarjeta')" style="background: none; border: none; color: var(--verde-logo); font-weight: bold; cursor: pointer; font-size: 0.95rem; margin: 5px 0 15px 0; display: flex; align-items: center; gap: 5px; text-align: left;">
-                        <span style="font-size: 1.2rem;">+</span> Nueva tarjeta de crédito o débito
-                    </button>
-
-                    <!-- Formulario Oculto de Nueva Tarjeta -->
-                    <div id="form-nueva-tarjeta" style="display: none; padding: 15px; border: 1px dashed #ccc; border-radius: 8px; margin-bottom: 15px; background: #fafafa;">
-                        <input type="text" class="swal2-input" style="width: 100%; margin: 0 0 10px 0; font-size: 0.9rem;" placeholder="Número de la tarjeta">
-                        <input type="text" class="swal2-input" style="width: 100%; margin: 0 0 10px 0; font-size: 0.9rem;" placeholder="Nombre del titular">
-                        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                            <input type="text" class="swal2-input" style="flex: 1; margin: 0; font-size: 0.9rem;" placeholder="MM/AA">
-                            <input type="password" class="swal2-input" style="flex: 1; margin: 0; font-size: 0.9rem;" placeholder="CVV">
-                        </div>
-                        <button type="button" class="btn-primary" style="width: 100%; padding: 10px; border-radius: 8px;" onclick="simularGuardado('tarjeta')">Guardar Tarjeta</button>
-                    </div>
-
-                    <p style="font-size: 0.9rem; color: #777; margin: 5px 0;">Otros medios de pago</p>
-
-                    <!-- E-Wallet -->
-                    <label style="display: flex; align-items: center; gap: 15px; padding: 15px; border: 1px solid #eae5db; border-radius: 8px; cursor: pointer; transition: background 0.3s;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='transparent'">
-                        <input type="radio" name="pago" onclick="mostrarDetallePagoML('ewallet')">
-                        <div>
-                            <p style="margin: 0; font-weight: bold; color: #3c4a45;">E-Wallet</p>
-                            <p style="margin: 0; font-size: 0.85rem; color: #777;">Saldo disponible</p>
-                        </div>
-                    </label>
-
-                    <!-- Saldo E-Wallet -->
-                    <div id="detalle-ewallet" style="display: none; padding: 15px; border: 1px dashed var(--verde-logo); border-radius: 8px; margin-top: -5px; background: #eef5f2;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="font-size: 0.95rem; color: #555;">Tu saldo actual:</span>
-                            <strong style="color: var(--verde-logo); font-size: 1.2rem;">$1,500.00 MXN</strong>
-                        </div>
-                    </div>
-
-                    <!-- Transferencia -->
-                    <label style="display: flex; align-items: center; gap: 15px; padding: 15px; border: 1px solid #eae5db; border-radius: 8px; cursor: pointer; transition: background 0.3s;" onmouseover="this.style.background='#f9f9f9'" onmouseout="this.style.background='transparent'">
-                        <input type="radio" name="pago" onclick="mostrarDetallePagoML('transferencia')">
-                        <div>
-                            <p style="margin: 0; font-weight: bold; color: #3c4a45;">Transferencia (SPEI)</p>
-                            <p style="margin: 0; font-size: 0.85rem; color: #777;">Aprobación en minutos</p>
-                        </div>
-                    </label>
-
-                    <!-- Datos Transferencia -->
-                    <div id="detalle-transferencia" style="display: none; padding: 15px; border: 1px dashed #ccc; border-radius: 8px; margin-top: -5px; background: #fcf9f2;">
-                        <p style="margin-bottom: 5px; font-size: 0.9rem;"><strong>Banco:</strong> BBVA México</p>
-                        <p style="margin-bottom: 0; font-size: 0.9rem;"><strong>CLABE:</strong> 012345678910111213</p>
-                    </div>
-
-                </div>
-
-                <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 25px;">
-                    <button type="button" class="btn-primary" style="background: #8a8a8a; flex: 1; min-width: 100px; padding: 12px; border-radius: 8px;" onclick="siguientePaso(1)">Atrás</button>
-                    <button type="button" class="btn-primary" style="flex: 2; min-width: 200px; padding: 12px; border-radius: 8px;" onclick="siguientePaso(3)">Revisar Pedido</button>
-                </div>
-            </div>
-
-            <!-- PASO 3: Confirmación -->
-            <div id="paso-3" class="checkout-step" style="background: #fff; padding: 25px; border-radius: 12px; border: 1px solid #eae5db; margin-bottom: 20px; opacity: 0.4; pointer-events: none;">
-                <h2 style="font-size: 1.3rem; margin-bottom: 15px; color: #3c4a45;">3. Confirmación</h2>
-                
-                <p style="color: #555; margin-bottom: 15px; line-height: 1.5;">Tu pedido está casi listo. Verifica que tus datos y el monto total sean correctos antes de confirmar.</p>
-                <div style="background-color: #fcf9f2; padding: 15px; border-radius: 8px; border: 1px dashed #ccc; margin-bottom: 20px; font-size: 0.95rem; color: #444; line-height: 1.6;">
-                    <h4 style="color: var(--verde-logo); margin-bottom: 10px; font-size: 1.05rem; border-bottom: 1px solid #eae5db; padding-bottom: 5px;">Tus Datos</h4>
-                    <p style="margin-bottom: 5px;"><strong>Dirección:</strong> Av. de la Convención 450, Col. Centro, C.P. 20000.</p>
-                    <p style="margin-bottom: 5px;"><strong>Referencias:</strong> Casa blanca con portón negro.</p>
-                    <p style="margin-bottom: 0;"><strong>Método de Pago:</strong> Tarjeta de Crédito terminada en **** 4589</p>
-                </div>
-                
-                <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-                    <button type="button" class="btn-primary" style="background: #8a8a8a; flex: 1; min-width: 100px; padding: 12px; border-radius: 8px;" onclick="siguientePaso(2)">Atrás</button>
-                    <!-- BOTÓN FINAL DE COMPRA -->
-                    <button type="button" class="btn-primary" style="flex: 2; min-width: 200px; padding: 12px; background: var(--verde-logo); border-radius: 8px;" onclick="finalizarPedido()">Confirmar y Pagar</button>
-                </div>
-            </div>
-
         </div>
 
         <!-- COLUMNA DERECHA: Resumen de compra -->
