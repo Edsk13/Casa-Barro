@@ -5046,6 +5046,466 @@ app.get('/api/tienda/pedidos/:id', async (req, res) => {
     }
 });
 
+// ============================================================
+// ETAPA 4 · DÍA 5 · ATENCIÓN A CLIENTES (TICKETS) Y PERFIL
+//
+// POST /api/atencion/ticket                  crea un ticket (cliente)
+// GET  /api/atencion/tickets                 cliente: los suyos · admin/vendedor: todos
+// GET  /api/atencion/ticket/:id              detalle (dueño o personal)
+// PUT  /api/atencion/ticket/:id/respuesta    responde (admin/vendedor)
+// PUT  /api/atencion/ticket/:id/estado       en_proceso / cerrado / abierto (personal) · cerrar (dueño)
+// GET  /api/auth/perfil                      datos reales de la cuenta + resumen
+// PUT  /api/auth/perfil                      edita nombre, teléfono y dirección
+//
+// Integración con el CRM: crear y responder un ticket deja una
+// interacción en el historial del cliente (tabla interacciones).
+// ============================================================
+
+const ESTADOS_TICKET_TIENDA = ['abierto', 'en_proceso', 'respondido', 'cerrado'];
+const ETIQUETAS_TICKET_TIENDA = {
+    abierto: 'Abierto',
+    en_proceso: 'En proceso',
+    respondido: 'Respondido',
+    cerrado: 'Cerrado'
+};
+const ROLES_ATENCION_TIENDA = ['admin', 'vendedor'];
+const MAX_TICKETS_ACTIVOS_TIENDA = 10;
+
+function folioTicketTienda(id) {
+    return `TK-${String(id).padStart(5, '0')}`;
+}
+
+// Transacción con cola: nunca dos transacciones a la vez sobre la misma conexión
+function ejecutarTransaccionTienda(tarea) {
+    return ejecutarExclusivoTienda(async () => {
+        let abierta = false;
+
+        try {
+            await dbRunSCM('BEGIN IMMEDIATE TRANSACTION');
+            abierta = true;
+
+            const resultado = await tarea();
+
+            await dbRunSCM('COMMIT');
+            abierta = false;
+            return resultado;
+        } catch (error) {
+            if (abierta) {
+                try { await dbRunSCM('ROLLBACK'); } catch (errorRollback) { /* sin acción */ }
+            }
+            throw error;
+        }
+    });
+}
+
+async function registrarInteraccionCRMTienda(clienteId, usuarioId, tipo, descripcion) {
+    await dbRunSCM(
+        'INSERT INTO interacciones (cliente_id, usuario_id, tipo, descripcion) VALUES (?, ?, ?, ?)',
+        [clienteId, usuarioId, tipo, String(descripcion).slice(0, 250)]
+    );
+}
+
+const SQL_TICKETS_TIENDA = `
+    SELECT
+        t.*,
+        c.nombre AS cliente_nombre,
+        c.correo AS cliente_correo,
+        c.usuario_id AS cliente_usuario_id,
+        u.nombre AS respondido_por
+    FROM tickets_atencion t
+    INNER JOIN clientes c ON c.id = t.cliente_id
+    LEFT JOIN usuarios u ON u.id = t.usuario_respuesta_id
+`;
+
+function presentarTicketTienda(fila, { conCliente = false } = {}) {
+    const ticket = {
+        id: fila.id,
+        folio: folioTicketTienda(fila.id),
+        asunto: fila.asunto,
+        mensaje: fila.mensaje,
+        estado: fila.estado,
+        etiqueta: ETIQUETAS_TICKET_TIENDA[fila.estado] || fila.estado,
+        fecha: fila.fecha,
+        respuesta: fila.respuesta || null,
+        fecha_respuesta: fila.fecha_respuesta || null,
+        respondido_por: fila.respondido_por || null,
+        pedido_id: fila.pedido_id || null,
+        pedido_folio: fila.pedido_id ? folioPedidoTienda(fila.pedido_id) : null
+    };
+
+    if (conCliente) {
+        ticket.cliente = { id: fila.cliente_id, nombre: fila.cliente_nombre, correo: fila.cliente_correo };
+    }
+
+    return ticket;
+}
+
+async function cargarTicketAutorizadoTienda(req, ticketId) {
+    const usuario = await obtenerUsuarioSesion(req);
+    if (!usuario) throw errorTienda(401, 'Inicia sesión para continuar.');
+
+    const fila = await dbGetSCM(`${SQL_TICKETS_TIENDA} WHERE t.id = ?`, [ticketId]);
+    const esPersonal = ROLES_ATENCION_TIENDA.includes(usuario.rol);
+    const esDuenio = fila && Number(fila.cliente_usuario_id) === Number(usuario.id);
+
+    if (!fila || (!esPersonal && !esDuenio)) {
+        throw errorTienda(404, 'Ticket no encontrado.');
+    }
+
+    return { usuario, fila, esPersonal };
+}
+
+app.post('/api/atencion/ticket', async (req, res) => {
+    try {
+        const sesion = await obtenerUsuarioSesion(req);
+        if (!sesion) throw errorTienda(401, 'Inicia sesión para contactarnos.');
+        if (sesion.rol !== 'cliente') {
+            throw errorTienda(403, 'Los tickets de atención son para clientes de la tienda.');
+        }
+
+        const { usuario, cliente } = await clienteDeSesionTienda(req);
+
+        const asunto = String(req.body?.asunto || '').trim();
+        const mensaje = String(req.body?.mensaje || '').trim();
+
+        if (asunto.length < 3 || asunto.length > 100) {
+            throw errorTienda(400, 'El asunto debe tener entre 3 y 100 caracteres.');
+        }
+        if (mensaje.length < 10 || mensaje.length > 1000) {
+            throw errorTienda(400, 'Cuéntanos tu consulta con al menos 10 caracteres (máximo 1000).');
+        }
+
+        let pedidoId = null;
+        if (req.body?.pedido_id !== undefined && req.body.pedido_id !== null && req.body.pedido_id !== '') {
+            pedidoId = Number(req.body.pedido_id);
+            const pedido = Number.isInteger(pedidoId)
+                ? await dbGetSCM('SELECT id FROM ordenes_empresariales WHERE id = ? AND cliente_id = ?', [pedidoId, cliente.id])
+                : null;
+
+            if (!pedido) throw errorTienda(400, 'El pedido seleccionado no es válido.');
+        }
+
+        const ticketId = await ejecutarTransaccionTienda(async () => {
+            const { total } = await dbGetSCM(
+                `SELECT COUNT(*) AS total FROM tickets_atencion
+                 WHERE cliente_id = ? AND estado IN ('abierto', 'en_proceso')`,
+                [cliente.id]
+            );
+
+            if (total >= MAX_TICKETS_ACTIVOS_TIENDA) {
+                throw errorTienda(409, 'Tienes muchos tickets abiertos. Espera nuestra respuesta o cierra los que ya no necesites.');
+            }
+
+            const resultado = await dbRunSCM(
+                `INSERT INTO tickets_atencion (cliente_id, pedido_id, asunto, mensaje, estado)
+                 VALUES (?, ?, ?, ?, 'abierto')`,
+                [cliente.id, pedidoId, asunto, mensaje]
+            );
+
+            await registrarInteraccionCRMTienda(
+                cliente.id, usuario.id, 'Ticket de atención',
+                `${folioTicketTienda(resultado.lastID)}: ${asunto}`
+            );
+
+            return resultado.lastID;
+        });
+
+        registrarActividad(usuario.id, 'ALTA', 'ATENCIÓN', `Abrió el ticket ${folioTicketTienda(ticketId)}: ${asunto}`, 'ticket', ticketId);
+
+        const fila = await dbGetSCM(`${SQL_TICKETS_TIENDA} WHERE t.id = ?`, [ticketId]);
+
+        res.status(201).json({
+            mensaje: 'Recibimos tu mensaje. Te responderemos lo antes posible.',
+            data: presentarTicketTienda(fila)
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo registrar tu mensaje.');
+    }
+});
+
+app.get('/api/atencion/tickets', async (req, res) => {
+    try {
+        const usuario = await obtenerUsuarioSesion(req);
+        if (!usuario) throw errorTienda(401, 'Inicia sesión para continuar.');
+
+        const esPersonal = ROLES_ATENCION_TIENDA.includes(usuario.rol);
+        if (!esPersonal && usuario.rol !== 'cliente') {
+            throw errorTienda(403, 'No tienes permisos para consultar tickets.');
+        }
+
+        const filtros = [];
+        const parametros = [];
+
+        if (!esPersonal) {
+            filtros.push('c.usuario_id = ?');
+            parametros.push(usuario.id);
+        }
+
+        const estado = String(req.query.estado || '').trim();
+        if (estado) {
+            if (!ESTADOS_TICKET_TIENDA.includes(estado)) throw errorTienda(400, 'El estado solicitado no es válido.');
+            filtros.push('t.estado = ?');
+            parametros.push(estado);
+        }
+
+        const buscar = String(req.query.buscar || '').trim().slice(0, 60);
+        if (buscar && esPersonal) {
+            filtros.push('(t.asunto LIKE ? OR t.mensaje LIKE ? OR c.nombre LIKE ? OR c.correo LIKE ?)');
+            const patron = `%${buscar}%`;
+            parametros.push(patron, patron, patron, patron);
+        }
+
+        const filas = await dbAllSCM(
+            `${SQL_TICKETS_TIENDA}
+             ${filtros.length ? 'WHERE ' + filtros.join(' AND ') : ''}
+             ORDER BY t.id DESC
+             LIMIT 200`,
+            parametros
+        );
+
+        const respuesta = {
+            mensaje: 'Éxito',
+            total: filas.length,
+            data: filas.map(fila => presentarTicketTienda(fila, { conCliente: esPersonal }))
+        };
+
+        if (esPersonal) {
+            const conteos = await dbAllSCM('SELECT estado, COUNT(*) AS total FROM tickets_atencion GROUP BY estado');
+            respuesta.resumen = Object.fromEntries(ESTADOS_TICKET_TIENDA.map(e => [e, 0]));
+            conteos.forEach(c => { respuesta.resumen[c.estado] = c.total; });
+        }
+
+        res.json(respuesta);
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudieron consultar los tickets.');
+    }
+});
+
+app.get('/api/atencion/ticket/:id', async (req, res) => {
+    try {
+        const { fila, esPersonal } = await cargarTicketAutorizadoTienda(req, Number(req.params.id));
+
+        res.json({ mensaje: 'Éxito', data: presentarTicketTienda(fila, { conCliente: esPersonal }) });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo consultar el ticket.');
+    }
+});
+
+app.put('/api/atencion/ticket/:id/respuesta', async (req, res) => {
+    try {
+        const personal = await exigirRolesTienda(req, ROLES_ATENCION_TIENDA);
+        const ticketId = Number(req.params.id);
+
+        const respuesta = String(req.body?.respuesta || '').trim();
+        if (respuesta.length < 2 || respuesta.length > 1000) {
+            throw errorTienda(400, 'La respuesta debe tener entre 2 y 1000 caracteres.');
+        }
+        const cerrar = req.body?.cerrar === true || req.body?.cerrar === 1;
+
+        const ticket = await ejecutarTransaccionTienda(async () => {
+            const fila = await dbGetSCM('SELECT id, cliente_id, estado FROM tickets_atencion WHERE id = ?', [ticketId]);
+
+            if (!fila) throw errorTienda(404, 'Ticket no encontrado.');
+            if (fila.estado === 'cerrado') {
+                throw errorTienda(409, 'Este ticket está cerrado. Reábrelo para responder.');
+            }
+
+            await dbRunSCM(
+                `UPDATE tickets_atencion
+                 SET respuesta = ?, fecha_respuesta = CURRENT_TIMESTAMP,
+                     usuario_respuesta_id = ?, estado = ?
+                 WHERE id = ?`,
+                [respuesta, personal.id, cerrar ? 'cerrado' : 'respondido', ticketId]
+            );
+
+            await registrarInteraccionCRMTienda(
+                fila.cliente_id, personal.id, 'Respuesta a ticket',
+                `${folioTicketTienda(ticketId)} respondido por ${personal.nombre}.`
+            );
+
+            return fila;
+        });
+
+        registrarActividad(personal.id, 'RESPUESTA', 'ATENCIÓN', `Respondió el ticket ${folioTicketTienda(ticket.id)}`, 'ticket', ticket.id);
+
+        const actualizado = await dbGetSCM(`${SQL_TICKETS_TIENDA} WHERE t.id = ?`, [ticketId]);
+
+        res.json({ mensaje: 'Respuesta enviada al cliente.', data: presentarTicketTienda(actualizado, { conCliente: true }) });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo responder el ticket.');
+    }
+});
+
+app.put('/api/atencion/ticket/:id/estado', async (req, res) => {
+    try {
+        const { usuario, fila, esPersonal } = await cargarTicketAutorizadoTienda(req, Number(req.params.id));
+        const estado = String(req.body?.estado || '').trim();
+
+        if (!ESTADOS_TICKET_TIENDA.includes(estado) || estado === 'respondido') {
+            throw errorTienda(400, 'El estado debe ser abierto, en_proceso o cerrado (para responder usa la respuesta).');
+        }
+
+        // El cliente solo puede cerrar sus propios tickets
+        if (!esPersonal && estado !== 'cerrado') {
+            throw errorTienda(403, 'Solo puedes cerrar tus tickets.');
+        }
+
+        if (fila.estado === estado) {
+            throw errorTienda(409, `El ticket ya está ${ETIQUETAS_TICKET_TIENDA[estado].toLowerCase()}.`);
+        }
+
+        await dbRunSCM('UPDATE tickets_atencion SET estado = ? WHERE id = ?', [estado, fila.id]);
+
+        registrarActividad(usuario.id, 'ESTADO', 'ATENCIÓN', `Cambió el ticket ${folioTicketTienda(fila.id)} a ${ETIQUETAS_TICKET_TIENDA[estado]}`, 'ticket', fila.id);
+
+        const actualizado = await dbGetSCM(`${SQL_TICKETS_TIENDA} WHERE t.id = ?`, [fila.id]);
+
+        res.json({ mensaje: `Ticket ${ETIQUETAS_TICKET_TIENDA[estado].toLowerCase()}.`, data: presentarTicketTienda(actualizado, { conCliente: esPersonal }) });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo actualizar el ticket.');
+    }
+});
+
+// ------------------------------------------------------------
+// PERFIL DE LA CUENTA
+// ------------------------------------------------------------
+const REGEX_TELEFONO_TIENDA = /^[0-9+()\-\s]{7,20}$/;
+
+function presentarPerfilTienda(usuario, cliente) {
+    return {
+        id: usuario.id,
+        cliente_id: cliente ? cliente.id : null,
+        nombre: usuario.nombre,
+        correo: usuario.correo,
+        telefono: usuario.telefono || '',
+        direccion: (cliente && cliente.direccion) || usuario.direccion || '',
+        empresa: usuario.empresa || '',
+        rol: usuario.rol,
+        fecha_registro: usuario.fecha_registro
+    };
+}
+
+app.get('/api/auth/perfil', async (req, res) => {
+    try {
+        const sesion = await obtenerUsuarioSesion(req);
+        if (!sesion) throw errorTienda(401, 'Inicia sesión para ver tu perfil.');
+
+        const usuario = await dbGetSCM(
+            'SELECT id, nombre, correo, telefono, direccion, empresa, rol, fecha_registro FROM usuarios WHERE id = ?',
+            [sesion.id]
+        );
+
+        if (usuario.rol !== 'cliente') {
+            return res.json({ mensaje: 'Éxito', perfil: presentarPerfilTienda(usuario, null), resumen: null });
+        }
+
+        const { cliente } = await clienteDeSesionTienda(req);
+        const clienteCompleto = await dbGetSCM('SELECT id, telefono, direccion FROM clientes WHERE id = ?', [cliente.id]);
+
+        const { total: pedidos } = await dbGetSCM('SELECT COUNT(*) AS total FROM ordenes_empresariales WHERE cliente_id = ?', [cliente.id]);
+        const ultimo = await dbGetSCM(
+            `SELECT o.id, o.fecha, o.total, o.estado, pg.estado AS estado_pago
+             FROM ordenes_empresariales o
+             LEFT JOIN pagos pg ON pg.pedido_id = o.id
+             WHERE o.cliente_id = ?
+             ORDER BY o.id DESC LIMIT 1`,
+            [cliente.id]
+        );
+        const monedero = await obtenerMonederoTienda(cliente.id);
+        const { total: ticketsActivos } = await dbGetSCM(
+            `SELECT COUNT(*) AS total FROM tickets_atencion
+             WHERE cliente_id = ? AND estado IN ('abierto', 'en_proceso')`,
+            [cliente.id]
+        );
+
+        res.json({
+            mensaje: 'Éxito',
+            perfil: presentarPerfilTienda(
+                {
+                    ...usuario,
+                    telefono: clienteCompleto.telefono || usuario.telefono,
+                    direccion: clienteCompleto.direccion || usuario.direccion
+                },
+                { id: cliente.id, direccion: clienteCompleto.direccion }
+            ),
+            resumen: {
+                pedidos_total: pedidos,
+                ultimo_pedido: ultimo
+                    ? {
+                        id: ultimo.id,
+                        folio: folioPedidoTienda(ultimo.id),
+                        fecha: ultimo.fecha,
+                        total: redondearMonedaTienda(ultimo.total),
+                        etiqueta: etiquetaEstadoPedidoTienda(ultimo.estado, ultimo.estado_pago)
+                    }
+                    : null,
+                saldo_monedero: redondearMonedaTienda(monedero.saldo),
+                tickets_activos: ticketsActivos
+            }
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo consultar tu perfil.');
+    }
+});
+
+app.put('/api/auth/perfil', async (req, res) => {
+    try {
+        const sesion = await obtenerUsuarioSesion(req);
+        if (!sesion) throw errorTienda(401, 'Inicia sesión para editar tu perfil.');
+
+        const actual = await dbGetSCM(
+            'SELECT id, nombre, correo, telefono, direccion, empresa, rol, fecha_registro FROM usuarios WHERE id = ?',
+            [sesion.id]
+        );
+
+        // Solo se pueden editar estos campos: correo y rol nunca cambian desde aquí
+        const nombre = req.body?.nombre !== undefined ? String(req.body.nombre).trim() : actual.nombre;
+        const telefono = req.body?.telefono !== undefined ? String(req.body.telefono).trim() : (actual.telefono || '');
+        const direccion = req.body?.direccion !== undefined ? String(req.body.direccion).trim() : (actual.direccion || '');
+
+        if (nombre.length < 3 || nombre.length > 80) {
+            throw errorTienda(400, 'El nombre debe tener entre 3 y 80 caracteres.');
+        }
+        if (telefono && !REGEX_TELEFONO_TIENDA.test(telefono)) {
+            throw errorTienda(400, 'El teléfono solo puede llevar números, espacios, +, - y paréntesis (7 a 20 caracteres).');
+        }
+        if (direccion.length > 250) {
+            throw errorTienda(400, 'La dirección no puede superar 250 caracteres.');
+        }
+
+        let clienteId = null;
+        if (actual.rol === 'cliente') {
+            clienteId = (await clienteDeSesionTienda(req)).cliente.id;
+        }
+
+        await ejecutarTransaccionTienda(async () => {
+            await dbRunSCM(
+                'UPDATE usuarios SET nombre = ?, telefono = ?, direccion = ? WHERE id = ?',
+                [nombre, telefono || null, direccion || null, actual.id]
+            );
+
+            if (clienteId) {
+                await dbRunSCM(
+                    'UPDATE clientes SET nombre = ?, telefono = ?, direccion = ? WHERE id = ?',
+                    [nombre, telefono || null, direccion || null, clienteId]
+                );
+            }
+        });
+
+        registrarActividad(actual.id, 'EDICION', 'Perfil', 'Actualizó los datos de su perfil', 'usuario', actual.id);
+
+        res.json({
+            mensaje: 'Tus datos se actualizaron.',
+            perfil: presentarPerfilTienda(
+                { ...actual, nombre, telefono, direccion },
+                clienteId ? { id: clienteId, direccion } : null
+            )
+        });
+    } catch (error) {
+        responderErrorTienda(res, error, 'No se pudo actualizar tu perfil.');
+    }
+});
+
 app.post('/api/productos/:id/insumos', (req, res) => {
     const productoId = Number(req.params.id);
     const { insumo_id, porciones_requeridas, usuario_id } = req.body;

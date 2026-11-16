@@ -13,39 +13,43 @@
     <main class="perfil-container">
         
         <div class="perfil-header">
-            <h1>Hola, Eduardo</h1>
+            <h1 id="perfil-saludo">Mi perfil</h1>
             <button class="btn-logout" id="btn-cerrar-sesion">Cerrar Sesión</button>
         </div>
 
         <div class="perfil-grid">
             
-            <!-- 1. Datos Personales -->
+            <!-- 1. Datos Personales (datos reales de la cuenta) -->
             <div class="perfil-card">
                 <h3>Datos Personales</h3>
-                <p><strong>Nombre:</strong> Eduardo G.</p>
-                <p><strong>Correo:</strong> eduardo@ejemplo.com</p>
-                <p><strong>Teléfono:</strong> +52 449 123 4567</p>
+                <div id="perfil-datos-contenido"><p style="color: #777;">Cargando tus datos...</p></div>
                 <button class="btn-primary" style="margin-top: 15px; padding: 8px 15px; font-size: 0.9rem;" onclick="editarDatosPerfil()">Editar datos</button>
             </div>
 
             <!-- 2. Historial de Pedidos -->
             <div class="perfil-card">
                 <h3>Mis Pedidos</h3>
-                <p>Tienes <strong>12</strong> pedidos realizados.</p>
-                <p style="margin-top: 10px; color: var(--verde-logo);"><strong>Último pedido:</strong></p>
-                <p>#125 - Ayer, 10:45 AM ($285.00)</p>
+                <div id="perfil-pedidos-contenido"><p style="color: #777;">Cargando tus pedidos...</p></div>
                 <button class="btn-primary" style="margin-top: 15px; padding: 8px 15px; font-size: 0.9rem;" onclick="verHistorialPedidos()">Ver historial completo</button>
             </div>
 
-            <!-- 3. Métodos de Pago -->
+            <!-- 3. Monedero -->
             <div class="perfil-card">
-                <h3>Métodos de Pago</h3>
-                <p>Guarda tus tarjetas de forma segura para compras más rápidas.</p>
-                <p style="font-size: 0.9rem; color: #777; margin-top: 10px;"> **** **** **** 4589 (Principal)</p>
-                <button class="btn-primary" style="margin-top: 15px; padding: 8px 15px; font-size: 0.9rem; background-color: #557268;" onclick="agregarMetodoPago()">Agregar Tarjeta</button>
+                <h3>Mi Monedero</h3>
+                <div id="perfil-monedero-contenido"><p style="color: #777;">Cargando tu saldo...</p></div>
+                <a href="monedero.html" class="btn-primary" style="display: inline-block; margin-top: 15px; padding: 8px 15px; font-size: 0.9rem; background-color: #557268; text-decoration: none;">Recargar y ver movimientos</a>
             </div>
 
-            <!-- 4. Mis Comentarios -->
+            <!-- 4. Atención a Clientes -->
+            <div class="perfil-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="margin-bottom: 0;">Atención a Clientes</h3>
+                    <button class="btn-primary" style="padding: 5px 15px; font-size: 0.9rem;" onclick="abrirFormularioTicketTienda()">Nuevo ticket</button>
+                </div>
+                <div id="perfil-tickets-contenido" style="max-height: 230px; overflow-y: auto; padding-right: 6px;"><p style="color: #777;">Cargando tus tickets...</p></div>
+            </div>
+
+            <!-- 5. Mis Comentarios -->
             <div class="perfil-card">
                 <h3>Mis Comentarios</h3>
                 <div style="max-height: 200px; overflow-y: auto; padding-right: 10px;">
@@ -71,7 +75,7 @@
                 </div>
             </div>
 
-            <!-- 5. Mis Publicaciones -->
+            <!-- 6. Mis Publicaciones -->
             <div class="perfil-card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
                     <h3 style="margin-bottom: 0;">Mis Publicaciones</h3>

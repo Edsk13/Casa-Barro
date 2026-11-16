@@ -68,6 +68,7 @@ const PAGINAS_POR_ROL_CASA_BARRO = {
 
     'admin-crm-resumen.html': ['admin', 'vendedor'],
     'admin-clientes.html': ['admin', 'vendedor'],
+    'admin-tickets.html': ['admin', 'vendedor'],
     'admin-promociones.html': ['admin', 'vendedor'],
     'admin-monedero.html': ['admin', 'vendedor'],
     'admin-scm-resumen.html': ['admin', 'logistica'],
@@ -1056,6 +1057,275 @@ window.verPedidoTienda = async function (pedidoId) {
         });
     } catch (error) {
         Swal.fire({ icon: 'error', title: 'No se pudo cargar el pedido', text: error.message, confirmButtonColor: '#3c4a45' });
+    }
+};
+
+// ------------------------------------------------------------
+// ETAPA 4 · DÍA 5 · ATENCIÓN A CLIENTES Y PERFIL
+// Los mensajes de contacto son tickets ligados al cliente (y al CRM).
+// ------------------------------------------------------------
+const CLASES_ESTADO_TICKET_TIENDA = { abierto: 'abierto', en_proceso: 'en-proceso', respondido: 'respondido', cerrado: 'cerrado' };
+const MOTIVOS_TICKET_TIENDA = ['Duda sobre mi pedido', 'Cambio de producto', 'Facturación', 'Sugerencia o comentario', 'Otro'];
+
+function usuarioSesionTienda() {
+    try { return JSON.parse(localStorage.getItem('casaBarro_usuario')); } catch (error) { return null; }
+}
+
+function insigniaTicketTienda(ticket) {
+    return `<span class="badge-ticket ${CLASES_ESTADO_TICKET_TIENDA[ticket.estado] || 'abierto'}">${escaparHtmlSCM(ticket.etiqueta)}</span>`;
+}
+
+function fechaCortaTienda(valor) {
+    if (!valor) return '—';
+    return new Date(String(valor).replace(' ', 'T') + 'Z').toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+window.abrirFormularioTicketTienda = async function (pedidoIdPreseleccionado = null) {
+    const usuario = usuarioSesionTienda();
+
+    if (!haySesionTienda() || !usuario) {
+        return Swal.fire({
+            icon: 'info',
+            title: 'Inicia sesión para contactarnos',
+            text: 'Así podemos ligar tu mensaje a tu cuenta y darte seguimiento.',
+            showCancelButton: true,
+            confirmButtonText: 'Iniciar sesión',
+            cancelButtonText: 'Ahora no',
+            confirmButtonColor: '#3c4a45'
+        }).then(resultado => { if (resultado.isConfirmed) window.location.href = 'login.html'; });
+    }
+
+    if (usuario.rol !== 'cliente') {
+        return Swal.fire({ icon: 'info', title: 'Solo para clientes', text: 'Los tickets de atención los abren los clientes de la tienda.', confirmButtonColor: '#3c4a45' });
+    }
+
+    let pedidos = [];
+    try { pedidos = (await apiCarritoTienda('/tienda/pedidos')).data; } catch (error) { pedidos = []; }
+
+    const campo = 'width:100%; padding:9px; border:1px solid #ccc; border-radius:8px; font-family:inherit; box-sizing:border-box;';
+    const etiqueta = 'display:block; font-size:.8rem; font-weight:bold; color:#555; margin:12px 0 4px 0; text-align:left;';
+
+    const resultado = await Swal.fire({
+        title: 'Contáctanos',
+        width: 520,
+        confirmButtonColor: '#3c4a45',
+        showCancelButton: true,
+        confirmButtonText: 'Enviar mensaje',
+        cancelButtonText: 'Cancelar',
+        html: `<div style="text-align:left;">
+            <label style="${etiqueta}">Motivo</label>
+            <select id="tk-motivo" style="${campo}">${MOTIVOS_TICKET_TIENDA.map(m => `<option value="${escaparHtmlSCM(m)}">${escaparHtmlSCM(m)}</option>`).join('')}</select>
+            <input type="text" id="tk-asunto-otro" style="${campo} margin-top:8px; display:none;" placeholder="Escribe el asunto" maxlength="100">
+            ${pedidos.length ? `<label style="${etiqueta}">Pedido relacionado (opcional)</label>
+            <select id="tk-pedido" style="${campo}"><option value="">Ninguno</option>${pedidos.map(p => `<option value="${p.id}" ${Number(pedidoIdPreseleccionado) === p.id ? 'selected' : ''}>${escaparHtmlSCM(p.folio)} · ${escaparHtmlSCM(fechaCortaTienda(p.fecha))} · ${dineroTienda(p.total)}</option>`).join('')}</select>` : ''}
+            <label style="${etiqueta}">Mensaje</label>
+            <textarea id="tk-mensaje" style="${campo} min-height:110px;" maxlength="1000" placeholder="Cuéntanos en qué podemos ayudarte..."></textarea>
+        </div>`,
+        didOpen: () => {
+            const motivo = document.getElementById('tk-motivo');
+            motivo.addEventListener('change', () => {
+                document.getElementById('tk-asunto-otro').style.display = motivo.value === 'Otro' ? '' : 'none';
+            });
+        },
+        preConfirm: async () => {
+            const motivo = document.getElementById('tk-motivo').value;
+            const asunto = motivo === 'Otro' ? document.getElementById('tk-asunto-otro').value.trim() : motivo;
+            const campoPedido = document.getElementById('tk-pedido');
+
+            try {
+                return await apiCarritoTienda('/atencion/ticket', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        asunto,
+                        mensaje: document.getElementById('tk-mensaje').value.trim(),
+                        pedido_id: campoPedido && campoPedido.value ? Number(campoPedido.value) : null
+                    })
+                });
+            } catch (error) {
+                Swal.showValidationMessage(error.message);
+                return false;
+            }
+        }
+    });
+
+    if (resultado.isConfirmed && resultado.value) {
+        await Swal.fire({
+            icon: 'success',
+            title: '¡Mensaje enviado!',
+            text: `${resultado.value.data.folio}: ${resultado.value.mensaje}`,
+            confirmButtonColor: '#3c4a45'
+        });
+        if (document.getElementById('perfil-tickets-contenido')) await cargarPerfilTienda();
+    }
+};
+
+window.verTicketTienda = async function (ticketId) {
+    let ticket;
+    try {
+        ticket = (await apiCarritoTienda(`/atencion/ticket/${Number(ticketId)}`)).data;
+    } catch (error) {
+        return Swal.fire({ icon: 'error', title: 'No se pudo cargar el ticket', text: error.message, confirmButtonColor: '#3c4a45' });
+    }
+
+    const puedeCerrar = ticket.estado !== 'cerrado';
+
+    const resultado = await Swal.fire({
+        title: `${escaparHtmlSCM(ticket.folio)}`,
+        confirmButtonColor: '#3c4a45',
+        confirmButtonText: 'Cerrar ventana',
+        showDenyButton: puedeCerrar,
+        denyButtonText: 'Ya no necesito ayuda (cerrar ticket)',
+        denyButtonColor: '#8a8a8a',
+        html: `<div style="text-align:left; font-size:.93rem;">
+            <p style="margin-bottom:6px;"><strong>${escaparHtmlSCM(ticket.asunto)}</strong></p>
+            <p style="margin-bottom:10px;">${insigniaTicketTienda(ticket)} <span style="color:#777; margin-left:6px;">${escaparHtmlSCM(fechaCortaTienda(ticket.fecha))}${ticket.pedido_folio ? ` · Pedido ${escaparHtmlSCM(ticket.pedido_folio)}` : ''}</span></p>
+            <div style="background:#fcf9f2; border:1px solid #eae5db; border-radius:8px; padding:12px; white-space:pre-wrap;">${escaparHtmlSCM(ticket.mensaje)}</div>
+            ${ticket.respuesta
+                ? `<p style="margin:12px 0 0 0; color:#777; font-size:.82rem;">Respuesta de ${escaparHtmlSCM(ticket.respondido_por || 'Casa Barro')} · ${escaparHtmlSCM(fechaCortaTienda(ticket.fecha_respuesta))}</p><div class="ticket-respuesta">${escaparHtmlSCM(ticket.respuesta)}</div>`
+                : '<p style="margin-top:12px; color:#777;">Aún no hay respuesta. Te avisaremos aquí en cuanto la tengamos.</p>'}
+        </div>`
+    });
+
+    if (resultado.isDenied) {
+        try {
+            await apiCarritoTienda(`/atencion/ticket/${ticket.id}/estado`, { method: 'PUT', body: JSON.stringify({ estado: 'cerrado' }) });
+            avisoTienda('success', 'Ticket cerrado');
+            if (document.getElementById('perfil-tickets-contenido')) await cargarPerfilTienda();
+        } catch (error) {
+            avisoTienda('error', error.message);
+        }
+    }
+};
+
+window.editarDatosPerfil = async function () {
+    if (!window.__perfilTienda) return;
+    const perfil = window.__perfilTienda;
+    const campo = 'width:100%; padding:9px; border:1px solid #ccc; border-radius:8px; font-family:inherit; box-sizing:border-box;';
+    const etiqueta = 'display:block; font-size:.8rem; font-weight:bold; color:#555; margin:12px 0 4px 0; text-align:left;';
+
+    const resultado = await Swal.fire({
+        title: 'Editar mis datos',
+        confirmButtonColor: '#3c4a45',
+        showCancelButton: true,
+        confirmButtonText: 'Guardar cambios',
+        cancelButtonText: 'Cancelar',
+        html: `<div style="text-align:left;">
+            <label style="${etiqueta}">Nombre</label>
+            <input id="pf-nombre" style="${campo}" maxlength="80" value="${escaparHtmlSCM(perfil.nombre)}">
+            <label style="${etiqueta}">Correo (no se puede cambiar)</label>
+            <input style="${campo} background:#f3f3f3;" value="${escaparHtmlSCM(perfil.correo)}" disabled>
+            <label style="${etiqueta}">Teléfono</label>
+            <input id="pf-telefono" style="${campo}" maxlength="20" placeholder="Ej. 449 123 4567" value="${escaparHtmlSCM(perfil.telefono)}">
+            <label style="${etiqueta}">Dirección de entrega</label>
+            <input id="pf-direccion" style="${campo}" maxlength="250" placeholder="Calle y número, colonia, C.P." value="${escaparHtmlSCM(perfil.direccion)}">
+        </div>`,
+        preConfirm: async () => {
+            try {
+                return await apiCarritoTienda('/auth/perfil', {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        nombre: document.getElementById('pf-nombre').value.trim(),
+                        telefono: document.getElementById('pf-telefono').value.trim(),
+                        direccion: document.getElementById('pf-direccion').value.trim()
+                    })
+                });
+            } catch (error) {
+                Swal.showValidationMessage(error.message);
+                return false;
+            }
+        }
+    });
+
+    if (resultado.isConfirmed && resultado.value) {
+        const usuario = usuarioSesionTienda();
+        if (usuario) {
+            usuario.nombre = resultado.value.perfil.nombre;
+            localStorage.setItem('casaBarro_usuario', JSON.stringify(usuario));
+        }
+        avisoTienda('success', resultado.value.mensaje);
+        await cargarPerfilTienda();
+    }
+};
+
+window.verHistorialPedidos = async function () {
+    try {
+        const { data } = await apiCarritoTienda('/tienda/pedidos');
+
+        const filas = data.length
+            ? data.map(p => `<tr style="border-bottom:1px solid #eee;">
+                <td style="padding:8px 4px; text-align:left;"><strong>${escaparHtmlSCM(p.folio)}</strong></td>
+                <td style="padding:8px 4px;">${escaparHtmlSCM(fechaCortaTienda(p.fecha))}</td>
+                <td style="padding:8px 4px; text-align:right;">${dineroTienda(p.total)}</td>
+                <td style="padding:8px 4px;"><span class="etiqueta-estado-pedido">${escaparHtmlSCM(p.etiqueta)}</span></td>
+                <td style="padding:8px 4px;"><button type="button" class="btn-primary" style="padding:4px 10px; font-size:.8rem;" onclick="Swal.close(); verPedidoTienda(${p.id})">Ver</button></td>
+            </tr>`).join('')
+            : '<tr><td colspan="5" style="padding:15px; color:#777;">Aún no tienes pedidos. ¡Prueba algo del menú!</td></tr>';
+
+        Swal.fire({
+            title: 'Mis pedidos',
+            width: 640,
+            confirmButtonColor: '#3c4a45',
+            confirmButtonText: 'Cerrar',
+            html: `<div style="max-height:340px; overflow-y:auto;"><table style="width:100%; border-collapse:collapse; font-size:.9rem;">
+                <thead><tr style="text-align:left; border-bottom:2px solid #eae5db;"><th style="padding:6px 4px;">Orden</th><th style="padding:6px 4px;">Fecha</th><th style="padding:6px 4px; text-align:right;">Total</th><th style="padding:6px 4px;">Estado</th><th></th></tr></thead>
+                <tbody>${filas}</tbody></table></div>`
+        });
+    } catch (error) {
+        Swal.fire({ icon: 'error', title: 'No se pudieron cargar tus pedidos', text: error.message, confirmButtonColor: '#3c4a45' });
+    }
+};
+
+window.cargarPerfilTienda = async function () {
+    const datos = document.getElementById('perfil-datos-contenido');
+    if (!datos) return;
+
+    if (!haySesionTienda()) {
+        return Swal.fire({ icon: 'info', title: 'Inicia sesión', text: 'Entra con tu cuenta para ver tu perfil.', confirmButtonColor: '#3c4a45' })
+            .then(() => { window.location.href = 'login.html'; });
+    }
+
+    try {
+        const { perfil, resumen } = await apiCarritoTienda('/auth/perfil');
+        window.__perfilTienda = perfil;
+
+        const saludo = document.getElementById('perfil-saludo');
+        if (saludo) saludo.textContent = `Hola, ${String(perfil.nombre).split(' ')[0]}`;
+
+        const fila = (etiqueta, valor) => `<p><strong>${etiqueta}:</strong> ${valor ? escaparHtmlSCM(valor) : '<span style="color:#999;">Sin registrar</span>'}</p>`;
+        datos.innerHTML = fila('Nombre', perfil.nombre) + fila('Correo', perfil.correo) + fila('Teléfono', perfil.telefono) + fila('Dirección', perfil.direccion) + fila('Cliente desde', fechaCortaTienda(perfil.fecha_registro));
+
+        if (resumen) {
+            const pedidos = document.getElementById('perfil-pedidos-contenido');
+            pedidos.innerHTML = resumen.pedidos_total
+                ? `<p>Tienes <strong>${resumen.pedidos_total}</strong> pedido(s) realizado(s).</p>
+                   <p style="margin-top:10px; color:var(--verde-logo);"><strong>Último pedido:</strong></p>
+                   <p>${escaparHtmlSCM(resumen.ultimo_pedido.folio)} · ${escaparHtmlSCM(fechaCortaTienda(resumen.ultimo_pedido.fecha))} · ${dineroTienda(resumen.ultimo_pedido.total)}</p>
+                   <p><span class="etiqueta-estado-pedido">${escaparHtmlSCM(resumen.ultimo_pedido.etiqueta)}</span></p>`
+                : '<p>Todavía no tienes pedidos. <a href="catalogo.html" style="color:var(--verde-logo); font-weight:bold;">Ver el menú</a></p>';
+
+            document.getElementById('perfil-monedero-contenido').innerHTML =
+                `<p>Saldo disponible:</p><p style="font-size:1.8rem; font-weight:bold; color:var(--verde-logo); margin:4px 0 0 0;">${dineroTienda(resumen.saldo_monedero)}</p>`;
+        }
+
+        const tickets = (await apiCarritoTienda('/atencion/tickets')).data;
+        document.getElementById('perfil-tickets-contenido').innerHTML = tickets.length
+            ? tickets.map(t => `<div class="ticket-item" data-ticket="${t.id}">
+                    <div><strong style="font-size:.9rem;">${escaparHtmlSCM(t.asunto)}</strong><br><small>${escaparHtmlSCM(t.folio)} · ${escaparHtmlSCM(fechaCortaTienda(t.fecha))}</small></div>
+                    ${insigniaTicketTienda(t)}
+                </div>`).join('')
+            : '<p style="color:#777;">No tienes tickets. Si necesitas ayuda, abre uno con el botón "Nuevo ticket".</p>';
+
+        document.querySelectorAll('#perfil-tickets-contenido .ticket-item').forEach(item => {
+            item.addEventListener('click', () => verTicketTienda(item.dataset.ticket));
+        });
+    } catch (error) {
+        if (error.status === 401) {
+            localStorage.removeItem('casaBarro_token');
+            localStorage.removeItem('casaBarro_usuario');
+            window.location.href = 'login.html';
+        } else {
+            datos.innerHTML = `<p style="color:#b7410e;">${escaparHtmlSCM(error.message)}</p>`;
+        }
     }
 };
 
@@ -2319,11 +2589,7 @@ function activarAlertas() {
 
     const btnContacto = document.getElementById('btn-contacto');
     if(btnContacto) btnContacto.addEventListener('click', () => {
-        Swal.fire({
-            title: 'Contáctanos', html: `<input type="text" id="form-nombre" class="swal2-input" placeholder="Tu nombre (Opcional)" style="margin-bottom: 10px;"><input type="text" id="form-correo" class="swal2-input" placeholder="Tu correo electrónico (Opcional)" style="margin-bottom: 10px;"><textarea id="form-mensaje" class="swal2-textarea" placeholder="Mensaje..."></textarea>`, confirmButtonText: 'Enviar Mensaje', confirmButtonColor: '#3c4a45', showCancelButton: true
-        }).then((result) => {
-            if (result.isConfirmed) Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Datos actualizados', showConfirmButton: false, timer: 1500 });
-        });
+        abrirFormularioTicketTienda();
     });
 }
 
@@ -8913,6 +9179,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     cargarResumenCheckout();
     iniciarCheckoutTienda();
+    cargarPerfilTienda();
     cargarComercializacionTienda();
     cargarPromocionesPublicas();
 

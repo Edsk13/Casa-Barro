@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atención a Clientes | Casa Barro</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="admin-body">
+    <div class="admin-layout">
+        <div id="admin-sidebar-container"></div>
+        <main class="admin-main">
+            <header class="admin-header">
+                <div>
+                    <h1>Atención a Clientes</h1>
+                    <p style="color: #777;">Mensajes y tickets de la tienda. Cada respuesta queda en el historial del cliente en el CRM.</p>
+                </div>
+            </header>
+
+            <div class="ticket-kpis" id="ticket-kpis"></div>
+
+            <div class="admin-toolbar" style="display: flex; gap: 12px; flex-wrap: wrap;">
+                <input type="text" id="ticket-buscar" placeholder="Buscar por cliente, correo o asunto..." style="flex: 1; min-width: 220px; padding: 10px 14px; border: 1px solid #ccc; border-radius: 8px; font-family: inherit;">
+                <select id="ticket-estado" style="padding: 10px 14px; border: 1px solid #ccc; border-radius: 8px; font-family: inherit;">
+                    <option value="">Todos los estados</option>
+                    <option value="abierto">Abiertos</option>
+                    <option value="en_proceso">En proceso</option>
+                    <option value="respondido">Respondidos</option>
+                    <option value="cerrado">Cerrados</option>
+                </select>
+            </div>
+
+            <div class="admin-table-container">
+                <table class="admin-table">
+                    <thead>
+                        <tr><th>Ticket</th><th>Cliente</th><th>Asunto</th><th>Pedido</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr>
+                    </thead>
+                    <tbody id="tabla-tickets">
+                        <tr><td colspan="7" style="text-align:center; color:#777;">Cargando tickets...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+    (function () {
+        const API = 'http://localhost:3000/api';
+        const CLASES = { abierto: 'abierto', en_proceso: 'en-proceso', respondido: 'respondido', cerrado: 'cerrado' };
+        let tickets = [];
+        let filtroEstado = '';
+        let temporizador = null;
+
+        const esc = valor => String(valor ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const fecha = valor => valor ? new Date(String(valor).replace(' ', 'T') + 'Z').toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+
+        async function api(ruta, opciones = {}) {
+            const respuesta = await fetch(`${API}${ruta}`, {
+                ...opciones,
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('casaBarro_token') || ''}` }
+            });
+            const datos = await respuesta.json().catch(() => ({}));
+            if (!respuesta.ok) throw new Error(datos.error || 'No se pudo completar la operación.');
+            return datos;
+        }
+
+        function aviso(icono, titulo) {
+            Swal.fire({ toast: true, position: 'top-end', icon: icono, title: titulo, showConfirmButton: false, timer: 2500 });
+        }
+
+        const insignia = t => `<span class="badge-ticket ${CLASES[t.estado]}">${esc(t.etiqueta)}</span>`;
+
+        function pintarKpis(resumen) {
+            const total = Object.values(resumen).reduce((a, b) => a + b, 0);
+            const tarjetas = [['', 'Todos', total], ['abierto', 'Abiertos', resumen.abierto], ['en_proceso', 'En proceso', resumen.en_proceso], ['respondido', 'Respondidos', resumen.respondido], ['cerrado', 'Cerrados', resumen.cerrado]];
+
+            document.getElementById('ticket-kpis').innerHTML = tarjetas.map(([clave, etiqueta, valor]) =>
+                `<button type="button" class="ticket-kpi ${filtroEstado === clave ? 'activo' : ''}" data-estado="${clave}"><span>${etiqueta}</span><strong>${valor}</strong></button>`).join('');
+
+            document.querySelectorAll('#ticket-kpis .ticket-kpi').forEach(boton => {
+                boton.addEventListener('click', () => {
+                    filtroEstado = boton.dataset.estado;
+                    document.getElementById('ticket-estado').value = filtroEstado;
+                    cargarTickets();
+                });
+            });
+        }
+
+        function pintarTabla() {
+            const cuerpo = document.getElementById('tabla-tickets');
+
+            if (!tickets.length) {
+                cuerpo.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#777;">No hay tickets con esos filtros.</td></tr>';
+                return;
+            }
+
+            cuerpo.innerHTML = tickets.map(t => `<tr>
+                <td><strong>${esc(t.folio)}</strong></td>
+                <td>${esc(t.cliente.nombre)}<br><small style="color:#777;">${esc(t.cliente.correo)}</small></td>
+                <td>${esc(t.asunto)}</td>
+                <td>${t.pedido_folio ? esc(t.pedido_folio) : '—'}</td>
+                <td>${insignia(t)}</td>
+                <td>${esc(fecha(t.fecha))}</td>
+                <td class="admin-actions"><button onclick="abrirTicketAdminTienda(${t.id})">${t.estado === 'cerrado' ? 'Ver' : 'Atender'}</button></td>
+            </tr>`).join('');
+        }
+
+        async function cargarTickets() {
+            const parametros = new URLSearchParams();
+            const buscar = document.getElementById('ticket-buscar').value.trim();
+            if (buscar) parametros.set('buscar', buscar);
+            if (filtroEstado) parametros.set('estado', filtroEstado);
+
+            try {
+                const resultado = await api(`/atencion/tickets${parametros.toString() ? '?' + parametros : ''}`);
+                tickets = resultado.data;
+                pintarKpis(resultado.resumen);
+                pintarTabla();
+            } catch (error) {
+                document.getElementById('tabla-tickets').innerHTML = `<tr><td colspan="7" style="text-align:center; color:#b7410e;">${esc(error.message)}</td></tr>`;
+            }
+        }
+
+        async function cambiarEstado(id, estado) {
+            try {
+                const resultado = await api(`/atencion/ticket/${id}/estado`, { method: 'PUT', body: JSON.stringify({ estado }) });
+                aviso('success', resultado.mensaje);
+                await cargarTickets();
+            } catch (error) {
+                Swal.fire({ icon: 'error', title: 'No se pudo actualizar', text: error.message, confirmButtonColor: '#3c4a45' });
+            }
+        }
+
+        window.abrirTicketAdminTienda = async function (id) {
+            let ticket;
+            try {
+                ticket = (await api(`/atencion/ticket/${id}`)).data;
+            } catch (error) {
+                return aviso('error', error.message);
+            }
+
+            const cerrado = ticket.estado === 'cerrado';
+            const textoDeny = ticket.estado === 'abierto' ? 'Marcar en proceso' : (cerrado ? 'Reabrir ticket' : 'Cerrar ticket');
+            const estadoDeny = ticket.estado === 'abierto' ? 'en_proceso' : (cerrado ? 'abierto' : 'cerrado');
+
+            const resultado = await Swal.fire({
+                title: `${esc(ticket.folio)} · ${esc(ticket.asunto)}`,
+                width: 620,
+                confirmButtonColor: '#3c4a45',
+                showConfirmButton: !cerrado,
+                confirmButtonText: ticket.respuesta ? 'Actualizar respuesta' : 'Enviar respuesta',
+                showDenyButton: true,
+                denyButtonText: textoDeny,
+                denyButtonColor: cerrado ? '#557268' : '#8a8a8a',
+                showCancelButton: true,
+                cancelButtonText: 'Cerrar ventana',
+                html: `<div style="text-align:left; font-size:.93rem;">
+                    <p style="margin-bottom:6px;">${insignia(ticket)} <span style="color:#777; margin-left:6px;">${esc(fecha(ticket.fecha))}${ticket.pedido_folio ? ` · Pedido ${esc(ticket.pedido_folio)}` : ''}</span></p>
+                    <p style="margin-bottom:10px;"><strong>${esc(ticket.cliente.nombre)}</strong> <span style="color:#777;">(${esc(ticket.cliente.correo)})</span></p>
+                    <div style="background:#fcf9f2; border:1px solid #eae5db; border-radius:8px; padding:12px; white-space:pre-wrap;">${esc(ticket.mensaje)}</div>
+                    ${ticket.respuesta ? `<p style="margin:12px 0 4px 0; color:#777; font-size:.82rem;">Respuesta enviada por ${esc(ticket.respondido_por || 'el equipo')} · ${esc(fecha(ticket.fecha_respuesta))}</p>` : ''}
+                    ${cerrado ? (ticket.respuesta ? `<div class="ticket-respuesta">${esc(ticket.respuesta)}</div>` : '') : `
+                        <label style="display:block; font-size:.8rem; font-weight:bold; color:#555; margin:14px 0 4px 0;">Respuesta para el cliente</label>
+                        <textarea id="tk-respuesta" style="width:100%; min-height:100px; padding:9px; border:1px solid #ccc; border-radius:8px; font-family:inherit; box-sizing:border-box;" maxlength="1000">${esc(ticket.respuesta || '')}</textarea>
+                        <label style="display:flex; gap:8px; align-items:center; margin-top:8px; font-size:.88rem;"><input type="checkbox" id="tk-cerrar"> Cerrar el ticket al responder</label>`}
+                </div>`,
+                preConfirm: async () => {
+                    try {
+                        return await api(`/atencion/ticket/${id}/respuesta`, {
+                            method: 'PUT',
+                            body: JSON.stringify({ respuesta: document.getElementById('tk-respuesta').value.trim(), cerrar: document.getElementById('tk-cerrar').checked })
+                        });
+                    } catch (error) {
+                        Swal.showValidationMessage(error.message);
+                        return false;
+                    }
+                }
+            });
+
+            if (resultado.isConfirmed) {
+                aviso('success', 'Respuesta enviada al cliente');
+                await cargarTickets();
+            } else if (resultado.isDenied) {
+                await cambiarEstado(id, estadoDeny);
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('ticket-estado').addEventListener('change', evento => {
+                filtroEstado = evento.target.value;
+                cargarTickets();
+            });
+            document.getElementById('ticket-buscar').addEventListener('input', () => {
+                clearTimeout(temporizador);
+                temporizador = setTimeout(cargarTickets, 300);
+            });
+            cargarTickets();
+        });
+    })();
+    </script>
+</body>
+</html>
